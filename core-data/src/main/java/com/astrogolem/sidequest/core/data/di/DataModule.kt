@@ -2,9 +2,11 @@ package com.astrogolem.sidequest.core.data.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.work.WorkManager
 import com.astrogolem.sidequest.core.data.local.CaptureDao
 import com.astrogolem.sidequest.core.data.local.ExportBundleDao
 import com.astrogolem.sidequest.core.data.local.MissionDao
+import com.astrogolem.sidequest.core.data.local.ReminderDao
 import com.astrogolem.sidequest.core.data.local.SearchDao
 import com.astrogolem.sidequest.core.data.local.SidequestDatabase
 import com.astrogolem.sidequest.core.data.repo.ArchiveService
@@ -33,12 +35,19 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): SidequestDatabase {
-        return Room.databaseBuilder(context, SidequestDatabase::class.java, "sidequest.db").build()
+        return Room.databaseBuilder(context, SidequestDatabase::class.java, "sidequest.db")
+            .fallbackToDestructiveMigration()
+            .build()
     }
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager = WorkManager.getInstance(context)
 
     @Provides fun provideCaptureDao(database: SidequestDatabase): CaptureDao = database.captureDao()
     @Provides fun provideMissionDao(database: SidequestDatabase): MissionDao = database.missionDao()
     @Provides fun provideSearchDao(database: SidequestDatabase): SearchDao = database.searchDao()
+    @Provides fun provideReminderDao(database: SidequestDatabase): ReminderDao = database.reminderDao()
     @Provides fun provideExportBundleDao(database: SidequestDatabase): ExportBundleDao = database.exportBundleDao()
 }
 

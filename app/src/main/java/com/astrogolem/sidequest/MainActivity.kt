@@ -1,11 +1,12 @@
 package com.astrogolem.sidequest
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,40 +24,59 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.core.content.ContextCompat
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.ui.theme.SidequestTheme
+import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
 import com.astrogolem.sidequest.feature.capture.CaptureRoute
 import com.astrogolem.sidequest.feature.inbox.InboxRoute
 import com.astrogolem.sidequest.feature.lobby.LobbyRoute
+import com.astrogolem.sidequest.feature.missions.MissionDetailRoute
 import com.astrogolem.sidequest.feature.missions.MissionsRoute
 import com.astrogolem.sidequest.feature.search.SearchRoute
 import com.astrogolem.sidequest.feature.settings.SettingsRoute
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+private const val MissionIdExtra = "mission_id"
+private const val CaptureIdExtra = "capture_id"
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var securityService: SecurityService
 
+    private var pendingDeepLink by mutableStateOf<DeepLinkTarget?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingDeepLink = intent.toDeepLinkTarget()
         enableEdgeToEdge()
         setContent {
             SidequestTheme {
-                SidequestApp(activity = this, securityService = securityService)
+                SidequestApp(
+                    activity = this,
+                    securityService = securityService,
+                    pendingDeepLink = pendingDeepLink,
+                    onDeepLinkConsumed = { pendingDeepLink = null },
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeepLink = intent.toDeepLinkTarget()
     }
 }
 
@@ -65,10 +85,17 @@ private data class TopLevelDestination(
     val label: String,
 )
 
+private sealed interface DeepLinkTarget {
+    data class Mission(val missionId: String) : DeepLinkTarget
+    data class Capture(val captureId: String) : DeepLinkTarget
+}
+
 @Composable
 private fun SidequestApp(
     activity: AppCompatActivity,
     securityService: SecurityService,
+    pendingDeepLink: DeepLinkTarget?,
+    onDeepLinkConsumed: () -> Unit,
 ) {
     val biometricEnabled by produceState<Boolean?>(initialValue = null) {
         value = securityService.isBiometricLockEnabled()
@@ -91,6 +118,17 @@ private fun SidequestApp(
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+
+    LaunchedEffect(pendingDeepLink) {
+        when (val deepLink = pendingDeepLink) {
+            is DeepLinkTarget.Mission -> navController.navigate("mission/${deepLink.missionId}")
+            is DeepLinkTarget.Capture -> navController.navigate("captureDetail/${deepLink.captureId}")
+            null -> Unit
+        }
+        if (pendingDeepLink != null) {
+            onDeepLinkConsumed()
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -120,11 +158,21 @@ private fun SidequestApp(
             startDestination = "missions",
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable("missions") { MissionsRoute() }
+            composable("missions") {
+                MissionsRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+            }
+            composable("mission/{missionId}") {
+                MissionDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+            }
             composable("capture") { CaptureRoute() }
+            composable("captureDetail/{captureId}") {
+                CaptureDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+            }
             composable("inbox") { InboxRoute() }
             composable("lobby") { LobbyRoute() }
-            composable("search") { SearchRoute() }
+            composable("search") {
+                SearchRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+            }
             composable("settings") { SettingsRoute() }
         }
     }
@@ -190,4 +238,11 @@ private fun BiometricGate(
             }
         }
     }
+}
+
+private fun Intent?.toDeepLinkTarget(): DeepLinkTarget? {
+    val intent = this ?: return null
+    intent.getStringExtra(MissionIdExtra)?.let { return DeepLinkTarget.Mission(it) }
+    intent.getStringExtra(CaptureIdExtra)?.let { return DeepLinkTarget.Capture(it) }
+    return null
 }

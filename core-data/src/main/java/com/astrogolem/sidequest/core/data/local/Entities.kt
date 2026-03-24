@@ -1,6 +1,7 @@
 package com.astrogolem.sidequest.core.data.local
 
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -96,6 +97,13 @@ data class LifeAreaEntity(
 data class KnowledgeNodeEntity(
     @PrimaryKey val id: String,
     val captureId: String,
+    val title: String,
+    val body: String,
+)
+
+@Fts4(contentEntity = KnowledgeNodeEntity::class)
+@Entity(tableName = "knowledge_nodes_fts")
+data class KnowledgeNodeFtsEntity(
     val title: String,
     val body: String,
 )

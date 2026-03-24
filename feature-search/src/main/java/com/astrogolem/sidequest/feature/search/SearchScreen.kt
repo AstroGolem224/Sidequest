@@ -18,8 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
 import com.astrogolem.sidequest.core.data.repo.SearchRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
@@ -30,15 +30,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 @Composable
-fun SearchRoute(viewModel: SearchViewModel = hiltViewModel()) {
+fun SearchRoute(
+    onOpenCapture: (String) -> Unit,
+    viewModel: SearchViewModel = hiltViewModel(),
+) {
     val results by viewModel.results.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            ScaffoldCard(title = "Memory Search", subtitle = "Search OCR text and normalized knowledge nodes.") {
+            ScaffoldCard(title = "Memory Search", subtitle = "FTS search over OCR text and normalized knowledge nodes.") {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -51,8 +56,11 @@ fun SearchRoute(viewModel: SearchViewModel = hiltViewModel()) {
             }
         }
         items(results, key = { it.id }) { result ->
-            ScaffoldCard(title = result.title, subtitle = "Capture ${result.captureId.take(6)}") {
+            ScaffoldCard(title = result.title, subtitle = "${result.sourceLabel} | ${result.captureId.take(6)}") {
                 Text(result.snippet)
+                Button(onClick = { onOpenCapture(result.captureId) }, modifier = Modifier.padding(top = 12.dp)) {
+                    Text("Open capture")
+                }
             }
         }
     }

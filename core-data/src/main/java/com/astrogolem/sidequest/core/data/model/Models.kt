@@ -35,11 +35,39 @@ data class MissionCardModel(
     val sourceCaptureId: String?,
 )
 
+data class MissionDetailModel(
+    val id: String,
+    val title: String,
+    val description: String,
+    val priorityScore: Int,
+    val status: MissionStatus,
+    val dueAt: Long?,
+    val sourceCaptureId: String?,
+)
+
+data class CaptureMissionLink(
+    val id: String,
+    val title: String,
+    val status: MissionStatus,
+)
+
+data class CaptureDetailModel(
+    val id: String,
+    val sourceLabel: String,
+    val imagePath: String,
+    val status: CaptureProcessingStatus,
+    val ocrText: String,
+    val summary: String,
+    val candidates: List<ExtractionCandidate>,
+    val linkedMissions: List<CaptureMissionLink>,
+)
+
 data class SearchResultModel(
     val id: String,
     val captureId: String,
     val title: String,
     val snippet: String,
+    val sourceLabel: String,
 )
 
 data class ProviderAvailability(
@@ -59,6 +87,7 @@ sealed interface MissionAction {
     data class Snooze(val missionId: String, val untilEpochMillis: Long) : MissionAction
     data class Pin(val missionId: String) : MissionAction
     data class Archive(val missionId: String) : MissionAction
+    data class UpdateDueDate(val missionId: String, val dueAt: Long?) : MissionAction
 }
 
 sealed interface ArchiveValidationResult {

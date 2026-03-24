@@ -13,11 +13,12 @@ import androidx.room.TypeConverters
         ProjectEntity::class,
         LifeAreaEntity::class,
         KnowledgeNodeEntity::class,
+        KnowledgeNodeFtsEntity::class,
         KnowledgeEdgeEntity::class,
         ReminderEntity::class,
         ExportBundleEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -25,5 +26,6 @@ abstract class SidequestDatabase : RoomDatabase() {
     abstract fun captureDao(): CaptureDao
     abstract fun missionDao(): MissionDao
     abstract fun searchDao(): SearchDao
+    abstract fun reminderDao(): ReminderDao
     abstract fun exportBundleDao(): ExportBundleDao
 }
