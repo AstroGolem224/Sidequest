@@ -20,6 +20,7 @@ data class CaptureEntity(
     val thumbnailPath: String,
     val mimeType: String,
     val processingStatus: CaptureProcessingStatus,
+    val retryCount: Int,
 )
 
 @Entity(
@@ -74,6 +75,7 @@ data class MissionEntity(
     val priorityScore: Int,
     val status: MissionStatus,
     val dueAt: Long?,
+    val remindAt: Long?,
     val sourceCaptureId: String?,
     val createdAt: Long,
 )

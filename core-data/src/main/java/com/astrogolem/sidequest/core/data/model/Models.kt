@@ -32,6 +32,7 @@ data class MissionCardModel(
     val priorityScore: Int,
     val status: MissionStatus,
     val dueAt: Long?,
+    val remindAt: Long?,
     val sourceCaptureId: String?,
 )
 
@@ -42,6 +43,7 @@ data class MissionDetailModel(
     val priorityScore: Int,
     val status: MissionStatus,
     val dueAt: Long?,
+    val remindAt: Long?,
     val sourceCaptureId: String?,
 )
 
@@ -68,6 +70,7 @@ data class SearchResultModel(
     val title: String,
     val snippet: String,
     val sourceLabel: String,
+    val matchLabel: String,
 )
 
 data class ProviderAvailability(
@@ -88,6 +91,10 @@ sealed interface MissionAction {
     data class Pin(val missionId: String) : MissionAction
     data class Archive(val missionId: String) : MissionAction
     data class UpdateDueDate(val missionId: String, val dueAt: Long?) : MissionAction
+    data class UpdateReminderAt(val missionId: String, val remindAt: Long?) : MissionAction
+    data class UpdateDescription(val missionId: String, val description: String) : MissionAction
+    data class UpdatePriority(val missionId: String, val priorityScore: Int) : MissionAction
+    data class Activate(val missionId: String) : MissionAction
 }
 
 sealed interface ArchiveValidationResult {

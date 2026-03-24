@@ -20,6 +20,9 @@ interface CaptureDao {
     @Query("SELECT * FROM captures ORDER BY createdAt DESC")
     fun observeCaptures(): Flow<List<CaptureEntity>>
 
+    @Query("SELECT * FROM captures ORDER BY createdAt DESC")
+    suspend fun listCaptures(): List<CaptureEntity>
+
     @Query("SELECT * FROM captures WHERE id = :captureId LIMIT 1")
     fun observeCapture(captureId: String): Flow<CaptureEntity?>
 
@@ -28,6 +31,9 @@ interface CaptureDao {
 
     @Query("SELECT * FROM extracted_items WHERE captureId = :captureId ORDER BY confidence DESC")
     fun observeExtractedItemsForCapture(captureId: String): Flow<List<ExtractedItemEntity>>
+
+    @Query("SELECT * FROM extracted_items ORDER BY confidence DESC")
+    suspend fun listExtractedItems(): List<ExtractedItemEntity>
 
     @Query("SELECT * FROM extracted_items WHERE id = :candidateId LIMIT 1")
     suspend fun getExtractedItem(candidateId: String): ExtractedItemEntity?
@@ -41,11 +47,32 @@ interface CaptureDao {
     @Query("UPDATE captures SET processingStatus = :status WHERE id = :captureId")
     suspend fun updateStatus(captureId: String, status: String)
 
+    @Query("UPDATE captures SET retryCount = :retryCount WHERE id = :captureId")
+    suspend fun updateRetryCount(captureId: String, retryCount: Int)
+
     @Query("UPDATE extracted_items SET status = :status WHERE id = :candidateId")
     suspend fun updateExtractedStatus(candidateId: String, status: String)
 
     @Query("SELECT * FROM capture_analysis WHERE captureId = :captureId LIMIT 1")
     fun observeAnalysis(captureId: String): Flow<CaptureAnalysisEntity?>
+
+    @Query("SELECT * FROM capture_analysis ORDER BY processedAt DESC")
+    suspend fun listAnalyses(): List<CaptureAnalysisEntity>
+
+    @Query("DELETE FROM extracted_items WHERE captureId = :captureId")
+    suspend fun clearExtractedItemsForCapture(captureId: String)
+
+    @Query("DELETE FROM capture_analysis WHERE captureId = :captureId")
+    suspend fun clearAnalysisForCapture(captureId: String)
+
+    @Query("DELETE FROM extracted_items")
+    suspend fun clearExtractedItems()
+
+    @Query("DELETE FROM capture_analysis")
+    suspend fun clearAnalyses()
+
+    @Query("DELETE FROM captures")
+    suspend fun clearCaptures()
 }
 
 @Dao
@@ -65,17 +92,35 @@ interface MissionDao {
     @Query("SELECT * FROM missions WHERE id = :missionId LIMIT 1")
     suspend fun getMission(missionId: String): MissionEntity?
 
+    @Query("SELECT * FROM missions ORDER BY createdAt DESC")
+    suspend fun listMissions(): List<MissionEntity>
+
     @Query("UPDATE missions SET status = :status WHERE id = :missionId")
     suspend fun updateMissionStatus(missionId: String, status: String)
 
     @Query("UPDATE missions SET dueAt = :dueAt WHERE id = :missionId")
     suspend fun updateMissionDueAt(missionId: String, dueAt: Long?)
+
+    @Query("UPDATE missions SET remindAt = :remindAt WHERE id = :missionId")
+    suspend fun updateMissionRemindAt(missionId: String, remindAt: Long?)
+
+    @Query("UPDATE missions SET description = :description WHERE id = :missionId")
+    suspend fun updateMissionDescription(missionId: String, description: String)
+
+    @Query("UPDATE missions SET priorityScore = :priorityScore WHERE id = :missionId")
+    suspend fun updateMissionPriority(missionId: String, priorityScore: Int)
+
+    @Query("DELETE FROM missions")
+    suspend fun clearMissions()
 }
 
 @Dao
 interface SearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertNode(entity: KnowledgeNodeEntity)
+
+    @Query("SELECT * FROM knowledge_nodes ORDER BY rowid DESC")
+    suspend fun listNodes(): List<KnowledgeNodeEntity>
 
     @Query(
         """
@@ -87,6 +132,9 @@ interface SearchDao {
         """,
     )
     suspend fun search(query: String): List<KnowledgeNodeEntity>
+
+    @Query("DELETE FROM knowledge_nodes")
+    suspend fun clearNodes()
 }
 
 @Dao
@@ -102,4 +150,10 @@ interface ReminderDao {
 
     @Query("UPDATE reminders SET state = :state WHERE missionId = :missionId")
     suspend fun updateReminderStateForMission(missionId: String, state: String)
+
+    @Query("SELECT * FROM reminders ORDER BY scheduledAt DESC")
+    suspend fun listReminders(): List<ReminderEntity>
+
+    @Query("DELETE FROM reminders")
+    suspend fun clearReminders()
 }

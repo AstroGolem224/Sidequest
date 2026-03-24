@@ -56,7 +56,7 @@ fun SearchRoute(
             }
         }
         items(results, key = { it.id }) { result ->
-            ScaffoldCard(title = result.title, subtitle = "${result.sourceLabel} | ${result.captureId.take(6)}") {
+            ScaffoldCard(title = result.title, subtitle = "${result.matchLabel} | ${result.sourceLabel} | ${result.captureId.take(6)}") {
                 Text(result.snippet)
                 Button(onClick = { onOpenCapture(result.captureId) }, modifier = Modifier.padding(top = 12.dp)) {
                     Text("Open capture")

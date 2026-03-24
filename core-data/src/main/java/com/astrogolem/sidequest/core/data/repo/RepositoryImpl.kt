@@ -55,6 +55,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileInputStream
+import java.io.InputStream
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -64,9 +65,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import androidx.hilt.work.HiltWorker
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Singleton
 class DefaultCaptureRepository @Inject constructor(
@@ -112,10 +118,10 @@ class DefaultCaptureRepository @Inject constructor(
             missionDao.observeMissionsForCapture(captureId),
         ) { capture, analysis, extracted, missions ->
             capture?.let {
-                CaptureDetailModel(
-                    id = it.id,
-                    sourceLabel = it.sourceType,
-                    imagePath = it.filePath,
+                    CaptureDetailModel(
+                        id = it.id,
+                        sourceLabel = it.sourceType,
+                        imagePath = it.filePath,
                     status = it.processingStatus,
                     ocrText = analysis?.ocrText.orEmpty(),
                     summary = analysis?.summary.orEmpty(),
@@ -158,6 +164,7 @@ class DefaultCaptureRepository @Inject constructor(
                 thumbnailPath = target.absolutePath,
                 mimeType = context.contentResolver.getType(uri) ?: "image/jpeg",
                 processingStatus = CaptureProcessingStatus.PENDING,
+                retryCount = 0,
             ),
         )
         return id
@@ -199,6 +206,8 @@ class DefaultProcessingOrchestrator @Inject constructor(
         val capture = captureDao.getCapture(captureId) ?: return ProcessingResult.Failure(captureId, "Capture not found")
         captureDao.updateStatus(capture.id, CaptureProcessingStatus.PROCESSING.name)
         return try {
+            captureDao.clearAnalysisForCapture(capture.id)
+            captureDao.clearExtractedItemsForCapture(capture.id)
             val image = InputImage.fromFilePath(context, File(capture.filePath).toUri())
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val result = recognizer.process(image).await()
@@ -215,22 +224,28 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 null
             }
             val lines = enhanced?.normalizedLines?.takeIf { it.isNotEmpty() } ?: localLines
+            val dedupedLines = lines
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinctBy(::normalizeExtractionLine)
+            val lowConfidence = result.text.isBlank() || dedupedLines.size <= 1
             val analysis = CaptureAnalysisEntity(
                 id = UUID.randomUUID().toString(),
                 captureId = capture.id,
                 documentType = documentType,
                 ocrText = result.text,
-                summary = enhanced?.summary?.ifBlank { null } ?: lines.firstOrNull().orEmpty(),
+                summary = enhanced?.summary?.ifBlank { null } ?: dedupedLines.firstOrNull().orEmpty(),
                 processedAt = System.currentTimeMillis(),
-                errorCode = null,
+                errorCode = if (lowConfidence) "LOW_CONFIDENCE" else null,
             )
-            val candidates = lines.take(5).map { line ->
+            val candidateConfidence = if (lowConfidence) 0.35f else 0.6f
+            val candidates = dedupedLines.take(5).map { line ->
                 ExtractedItemEntity(
                     id = UUID.randomUUID().toString(),
                     captureId = capture.id,
                     title = line.take(64),
                     body = line,
-                    confidence = 0.6f,
+                    confidence = candidateConfidence,
                     dueAt = null,
                     status = ExtractionStatus.CANDIDATE,
                 )
@@ -248,9 +263,11 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 ),
             )
             captureDao.updateStatus(capture.id, CaptureProcessingStatus.DONE.name)
+            captureDao.updateRetryCount(capture.id, 0)
             ProcessingResult.Success(capture.id, candidates.size)
         } catch (error: Throwable) {
             captureDao.updateStatus(capture.id, CaptureProcessingStatus.FAILED.name)
+            captureDao.updateRetryCount(capture.id, capture.retryCount + 1)
             ProcessingResult.Failure(capture.id, error.message ?: "Processing failed")
         }
     }
@@ -287,6 +304,7 @@ class DefaultMissionRepository @Inject constructor(
                     priorityScore = it.priorityScore,
                     status = it.status,
                     dueAt = it.dueAt,
+                    remindAt = it.remindAt,
                     sourceCaptureId = it.sourceCaptureId,
                 )
             }
@@ -303,6 +321,7 @@ class DefaultMissionRepository @Inject constructor(
                     priorityScore = it.priorityScore,
                     status = it.status,
                     dueAt = it.dueAt,
+                    remindAt = it.remindAt,
                     sourceCaptureId = it.sourceCaptureId,
                 )
             }
@@ -318,12 +337,13 @@ class DefaultMissionRepository @Inject constructor(
             priorityScore = priorityFor(candidate),
             status = MissionStatus.OPEN,
             dueAt = candidate.dueAt,
+            remindAt = candidate.dueAt,
             sourceCaptureId = candidate.captureId,
             createdAt = System.currentTimeMillis(),
         )
         missionDao.upsertMission(mission)
-        if (candidate.dueAt != null) {
-            scheduleReminder(mission.id, mission.title, mission.description, candidate.dueAt)
+        if (mission.remindAt != null) {
+            scheduleReminder(mission.id, mission.title, mission.description, mission.remindAt)
         }
         captureDao.updateExtractedStatus(candidateId, ExtractionStatus.PROMOTED.name)
     }
@@ -341,19 +361,35 @@ class DefaultMissionRepository @Inject constructor(
                 workManager.cancelUniqueWork(reminderWorkName(action.missionId))
             }
             is MissionAction.Pin -> missionDao.updateMissionStatus(action.missionId, MissionStatus.ACTIVE.name)
+            is MissionAction.Activate -> missionDao.updateMissionStatus(action.missionId, MissionStatus.ACTIVE.name)
             is MissionAction.Snooze -> {
                 missionDao.updateMissionStatus(action.missionId, MissionStatus.SNOOZED.name)
+                missionDao.updateMissionRemindAt(action.missionId, action.untilEpochMillis)
                 val mission = missionDao.getMission(action.missionId) ?: return
                 scheduleReminder(action.missionId, mission.title, mission.description, action.untilEpochMillis)
             }
             is MissionAction.UpdateDueDate -> {
                 missionDao.updateMissionDueAt(action.missionId, action.dueAt)
-                reminderDao.updateReminderStateForMission(action.missionId, ReminderState.CANCELLED.name)
-                workManager.cancelUniqueWork(reminderWorkName(action.missionId))
-                if (action.dueAt != null) {
-                    val mission = missionDao.getMission(action.missionId) ?: return
+                val mission = missionDao.getMission(action.missionId) ?: return
+                if (mission.remindAt == null && action.dueAt != null) {
+                    missionDao.updateMissionRemindAt(action.missionId, action.dueAt)
                     scheduleReminder(action.missionId, mission.title, mission.description, action.dueAt)
                 }
+            }
+            is MissionAction.UpdateReminderAt -> {
+                missionDao.updateMissionRemindAt(action.missionId, action.remindAt)
+                reminderDao.updateReminderStateForMission(action.missionId, ReminderState.CANCELLED.name)
+                workManager.cancelUniqueWork(reminderWorkName(action.missionId))
+                if (action.remindAt != null) {
+                    val mission = missionDao.getMission(action.missionId) ?: return
+                    scheduleReminder(action.missionId, mission.title, mission.description, action.remindAt)
+                }
+            }
+            is MissionAction.UpdateDescription -> {
+                missionDao.updateMissionDescription(action.missionId, action.description.trim())
+            }
+            is MissionAction.UpdatePriority -> {
+                missionDao.updateMissionPriority(action.missionId, action.priorityScore.coerceIn(0, 100))
             }
         }
     }
@@ -408,15 +444,48 @@ class DefaultSearchRepository @Inject constructor(
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
             .joinToString(" ") { "\"${it.replace("\"", "")}\"*" }
-        return searchDao.search(normalizedQuery).map {
+        val exact = searchDao.search(normalizedQuery).map {
             SearchResultModel(
                 id = it.id,
                 captureId = it.captureId,
                 title = it.title,
                 snippet = it.body.take(160),
                 sourceLabel = "capture",
+                matchLabel = "Exact",
             )
         }
+        if (exact.size >= 8) return exact
+
+        val queryTokens = query.lowercase()
+            .split(Regex("\\W+"))
+            .filter { it.length > 2 }
+            .toSet()
+        if (queryTokens.isEmpty()) return exact
+
+        val exactIds = exact.mapTo(mutableSetOf()) { it.id }
+        val related = searchDao.listNodes()
+            .asSequence()
+            .filterNot { it.id in exactIds }
+            .mapNotNull { node ->
+                val haystack = "${node.title} ${node.body}".lowercase()
+                val score = semanticScore(queryTokens, haystack)
+                if (score < 0.34f) null else node to score
+            }
+            .sortedByDescending { it.second }
+            .take(5)
+            .map { (node, _) ->
+                SearchResultModel(
+                    id = node.id,
+                    captureId = node.captureId,
+                    title = node.title,
+                    snippet = node.body.take(160),
+                    sourceLabel = "capture",
+                    matchLabel = "Related",
+                )
+            }
+            .toList()
+
+        return exact + related
     }
 }
 
@@ -424,28 +493,324 @@ class DefaultSearchRepository @Inject constructor(
 class DefaultArchiveService @Inject constructor(
     @ApplicationContext private val context: Context,
     private val exportBundleDao: ExportBundleDao,
+    private val captureDao: CaptureDao,
+    private val missionDao: MissionDao,
+    private val reminderDao: ReminderDao,
+    private val searchDao: SearchDao,
 ) : ArchiveService {
     override suspend fun exportSnapshot(target: Uri): Result<Unit> {
         return runCatching {
+            val captures = captureDao.listCaptures()
+            val analyses = captureDao.listAnalyses()
+            val extractedItems = captureDao.listExtractedItems()
+            val missions = missionDao.listMissions()
+            val reminders = reminderDao.listReminders()
+            val nodes = searchDao.listNodes()
+            val manifest = JSONObject().apply {
+                put("version", 2)
+                put("exportedAt", System.currentTimeMillis())
+                put("counts", JSONObject().apply {
+                    put("captures", captures.size)
+                    put("analyses", analyses.size)
+                    put("extractedItems", extractedItems.size)
+                    put("missions", missions.size)
+                    put("reminders", reminders.size)
+                    put("knowledgeNodes", nodes.size)
+                })
+            }
+
             context.contentResolver.openOutputStream(target)?.use { stream ->
-                stream.write("""{"version":1,"exportedAt":${System.currentTimeMillis()}}""".toByteArray())
+                ZipOutputStream(stream.buffered()).use { zip ->
+                    zip.putNextEntry(ZipEntry("manifest.json"))
+                    zip.write(manifest.toString(2).toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/captures.json"))
+                    zip.write(JSONArray(captures.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/analyses.json"))
+                    zip.write(JSONArray(analyses.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/extracted_items.json"))
+                    zip.write(JSONArray(extractedItems.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/missions.json"))
+                    zip.write(JSONArray(missions.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/reminders.json"))
+                    zip.write(JSONArray(reminders.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/knowledge_nodes.json"))
+                    zip.write(JSONArray(nodes.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    captures.forEach { capture ->
+                        val file = File(capture.filePath)
+                        if (file.exists()) {
+                            zip.putNextEntry(ZipEntry("captures/${capture.id}.jpg"))
+                            file.inputStream().use { it.copyTo(zip) }
+                            zip.closeEntry()
+                        }
+                    }
+                }
             } ?: error("Unable to open export target")
             exportBundleDao.upsertBundle(
                 ExportBundleEntity(
                     id = UUID.randomUUID().toString(),
                     createdAt = System.currentTimeMillis(),
                     fileUri = target.toString(),
-                    checksum = "pending",
-                    itemCount = 0,
+                    checksum = "zip-v2",
+                    itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size,
                 ),
             )
         }
     }
 
     override suspend fun validateImport(source: Uri): ArchiveValidationResult {
-        val body = context.contentResolver.openInputStream(source)?.bufferedReader()?.use { it.readText() }.orEmpty()
-        return if ("\"version\":1" in body) ArchiveValidationResult.Valid else ArchiveValidationResult.Invalid("Unsupported archive")
+        return runCatching {
+            val entries = readArchiveEntries(source)
+            val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
+                ?: return ArchiveValidationResult.Invalid("Missing manifest.json")
+            if (manifest.optInt("version") != 2) {
+                ArchiveValidationResult.Invalid("Unsupported archive version")
+            } else if (!entries.containsKey("data/captures.json") || !entries.containsKey("data/missions.json")) {
+                ArchiveValidationResult.Invalid("Archive data is incomplete")
+            } else {
+                ArchiveValidationResult.Valid
+            }
+        }.getOrElse { ArchiveValidationResult.Invalid(it.message ?: "Invalid archive") }
     }
+
+    override suspend fun importSnapshot(source: Uri): Result<Unit> {
+        return runCatching {
+            val entries = readArchiveEntries(source)
+            val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
+                ?: error("Missing manifest")
+            require(manifest.optInt("version") == 2) { "Unsupported archive version" }
+
+            val captures = entries.requireJsonArray("data/captures.json")
+            val analyses = entries.requireJsonArray("data/analyses.json")
+            val extractedItems = entries.requireJsonArray("data/extracted_items.json")
+            val missions = entries.requireJsonArray("data/missions.json")
+            val reminders = entries.requireJsonArray("data/reminders.json")
+            val nodes = entries.requireJsonArray("data/knowledge_nodes.json")
+
+            reminderDao.clearReminders()
+            missionDao.clearMissions()
+            captureDao.clearExtractedItems()
+            captureDao.clearAnalyses()
+            captureDao.clearCaptures()
+            searchDao.clearNodes()
+
+            for (index in 0 until captures.length()) {
+                val json = captures.getJSONObject(index)
+                val captureId = json.getString("id")
+                val captureFile = File(context.filesDir, "captures/${captureId}.jpg").apply {
+                    parentFile?.mkdirs()
+                }
+                entries["captures/$captureId.jpg"]?.let { bytes ->
+                    captureFile.outputStream().use { it.write(bytes) }
+                }
+                captureDao.upsertCapture(
+                    CaptureEntity(
+                        id = captureId,
+                        createdAt = json.getLong("createdAt"),
+                        sourceType = json.getString("sourceType"),
+                        filePath = captureFile.absolutePath,
+                        thumbnailPath = captureFile.absolutePath,
+                        mimeType = json.getString("mimeType"),
+                        processingStatus = CaptureProcessingStatus.valueOf(json.getString("processingStatus")),
+                        retryCount = json.optInt("retryCount", 0),
+                    ),
+                )
+            }
+
+            for (index in 0 until analyses.length()) {
+                val json = analyses.getJSONObject(index)
+                captureDao.upsertAnalysis(
+                    CaptureAnalysisEntity(
+                        id = json.getString("id"),
+                        captureId = json.getString("captureId"),
+                        documentType = DocumentType.valueOf(json.getString("documentType")),
+                        ocrText = json.getString("ocrText"),
+                        summary = json.getString("summary"),
+                        processedAt = json.getLong("processedAt"),
+                        errorCode = json.optString("errorCode").takeIf { it.isNotBlank() },
+                    ),
+                )
+            }
+
+            val extractedEntities = buildList {
+                for (index in 0 until extractedItems.length()) {
+                    val json = extractedItems.getJSONObject(index)
+                    add(
+                        ExtractedItemEntity(
+                            id = json.getString("id"),
+                            captureId = json.getString("captureId"),
+                            title = json.getString("title"),
+                            body = json.getString("body"),
+                            confidence = json.getDouble("confidence").toFloat(),
+                            dueAt = json.optLongOrNull("dueAt"),
+                            status = ExtractionStatus.valueOf(json.getString("status")),
+                        ),
+                    )
+                }
+            }
+            if (extractedEntities.isNotEmpty()) {
+                captureDao.upsertExtractedItems(extractedEntities)
+            }
+
+            for (index in 0 until missions.length()) {
+                val json = missions.getJSONObject(index)
+                missionDao.upsertMission(
+                    MissionEntity(
+                        id = json.getString("id"),
+                        title = json.getString("title"),
+                        description = json.getString("description"),
+                        priorityScore = json.getInt("priorityScore"),
+                        status = MissionStatus.valueOf(json.getString("status")),
+                        dueAt = json.optLongOrNull("dueAt"),
+                        remindAt = json.optLongOrNull("remindAt"),
+                        sourceCaptureId = json.optString("sourceCaptureId").takeIf { it.isNotBlank() },
+                        createdAt = json.getLong("createdAt"),
+                    ),
+                )
+            }
+
+            for (index in 0 until reminders.length()) {
+                val json = reminders.getJSONObject(index)
+                reminderDao.upsertReminder(
+                    ReminderEntity(
+                        id = json.getString("id"),
+                        missionId = json.getString("missionId"),
+                        scheduledAt = json.getLong("scheduledAt"),
+                        state = ReminderState.valueOf(json.getString("state")),
+                    ),
+                )
+            }
+
+            for (index in 0 until nodes.length()) {
+                val json = nodes.getJSONObject(index)
+                searchDao.upsertNode(
+                    KnowledgeNodeEntity(
+                        id = json.getString("id"),
+                        captureId = json.getString("captureId"),
+                        title = json.getString("title"),
+                        body = json.getString("body"),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun readArchiveEntries(source: Uri): Map<String, ByteArray> {
+        val input = context.contentResolver.openInputStream(source) ?: error("Unable to open archive")
+        return input.use(::readZipEntries)
+    }
+}
+
+private fun readZipEntries(inputStream: InputStream): Map<String, ByteArray> {
+    val entries = mutableMapOf<String, ByteArray>()
+    ZipInputStream(inputStream.buffered()).use { zip ->
+        var entry = zip.nextEntry
+        while (entry != null) {
+            if (!entry.isDirectory) {
+                entries[entry.name] = zip.readBytes()
+            }
+            zip.closeEntry()
+            entry = zip.nextEntry
+        }
+    }
+    return entries
+}
+
+private fun normalizeExtractionLine(value: String): String {
+    return value.lowercase()
+        .replace(Regex("[^a-z0-9 ]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
+private fun semanticScore(queryTokens: Set<String>, haystack: String): Float {
+    val haystackTokens = haystack.split(Regex("\\W+")).filter { it.length > 2 }.toSet()
+    if (haystackTokens.isEmpty()) return 0f
+    val overlap = queryTokens.intersect(haystackTokens).size.toFloat() / queryTokens.size
+    val substringBoost = queryTokens.count { it in haystack }.toFloat() / queryTokens.size
+    return (overlap * 0.7f) + (substringBoost * 0.3f)
+}
+
+private fun Map<String, ByteArray>.requireJsonArray(path: String): JSONArray {
+    return this[path]?.decodeToString()?.let(::JSONArray) ?: error("Missing $path")
+}
+
+private fun JSONArray.forEachJsonObject(block: (JSONObject) -> Unit) {
+    for (index in 0 until length()) {
+        block(getJSONObject(index))
+    }
+}
+
+private fun JSONObject.optLongOrNull(key: String): Long? {
+    return if (isNull(key) || !has(key)) null else getLong(key)
+}
+
+private fun CaptureEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("createdAt", createdAt)
+    put("sourceType", sourceType)
+    put("mimeType", mimeType)
+    put("processingStatus", processingStatus.name)
+    put("retryCount", retryCount)
+}
+
+private fun CaptureAnalysisEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("captureId", captureId)
+    put("documentType", documentType.name)
+    put("ocrText", ocrText)
+    put("summary", summary)
+    put("processedAt", processedAt)
+    put("errorCode", errorCode)
+}
+
+private fun ExtractedItemEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("captureId", captureId)
+    put("title", title)
+    put("body", body)
+    put("confidence", confidence.toDouble())
+    put("dueAt", dueAt)
+    put("status", status.name)
+}
+
+private fun MissionEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("title", title)
+    put("description", description)
+    put("priorityScore", priorityScore)
+    put("status", status.name)
+    put("dueAt", dueAt)
+    put("remindAt", remindAt)
+    put("sourceCaptureId", sourceCaptureId)
+    put("createdAt", createdAt)
+}
+
+private fun ReminderEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("missionId", missionId)
+    put("scheduledAt", scheduledAt)
+    put("state", state.name)
+}
+
+private fun KnowledgeNodeEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("captureId", captureId)
+    put("title", title)
+    put("body", body)
 }
 
 @Singleton

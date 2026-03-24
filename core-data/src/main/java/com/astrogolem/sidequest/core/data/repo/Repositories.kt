@@ -42,6 +42,7 @@ interface SearchRepository {
 interface ArchiveService {
     suspend fun exportSnapshot(target: Uri): Result<Unit>
     suspend fun validateImport(source: Uri): ArchiveValidationResult
+    suspend fun importSnapshot(source: Uri): Result<Unit>
 }
 
 interface SecurityService {

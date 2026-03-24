@@ -17,7 +17,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
-import com.astrogolem.sidequest.core.data.model.ExtractionCandidate
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
@@ -33,7 +32,9 @@ import kotlinx.coroutines.launch
 fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -45,6 +46,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                 Text("Processing: ${state.processingCount}")
                 Text("Done: ${state.doneCount}")
                 Text("Failed: ${state.failedCount}")
+                Text("Needs review: ${state.reviewCount}")
             }
         }
 
@@ -63,9 +65,12 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
             items(state.candidates, key = { it.id }) { candidate ->
                 ScaffoldCard(
                     title = candidate.title,
-                    subtitle = "Confidence ${(candidate.confidence * 100).toInt()}% • ${candidate.captureStatusLabel}",
+                    subtitle = "Confidence ${(candidate.confidence * 100).toInt()}% | ${candidate.captureStatusLabel}",
                 ) {
-                    Text(candidate.body)
+                    if (candidate.needsReview) {
+                        Text("Low confidence extraction. Review before promoting.")
+                    }
+                    Text(candidate.body, modifier = Modifier.padding(top = 8.dp))
                     Button(
                         onClick = { viewModel.promote(candidate.id) },
                         modifier = Modifier.padding(top = 12.dp),
@@ -84,6 +89,7 @@ data class InboxUiState(
     val processingCount: Int = 0,
     val doneCount: Int = 0,
     val failedCount: Int = 0,
+    val reviewCount: Int = 0,
     val recentCaptures: List<CaptureSummary> = emptyList(),
     val emptyStateMessage: String = "Capture something to start the extraction pipeline.",
 )
@@ -94,6 +100,7 @@ data class InboxCandidateItem(
     val body: String,
     val confidence: Float,
     val captureStatusLabel: String,
+    val needsReview: Boolean,
 )
 
 @HiltViewModel
@@ -114,12 +121,14 @@ class InboxViewModel @Inject constructor(
                     body = candidate.body,
                     confidence = candidate.confidence,
                     captureStatusLabel = statusLabel(statusByCapture[candidate.captureId]?.status),
+                    needsReview = candidate.confidence < 0.5f,
                 )
             },
             queuedCount = captures.count { it.status == CaptureProcessingStatus.PENDING },
             processingCount = captures.count { it.status == CaptureProcessingStatus.PROCESSING },
             doneCount = captures.count { it.status == CaptureProcessingStatus.DONE },
             failedCount = captures.count { it.status == CaptureProcessingStatus.FAILED },
+            reviewCount = candidates.count { it.confidence < 0.5f },
             recentCaptures = captures.take(5),
             emptyStateMessage = deriveEmptyMessage(captures),
         )
@@ -146,7 +155,7 @@ class InboxViewModel @Inject constructor(
             captures.any { it.status == CaptureProcessingStatus.PENDING } ->
                 "A capture is queued and waiting for background extraction."
             captures.any { it.status == CaptureProcessingStatus.FAILED } ->
-                "At least one capture failed. Retake or re-import the source image."
+                "At least one capture failed after retries. Retake or re-import the source image."
             captures.any { it.status == CaptureProcessingStatus.DONE } ->
                 "Completed captures did not yield candidate tasks."
             else ->

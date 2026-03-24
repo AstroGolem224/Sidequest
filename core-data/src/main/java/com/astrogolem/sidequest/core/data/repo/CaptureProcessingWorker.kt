@@ -18,7 +18,8 @@ class CaptureProcessingWorker @AssistedInject constructor(
         return when (processingOrchestrator.processCapture(captureId)) {
             is com.astrogolem.sidequest.core.data.model.ProcessingResult.Success -> Result.success()
             is com.astrogolem.sidequest.core.data.model.ProcessingResult.Deferred -> Result.retry()
-            is com.astrogolem.sidequest.core.data.model.ProcessingResult.Failure -> Result.failure()
+            is com.astrogolem.sidequest.core.data.model.ProcessingResult.Failure ->
+                if (runAttemptCount < 2) Result.retry() else Result.failure()
         }
     }
 

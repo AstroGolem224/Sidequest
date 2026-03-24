@@ -1,6 +1,9 @@
 package com.astrogolem.sidequest.feature.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -16,9 +19,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,18 +44,28 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
+    val context = LocalContext.current
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val archiveMessage by viewModel.archiveMessage.collectAsStateWithLifecycle()
     val biometricEnabled by viewModel.biometricEnabled.collectAsStateWithLifecycle()
     val drafts = remember { mutableStateMapOf<ProviderKind, String>() }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+    var notificationsGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
         if (uri != null) {
             viewModel.export(uri)
         }
     }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsGranted = granted
+    }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
-            viewModel.validateImport(uri)
+            viewModel.import(uri)
         }
     }
 
@@ -64,16 +81,16 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                 Text("Exports are manual snapshot bundles. No sync service is active in v1.")
                 Text(text = archiveMessage, modifier = Modifier.padding(top = 8.dp))
                 Button(
-                    onClick = { exportLauncher.launch("sidequest-export.json") },
+                    onClick = { exportLauncher.launch("sidequest-export.zip") },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
                     Text("Export Snapshot")
                 }
                 Button(
-                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                    onClick = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
-                    Text("Validate Import")
+                    Text("Import Snapshot")
                 }
                 Text(text = "Biometric lock", modifier = Modifier.padding(top = 16.dp))
                 Switch(
@@ -81,6 +98,30 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                     onCheckedChange = viewModel::setBiometricEnabled,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                Text(text = "Notifications", modifier = Modifier.padding(top = 16.dp))
+                Text(
+                    text = if (notificationsGranted) "Granted" else "Missing permission",
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                if (!notificationsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Button(
+                        onClick = { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) {
+                        Text("Grant notifications")
+                    }
+                }
+            }
+        }
+        item {
+            ScaffoldCard(
+                title = "Device Readiness",
+                subtitle = "Quick smoke-checks for critical Sidequest flows on this device.",
+            ) {
+                Text("Camera permission: ${if (hasPermission(context, Manifest.permission.CAMERA)) "granted" else "missing"}")
+                Text("Notification permission: ${if (notificationsGranted) "granted" else "missing"}")
+                Text("Biometric lock: ${if (biometricEnabled) "enabled" else "disabled"}")
+                Text("Offline-first storage: local DB active")
             }
         }
         items(providers, key = { it.kind.name }) { provider ->
@@ -103,6 +144,10 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
             }
         }
     }
+}
+
+private fun hasPermission(context: android.content.Context, permission: String): Boolean {
+    return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 }
 
 @HiltViewModel
@@ -140,11 +185,17 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun validateImport(uri: Uri) {
+    fun import(uri: Uri) {
         viewModelScope.launch {
             _archiveMessage.value = when (val result = archiveService.validateImport(uri)) {
-                is com.astrogolem.sidequest.core.data.model.ArchiveValidationResult.Valid -> "Import archive is valid."
                 is com.astrogolem.sidequest.core.data.model.ArchiveValidationResult.Invalid -> result.message
+                is com.astrogolem.sidequest.core.data.model.ArchiveValidationResult.Valid -> {
+                    archiveService.importSnapshot(uri)
+                        .fold(
+                            onSuccess = { "Snapshot imported." },
+                            onFailure = { it.message ?: "Import failed." },
+                        )
+                }
             }
         }
     }
