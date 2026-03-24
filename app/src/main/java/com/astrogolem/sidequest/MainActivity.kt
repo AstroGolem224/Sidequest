@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,6 +120,8 @@ private fun SidequestApp(
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    val currentRoute = currentDestination?.route
+    val showBottomBar = destinations.any { it.route == currentRoute }
 
     LaunchedEffect(pendingDeepLink) {
         when (val deepLink = pendingDeepLink) {
@@ -132,23 +136,25 @@ private fun SidequestApp(
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                destinations.forEach { destination ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
+                    destinations.forEach { destination ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        label = { Text(destination.label) },
-                        icon = { Text(destination.label.take(1)) },
-                    )
+                            },
+                            label = { Text(destination.label) },
+                            icon = { Text(destination.label.take(1)) },
+                        )
+                    }
                 }
             }
         },
@@ -162,11 +168,15 @@ private fun SidequestApp(
                 MissionsRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
             }
             composable("mission/{missionId}") {
-                MissionDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    MissionDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                }
             }
             composable("capture") { CaptureRoute() }
             composable("captureDetail/{captureId}") {
-                CaptureDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    CaptureDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                }
             }
             composable("inbox") { InboxRoute() }
             composable("lobby") { LobbyRoute() }
