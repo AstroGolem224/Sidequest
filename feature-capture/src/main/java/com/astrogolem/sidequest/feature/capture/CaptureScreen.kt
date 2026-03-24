@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -312,8 +313,13 @@ fun CaptureDetailRoute(
             items(capture.candidates, key = { it.id }) { candidate ->
                 ScaffoldCard(
                     title = candidate.title,
-                    subtitle = "Confidence ${(candidate.confidence * 100).toInt()}%",
+                    subtitle = "${candidate.kind.name.lowercase()} | ${(candidate.confidence * 100).toInt()}% confidence",
                 ) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(candidate.kind.name.lowercase()) },
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
                     Text(candidate.body)
                 }
             }

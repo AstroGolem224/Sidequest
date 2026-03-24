@@ -3,6 +3,7 @@ package com.astrogolem.sidequest.core.data.model
 enum class DocumentType { NOTE, RECEIPT, LETTER, SCREEN, WHITEBOARD, SCENE, UNKNOWN }
 enum class CaptureProcessingStatus { PENDING, PROCESSING, DONE, FAILED }
 enum class ExtractionStatus { CANDIDATE, ACCEPTED, DISMISSED, PROMOTED }
+enum class ExtractionKind { TASK, FACT, DATE, REFERENCE }
 enum class MissionStatus { OPEN, ACTIVE, DONE, SNOOZED, ARCHIVED }
 enum class ReminderState { PENDING, FIRED, CANCELLED }
 enum class ProviderKind { OPENAI, ANTHROPIC, NIM, OPENROUTER }
@@ -22,6 +23,7 @@ data class ExtractionCandidate(
     val body: String,
     val confidence: Float,
     val dueAt: Long?,
+    val kind: ExtractionKind,
     val status: ExtractionStatus,
 )
 

@@ -37,6 +37,7 @@ import com.astrogolem.sidequest.core.data.model.CaptureMissionLink
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.model.DocumentType
 import com.astrogolem.sidequest.core.data.model.ExtractionCandidate
+import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.model.MissionAction
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
@@ -97,16 +98,8 @@ class DefaultCaptureRepository @Inject constructor(
     override fun observeCandidates(): Flow<List<ExtractionCandidate>> {
         return captureDao.observeExtractedItems(ExtractionStatus.CANDIDATE.name).map { items ->
             items.map {
-                ExtractionCandidate(
-                    id = it.id,
-                    captureId = it.captureId,
-                    title = it.title,
-                    body = it.body,
-                    confidence = it.confidence,
-                    dueAt = it.dueAt,
-                    status = it.status,
-                )
-            }
+                it.toExtractionCandidate()
+            }.filter { it.kind == ExtractionKind.TASK }
         }
     }
 
@@ -126,15 +119,7 @@ class DefaultCaptureRepository @Inject constructor(
                     ocrText = analysis?.ocrText.orEmpty(),
                     summary = analysis?.summary.orEmpty(),
                     candidates = extracted.map { item ->
-                        ExtractionCandidate(
-                            id = item.id,
-                            captureId = item.captureId,
-                            title = item.title,
-                            body = item.body,
-                            confidence = item.confidence,
-                            dueAt = item.dueAt,
-                            status = item.status,
-                        )
+                        item.toExtractionCandidate()
                     },
                     linkedMissions = missions.map { mission ->
                         CaptureMissionLink(
@@ -146,6 +131,19 @@ class DefaultCaptureRepository @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun ExtractedItemEntity.toExtractionCandidate(): ExtractionCandidate {
+        return ExtractionCandidate(
+            id = id,
+            captureId = captureId,
+            title = title,
+            body = body,
+            confidence = confidence,
+            dueAt = dueAt,
+            kind = deriveExtractionKind(body),
+            status = status,
+        )
     }
 
     override suspend fun saveCapture(uri: Uri, sourceType: String): String {
@@ -171,6 +169,10 @@ class DefaultCaptureRepository @Inject constructor(
     }
 
     override suspend fun importCapture(uri: Uri): String = saveCapture(uri, sourceType = "import")
+
+    override suspend fun dismissCandidate(candidateId: String) {
+        captureDao.updateExtractedStatus(candidateId, ExtractionStatus.DISMISSED.name)
+    }
 
     private fun openInputStream(uri: Uri) = when (uri.scheme) {
         "file" -> FileInputStream(File(requireNotNull(uri.path)))
@@ -231,29 +233,32 @@ class DefaultProcessingOrchestrator @Inject constructor(
             } else {
                 null
             }
-            val lines = enhanced?.normalizedLines?.takeIf { it.isNotEmpty() } ?: localLines
-            val dedupedLines = lines
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .distinctBy(::normalizeExtractionLine)
-            val lowConfidence = result.text.isBlank() || dedupedLines.size <= 1
+            val candidateDrafts = buildCandidateDrafts(
+                ocrText = result.text,
+                localLines = localLines,
+                providerLines = enhanced?.normalizedLines.orEmpty(),
+            )
+            val lowConfidence = result.text.isBlank() || candidateDrafts.isEmpty() || candidateDrafts.first().confidence < 0.55f
             val analysis = CaptureAnalysisEntity(
                 id = UUID.randomUUID().toString(),
                 captureId = capture.id,
                 documentType = documentType,
                 ocrText = result.text,
-                summary = enhanced?.summary?.ifBlank { null } ?: dedupedLines.firstOrNull().orEmpty(),
+                summary = enhanced?.summary?.ifBlank { null }
+                    ?: candidateDrafts.firstOrNull()?.title
+                    ?: localLines.firstOrNull()
+                    ?: result.text.lineSequence().firstOrNull { it.isNotBlank() }
+                    .orEmpty(),
                 processedAt = System.currentTimeMillis(),
                 errorCode = if (lowConfidence) "LOW_CONFIDENCE" else null,
             )
-            val candidateConfidence = if (lowConfidence) 0.35f else 0.6f
-            val candidates = dedupedLines.take(5).map { line ->
+            val candidates = candidateDrafts.take(5).map { draft ->
                 ExtractedItemEntity(
                     id = UUID.randomUUID().toString(),
                     captureId = capture.id,
-                    title = line.take(64),
-                    body = line,
-                    confidence = candidateConfidence,
+                    title = draft.title,
+                    body = draft.body,
+                    confidence = draft.confidence,
                     dueAt = null,
                     status = ExtractionStatus.CANDIDATE,
                 )
@@ -737,11 +742,184 @@ private fun readZipEntries(inputStream: InputStream): Map<String, ByteArray> {
     return entries
 }
 
+private data class CandidateDraft(
+    val title: String,
+    val body: String,
+    val confidence: Float,
+    val score: Float,
+)
+
+private fun buildCandidateDrafts(
+    ocrText: String,
+    localLines: List<String>,
+    providerLines: List<String>,
+): List<CandidateDraft> {
+    val providerEntries = providerLines.map { it to true }
+    val localEntries = buildRawCandidateLines(ocrText, localLines).map { it to false }
+    return (providerEntries + localEntries)
+        .asSequence()
+        .mapNotNull { (line, fromProvider) ->
+            val cleaned = cleanCandidateLine(line)
+            val normalized = normalizeExtractionLine(cleaned)
+            if (!isUsefulCandidateLine(cleaned, normalized)) return@mapNotNull null
+            val signal = candidateSignal(cleaned, normalized, fromProvider)
+            if (!shouldKeepAsMissionCandidate(signal)) return@mapNotNull null
+            val score = candidateScore(signal)
+            CandidateDraft(
+                title = deriveCandidateTitle(cleaned),
+                body = cleaned,
+                confidence = candidateConfidence(score),
+                score = score,
+            ) to normalized
+        }
+        .groupBy({ it.second }, { it.first })
+        .values
+        .map { drafts -> drafts.maxBy { it.score } }
+        .sortedByDescending { it.score }
+        .take(5)
+}
+
+private fun buildRawCandidateLines(ocrText: String, localLines: List<String>): List<String> {
+    val fromText = ocrText
+        .lineSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .toList()
+    return (fromText + localLines)
+        .flatMap { entry ->
+            entry.split(Regex("[\\n•]+"))
+                .map(String::trim)
+                .filter(String::isNotBlank)
+        }
+}
+
+private fun cleanCandidateLine(value: String): String {
+    return value
+        .replace(Regex("\\s+"), " ")
+        .replace(Regex("^[\\-•*\\d.)\\s]+"), "")
+        .trim()
+}
+
 private fun normalizeExtractionLine(value: String): String {
     return value.lowercase()
         .replace(Regex("[^a-z0-9 ]"), " ")
         .replace(Regex("\\s+"), " ")
         .trim()
+}
+
+private fun isUsefulCandidateLine(cleaned: String, normalized: String): Boolean {
+    if (normalized.length < 4) return false
+    if (normalized.all { it.isDigit() || it == ' ' }) return false
+    if (normalized.split(' ').size == 1 && normalized.length < 5) return false
+    if (looksLikeMetaOrCodeLine(cleaned, normalized)) return false
+    val alphaNumericCount = cleaned.count { it.isLetterOrDigit() }
+    if (alphaNumericCount < 4) return false
+    val uniqueAlphaNumeric = cleaned.filter { it.isLetterOrDigit() }.lowercase().toSet().size
+    if (uniqueAlphaNumeric <= 1) return false
+    return true
+}
+
+private data class CandidateSignal(
+    val cleaned: String,
+    val normalized: String,
+    val fromProvider: Boolean,
+    val hasActionHint: Boolean,
+    val hasDateHint: Boolean,
+    val hasStructureHint: Boolean,
+    val startsWithVerbLikeToken: Boolean,
+    val balancedLength: Boolean,
+    val wordWindow: Boolean,
+    val digitHeavy: Boolean,
+    val looksLikeMetaOrCode: Boolean,
+    val looksLikeStatement: Boolean,
+)
+
+private fun candidateSignal(cleaned: String, normalized: String, fromProvider: Boolean): CandidateSignal {
+    val lowered = cleaned.lowercase()
+    val words = normalized.split(' ').filter { it.isNotBlank() }
+    val hasActionHint = ActionHints.any { Regex("""\b$it\b""").containsMatchIn(lowered) }
+    val hasDateHint = Regex("\\b\\d{1,2}[./-]\\d{1,2}([./-]\\d{2,4})?\\b").containsMatchIn(cleaned) ||
+        Regex("\\b(today|tomorrow|tonight|heute|morgen)\\b").containsMatchIn(lowered)
+    val hasStructureHint = ':' in cleaned ||
+        cleaned.startsWith("[") ||
+        cleaned.startsWith("(") ||
+        cleaned.startsWith("todo", ignoreCase = true) ||
+        cleaned.startsWith("fix", ignoreCase = true) ||
+        cleaned.startsWith("check", ignoreCase = true) ||
+        cleaned.startsWith("review", ignoreCase = true)
+    val startsWithVerbLikeToken = words.firstOrNull() in VerbLikeLeadingTokens
+    val balancedLength = cleaned.length in 12..120
+    val wordWindow = words.size in 3..14
+    val digitHeavy = cleaned.count(Char::isDigit) > cleaned.count(Char::isLetter)
+    val looksLikeMetaOrCode = looksLikeMetaOrCodeLine(cleaned, normalized)
+    val looksLikeStatement = lowered.startsWith("the ") ||
+        lowered.startsWith("this ") ||
+        lowered.startsWith("that ") ||
+        lowered.startsWith("meanwhile ") ||
+        lowered.startsWith("wir ") ||
+        lowered.startsWith("es ") ||
+        lowered.startsWith("sidequest ") ||
+        lowered.endsWith("?").not() && words.size > 8 && !hasActionHint && !hasDateHint
+
+    return CandidateSignal(
+        cleaned = cleaned,
+        normalized = normalized,
+        fromProvider = fromProvider,
+        hasActionHint = hasActionHint,
+        hasDateHint = hasDateHint,
+        hasStructureHint = hasStructureHint,
+        startsWithVerbLikeToken = startsWithVerbLikeToken,
+        balancedLength = balancedLength,
+        wordWindow = wordWindow,
+        digitHeavy = digitHeavy,
+        looksLikeMetaOrCode = looksLikeMetaOrCode,
+        looksLikeStatement = looksLikeStatement,
+    )
+}
+
+private fun shouldKeepAsMissionCandidate(signal: CandidateSignal): Boolean {
+    if (!signal.balancedLength || !signal.wordWindow || signal.digitHeavy || signal.looksLikeMetaOrCode) return false
+    if (signal.hasActionHint || signal.hasDateHint || signal.hasStructureHint || signal.startsWithVerbLikeToken) {
+        return true
+    }
+    return signal.fromProvider && !signal.looksLikeStatement && signal.cleaned.length in 18..80
+}
+
+private fun candidateScore(signal: CandidateSignal): Float {
+    var score = 0.25f
+    if (signal.fromProvider) score += 0.18f
+    if (signal.hasActionHint) score += 0.28f
+    if (signal.hasDateHint) score += 0.16f
+    if (signal.hasStructureHint) score += 0.08f
+    if (signal.startsWithVerbLikeToken) score += 0.12f
+    if (signal.balancedLength) score += 0.08f
+    if (signal.wordWindow) score += 0.08f
+    if (signal.looksLikeStatement) score -= 0.2f
+    if (signal.looksLikeMetaOrCode) score -= 0.35f
+    if (signal.digitHeavy) score -= 0.15f
+    return score.coerceIn(0.2f, 0.92f)
+}
+
+private fun candidateConfidence(score: Float): Float {
+    return when {
+        score >= 0.8f -> 0.9f
+        score >= 0.68f -> 0.75f
+        score >= 0.55f -> 0.6f
+        else -> 0.4f
+    }
+}
+
+private fun deriveCandidateTitle(cleaned: String): String {
+    val compact = cleaned.trim().removeSuffix(".")
+    if (compact.length <= 64) return compact
+    val words = compact.split(' ')
+    return buildString {
+        for (word in words) {
+            if (isNotEmpty() && length + word.length + 1 > 64) break
+            if (isNotEmpty()) append(' ')
+            append(word)
+        }
+    }.ifBlank { compact.take(64) }
 }
 
 private fun semanticScore(queryTokens: Set<String>, haystack: String): Float {
@@ -751,6 +929,90 @@ private fun semanticScore(queryTokens: Set<String>, haystack: String): Float {
     val substringBoost = queryTokens.count { it in haystack }.toFloat() / queryTokens.size
     return (overlap * 0.7f) + (substringBoost * 0.3f)
 }
+
+private fun looksLikeMetaOrCodeLine(cleaned: String, normalized: String): Boolean {
+    val lowered = cleaned.lowercase()
+    if (MetaLinePhrases.any { it in lowered }) return true
+    if (Regex("""\b[a-z0-9_]+\.(kt|java|xml|gradle|md|json)\b""").containsMatchIn(lowered)) return true
+    if (Regex("""(:app:|testdebugunittest|assembledebug|gradlew|repositoryimpl|viewmodel|build successful|selectobject|adb exec-out)""").containsMatchIn(lowered)) return true
+    if (Regex("""[\\/].+\.[a-z]{2,6}\b""").containsMatchIn(cleaned)) return true
+    if (normalized.count { it == ' ' } <= 1 && normalized.any(Char::isDigit)) return true
+    return false
+}
+
+private fun deriveExtractionKind(value: String): ExtractionKind {
+    val lowered = value.lowercase()
+    return when {
+        Regex("\\b(reference|ref|id|number|nr|code)\\b").containsMatchIn(lowered) -> ExtractionKind.REFERENCE
+        Regex("\\b\\d{1,2}[./-]\\d{1,2}([./-]\\d{2,4})?\\b").containsMatchIn(value) ||
+            Regex("\\b(january|february|march|april|may|june|july|august|september|october|november|december|today|tomorrow|heute|morgen)\\b").containsMatchIn(lowered) ->
+            ExtractionKind.DATE
+        ActionHints.any { Regex("""\b$it\b""").containsMatchIn(lowered) } ||
+            value.trim().split(Regex("\\s+")).firstOrNull()?.lowercase() in VerbLikeLeadingTokens ->
+            ExtractionKind.TASK
+        else -> ExtractionKind.FACT
+    }
+}
+
+private val ActionHints = setOf(
+    "add",
+    "book",
+    "buy",
+    "call",
+    "check",
+    "email",
+    "fix",
+    "follow",
+    "need",
+    "pay",
+    "plan",
+    "review",
+    "schedule",
+    "send",
+    "set",
+    "todo",
+    "update",
+    "anrufen",
+    "bezahlen",
+    "kaufen",
+    "planen",
+    "prufen",
+)
+
+private val VerbLikeLeadingTokens = setOf(
+    "add",
+    "book",
+    "buy",
+    "call",
+    "check",
+    "email",
+    "fix",
+    "follow",
+    "pay",
+    "plan",
+    "review",
+    "schedule",
+    "send",
+    "set",
+    "update",
+    "anrufen",
+    "bezahlen",
+    "kaufen",
+    "planen",
+    "prufen",
+)
+
+private val MetaLinePhrases = setOf(
+    "nächster schritt",
+    "nächster sinnvoller schritt",
+    "bearbeitet",
+    "ausgeführt",
+    "validated with",
+    "build successful",
+    "import image",
+    "mission control",
+    "sidequest app",
+)
 
 private fun Map<String, ByteArray>.requireJsonArray(path: String): JSONArray {
     return this[path]?.decodeToString()?.let(::JSONArray) ?: error("Missing $path")

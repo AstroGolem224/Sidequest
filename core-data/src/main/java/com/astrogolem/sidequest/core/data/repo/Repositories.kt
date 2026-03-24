@@ -20,6 +20,7 @@ interface CaptureRepository {
     fun observeCaptureDetail(captureId: String): Flow<CaptureDetailModel?>
     suspend fun saveCapture(uri: Uri, sourceType: String = "import"): String
     suspend fun importCapture(uri: Uri): String
+    suspend fun dismissCandidate(candidateId: String)
 }
 
 interface ProcessingOrchestrator {

@@ -1,11 +1,15 @@
 package com.astrogolem.sidequest.feature.inbox
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,6 +20,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
+import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
@@ -47,6 +52,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                 Text("Done: ${state.doneCount}")
                 Text("Failed: ${state.failedCount}")
                 Text("Needs review: ${state.reviewCount}")
+                Text("Best bets: ${state.bestBetCount}")
             }
         }
 
@@ -62,21 +68,38 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                 }
             }
         } else {
-            items(state.candidates, key = { it.id }) { candidate ->
-                ScaffoldCard(
-                    title = candidate.title,
-                    subtitle = "Confidence ${(candidate.confidence * 100).toInt()}% | ${candidate.captureStatusLabel}",
-                ) {
-                    if (candidate.needsReview) {
-                        Text("Low confidence extraction. Review before promoting.")
-                    }
-                    Text(candidate.body, modifier = Modifier.padding(top = 8.dp))
-                    Button(
-                        onClick = { viewModel.promote(candidate.id) },
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Text("Promote to Mission")
-                    }
+            val bestBets = state.candidates.filterNot { it.needsReview }
+            val reviewQueue = state.candidates.filter { it.needsReview }
+
+            if (bestBets.isNotEmpty()) {
+                item {
+                    ScaffoldCard(
+                        title = "Best Bets",
+                        subtitle = "Higher-signal candidates that look ready to turn into missions.",
+                    ) {}
+                }
+                items(bestBets, key = { it.id }) { candidate ->
+                    CandidateCard(
+                        candidate = candidate,
+                        onPromote = { viewModel.promote(candidate.id) },
+                        onDismiss = { viewModel.dismiss(candidate.id) },
+                    )
+                }
+            }
+
+            if (reviewQueue.isNotEmpty()) {
+                item {
+                    ScaffoldCard(
+                        title = "Needs Review",
+                        subtitle = "Low-signal OCR lines. Keep only the candidates that are actually useful.",
+                    ) {}
+                }
+                items(reviewQueue, key = { it.id }) { candidate ->
+                    CandidateCard(
+                        candidate = candidate,
+                        onPromote = { viewModel.promote(candidate.id) },
+                        onDismiss = { viewModel.dismiss(candidate.id) },
+                    )
                 }
             }
         }
@@ -90,6 +113,7 @@ data class InboxUiState(
     val doneCount: Int = 0,
     val failedCount: Int = 0,
     val reviewCount: Int = 0,
+    val bestBetCount: Int = 0,
     val recentCaptures: List<CaptureSummary> = emptyList(),
     val emptyStateMessage: String = "Capture something to start the extraction pipeline.",
 )
@@ -99,13 +123,57 @@ data class InboxCandidateItem(
     val title: String,
     val body: String,
     val confidence: Float,
+    val sourceLabel: String,
     val captureStatusLabel: String,
     val needsReview: Boolean,
+    val qualityLabel: String,
+    val kind: ExtractionKind,
 )
+
+@Composable
+private fun CandidateCard(
+    candidate: InboxCandidateItem,
+    onPromote: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ScaffoldCard(
+        title = candidate.title,
+        subtitle = "${candidate.qualityLabel} | ${(candidate.confidence * 100).toInt()}% confidence",
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
+            AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
+            AssistChip(onClick = {}, label = { Text(candidate.kind.name.lowercase()) })
+        }
+        if (candidate.needsReview) {
+            Text(
+                "This extraction looks noisy. Dismiss it unless it clearly belongs in your mission queue.",
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+        Text(candidate.body, modifier = Modifier.padding(top = 12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
+                Text("Promote")
+            }
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                Text("Dismiss")
+            }
+        }
+    }
+}
 
 @HiltViewModel
 class InboxViewModel @Inject constructor(
-    captureRepository: CaptureRepository,
+    private val captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
 ) : ViewModel() {
     val state: StateFlow<InboxUiState> = combine(
@@ -120,15 +188,19 @@ class InboxViewModel @Inject constructor(
                     title = candidate.title,
                     body = candidate.body,
                     confidence = candidate.confidence,
+                    sourceLabel = statusByCapture[candidate.captureId]?.sourceLabel?.replaceFirstChar { it.uppercase() } ?: "Capture",
                     captureStatusLabel = statusLabel(statusByCapture[candidate.captureId]?.status),
-                    needsReview = candidate.confidence < 0.5f,
+                    needsReview = candidate.confidence < 0.55f,
+                    qualityLabel = qualityLabel(candidate.confidence),
+                    kind = candidate.kind,
                 )
-            },
+            }.sortedByDescending { it.confidence },
             queuedCount = captures.count { it.status == CaptureProcessingStatus.PENDING },
             processingCount = captures.count { it.status == CaptureProcessingStatus.PROCESSING },
             doneCount = captures.count { it.status == CaptureProcessingStatus.DONE },
             failedCount = captures.count { it.status == CaptureProcessingStatus.FAILED },
-            reviewCount = candidates.count { it.confidence < 0.5f },
+            reviewCount = candidates.count { it.confidence < 0.55f },
+            bestBetCount = candidates.count { it.confidence >= 0.55f },
             recentCaptures = captures.take(5),
             emptyStateMessage = deriveEmptyMessage(captures),
         )
@@ -137,6 +209,12 @@ class InboxViewModel @Inject constructor(
     fun promote(candidateId: String) {
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)
+        }
+    }
+
+    fun dismiss(candidateId: String) {
+        viewModelScope.launch {
+            captureRepository.dismissCandidate(candidateId)
         }
     }
 
@@ -161,5 +239,12 @@ class InboxViewModel @Inject constructor(
             else ->
                 "Capture something to start the extraction pipeline."
         }
+    }
+
+    private fun qualityLabel(confidence: Float): String = when {
+        confidence >= 0.85f -> "Strong signal"
+        confidence >= 0.7f -> "Good candidate"
+        confidence >= 0.55f -> "Review quickly"
+        else -> "Noisy OCR"
     }
 }
