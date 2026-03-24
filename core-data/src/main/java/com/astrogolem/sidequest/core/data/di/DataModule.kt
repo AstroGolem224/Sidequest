@@ -1,0 +1,54 @@
+package com.astrogolem.sidequest.core.data.di
+
+import android.content.Context
+import androidx.room.Room
+import com.astrogolem.sidequest.core.data.local.CaptureDao
+import com.astrogolem.sidequest.core.data.local.ExportBundleDao
+import com.astrogolem.sidequest.core.data.local.MissionDao
+import com.astrogolem.sidequest.core.data.local.SearchDao
+import com.astrogolem.sidequest.core.data.local.SidequestDatabase
+import com.astrogolem.sidequest.core.data.repo.ArchiveService
+import com.astrogolem.sidequest.core.data.repo.CaptureRepository
+import com.astrogolem.sidequest.core.data.repo.DefaultArchiveService
+import com.astrogolem.sidequest.core.data.repo.DefaultCaptureRepository
+import com.astrogolem.sidequest.core.data.repo.DefaultMissionRepository
+import com.astrogolem.sidequest.core.data.repo.DefaultProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.DefaultSearchRepository
+import com.astrogolem.sidequest.core.data.repo.DefaultSecurityService
+import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.SearchRepository
+import com.astrogolem.sidequest.core.data.repo.SecurityService
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+    @Provides
+    @Singleton
+    fun provideDatabase(@ApplicationContext context: Context): SidequestDatabase {
+        return Room.databaseBuilder(context, SidequestDatabase::class.java, "sidequest.db").build()
+    }
+
+    @Provides fun provideCaptureDao(database: SidequestDatabase): CaptureDao = database.captureDao()
+    @Provides fun provideMissionDao(database: SidequestDatabase): MissionDao = database.missionDao()
+    @Provides fun provideSearchDao(database: SidequestDatabase): SearchDao = database.searchDao()
+    @Provides fun provideExportBundleDao(database: SidequestDatabase): ExportBundleDao = database.exportBundleDao()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+    @Binds abstract fun bindCaptureRepository(impl: DefaultCaptureRepository): CaptureRepository
+    @Binds abstract fun bindProcessingOrchestrator(impl: DefaultProcessingOrchestrator): ProcessingOrchestrator
+    @Binds abstract fun bindMissionRepository(impl: DefaultMissionRepository): MissionRepository
+    @Binds abstract fun bindSearchRepository(impl: DefaultSearchRepository): SearchRepository
+    @Binds abstract fun bindArchiveService(impl: DefaultArchiveService): ArchiveService
+    @Binds abstract fun bindSecurityService(impl: DefaultSecurityService): SecurityService
+}

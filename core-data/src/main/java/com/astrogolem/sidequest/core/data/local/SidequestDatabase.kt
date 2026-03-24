@@ -1,0 +1,29 @@
+package com.astrogolem.sidequest.core.data.local
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+
+@Database(
+    entities = [
+        CaptureEntity::class,
+        CaptureAnalysisEntity::class,
+        ExtractedItemEntity::class,
+        MissionEntity::class,
+        ProjectEntity::class,
+        LifeAreaEntity::class,
+        KnowledgeNodeEntity::class,
+        KnowledgeEdgeEntity::class,
+        ReminderEntity::class,
+        ExportBundleEntity::class,
+    ],
+    version = 1,
+    exportSchema = false,
+)
+@TypeConverters(Converters::class)
+abstract class SidequestDatabase : RoomDatabase() {
+    abstract fun captureDao(): CaptureDao
+    abstract fun missionDao(): MissionDao
+    abstract fun searchDao(): SearchDao
+    abstract fun exportBundleDao(): ExportBundleDao
+}
