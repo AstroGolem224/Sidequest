@@ -44,6 +44,20 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE processingStatus = :status ORDER BY createdAt ASC LIMIT 1")
     suspend fun nextPendingCapture(status: String = "PENDING"): CaptureEntity?
 
+    @Query(
+        """
+        SELECT id
+        FROM captures
+        WHERE processingStatus IN (:recoverableStatuses)
+        ORDER BY createdAt ASC
+        LIMIT :limit
+        """,
+    )
+    suspend fun listRecoverableCaptureIds(
+        recoverableStatuses: List<String> = listOf("PENDING", "PROCESSING"),
+        limit: Int = 20,
+    ): List<String>
+
     @Query("UPDATE captures SET processingStatus = :status WHERE id = :captureId")
     suspend fun updateStatus(captureId: String, status: String)
 

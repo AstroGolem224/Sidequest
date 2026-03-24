@@ -36,6 +36,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.ui.theme.SidequestTheme
 import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
@@ -56,6 +57,8 @@ private const val CaptureIdExtra = "capture_id"
 class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var securityService: SecurityService
+    @Inject
+    lateinit var processingOrchestrator: ProcessingOrchestrator
 
     private var pendingDeepLink by mutableStateOf<DeepLinkTarget?>(null)
 
@@ -68,6 +71,7 @@ class MainActivity : AppCompatActivity() {
                 SidequestApp(
                     activity = this,
                     securityService = securityService,
+                    processingOrchestrator = processingOrchestrator,
                     pendingDeepLink = pendingDeepLink,
                     onDeepLinkConsumed = { pendingDeepLink = null },
                 )
@@ -96,6 +100,7 @@ private sealed interface DeepLinkTarget {
 private fun SidequestApp(
     activity: AppCompatActivity,
     securityService: SecurityService,
+    processingOrchestrator: ProcessingOrchestrator,
     pendingDeepLink: DeepLinkTarget?,
     onDeepLinkConsumed: () -> Unit,
 ) {
@@ -132,6 +137,10 @@ private fun SidequestApp(
         if (pendingDeepLink != null) {
             onDeepLinkConsumed()
         }
+    }
+
+    LaunchedEffect(Unit) {
+        processingOrchestrator.recoverPendingCaptures()
     }
 
     Scaffold(

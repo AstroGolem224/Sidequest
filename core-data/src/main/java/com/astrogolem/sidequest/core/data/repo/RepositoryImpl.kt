@@ -197,6 +197,14 @@ class DefaultProcessingOrchestrator @Inject constructor(
         )
     }
 
+    override suspend fun recoverPendingCaptures(limit: Int): Int {
+        val recoverableCaptureIds = captureDao.listRecoverableCaptureIds(limit = limit)
+        recoverableCaptureIds.forEach { captureId ->
+            enqueue(captureId)
+        }
+        return recoverableCaptureIds.size
+    }
+
     override suspend fun processNextPendingCapture(): ProcessingResult {
         val capture = captureDao.nextPendingCapture() ?: return ProcessingResult.Deferred("", "No pending captures")
         return processCapture(capture.id)

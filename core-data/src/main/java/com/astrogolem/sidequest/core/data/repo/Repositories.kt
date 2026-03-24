@@ -24,6 +24,7 @@ interface CaptureRepository {
 
 interface ProcessingOrchestrator {
     suspend fun enqueue(captureId: String)
+    suspend fun recoverPendingCaptures(limit: Int = 20): Int
     suspend fun processNextPendingCapture(): ProcessingResult
     suspend fun processCapture(captureId: String): ProcessingResult
 }
