@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
+    kapt(libs.androidx.hilt.compiler)
     kapt(libs.androidx.room.compiler)
     kapt(libs.hilt.compiler)
 

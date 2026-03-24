@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     implementation(libs.hilt.android)
 
+    kapt(libs.androidx.hilt.compiler)
     kapt(libs.hilt.compiler)
 
     implementation(libs.compose.ui)
