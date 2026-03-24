@@ -165,26 +165,62 @@ private fun SidequestApp(
             modifier = Modifier.padding(innerPadding),
         ) {
             composable("missions") {
-                MissionsRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                TopLevelScreenContainer {
+                    MissionsRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                }
             }
             composable("mission/{missionId}") {
-                Surface(color = MaterialTheme.colorScheme.background) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
                     MissionDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
-            composable("capture") { CaptureRoute() }
+            composable("capture") {
+                TopLevelScreenContainer {
+                    CaptureRoute()
+                }
+            }
             composable("captureDetail/{captureId}") {
-                Surface(color = MaterialTheme.colorScheme.background) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
                     CaptureDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
                 }
             }
-            composable("inbox") { InboxRoute() }
-            composable("lobby") { LobbyRoute() }
-            composable("search") {
-                SearchRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+            composable("inbox") {
+                TopLevelScreenContainer {
+                    InboxRoute()
+                }
             }
-            composable("settings") { SettingsRoute() }
+            composable("lobby") {
+                TopLevelScreenContainer {
+                    LobbyRoute()
+                }
+            }
+            composable("search") {
+                TopLevelScreenContainer {
+                    SearchRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                }
+            }
+            composable("settings") {
+                TopLevelScreenContainer {
+                    SettingsRoute()
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        content()
     }
 }
 

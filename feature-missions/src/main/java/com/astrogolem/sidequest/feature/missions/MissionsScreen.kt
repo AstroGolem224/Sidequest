@@ -55,19 +55,51 @@ fun MissionsRoute(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        items(missions, key = { it.id }) { mission ->
+        item {
             ScaffoldCard(
-                title = mission.title,
-                subtitle = buildSubtitle(mission),
+                title = "Mission Control",
+                subtitle = if (missions.isEmpty()) {
+                    "No missions yet. Capture or import something to let Sidequest build your first quest."
+                } else {
+                    "Your active queue of extracted work."
+                },
             ) {
-                Text(mission.description)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 12.dp),
+                Text(
+                    if (missions.isEmpty()) {
+                        "Start with the Capture tab, then review candidates in Inbox. Promoted items will appear here."
+                    } else {
+                        "Open, complete or snooze missions as they move through your day."
+                    },
+                )
+            }
+        }
+
+        if (missions.isEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = "Nothing in flight",
+                    subtitle = "The dashboard is healthy, just empty.",
                 ) {
-                    Button(onClick = { onOpenMission(mission.id) }) { Text("Open") }
-                    Button(onClick = { viewModel.complete(mission.id) }) { Text("Complete") }
-                    Button(onClick = { viewModel.snooze(mission.id, TimeUnit.HOURS.toMillis(1)) }) { Text("Snooze 1h") }
+                    Text("1. Capture a note, receipt or whiteboard.")
+                    Text("2. Wait for background extraction to finish.")
+                    Text("3. Promote a candidate from Inbox.")
+                }
+            }
+        } else {
+            items(missions, key = { it.id }) { mission ->
+                ScaffoldCard(
+                    title = mission.title,
+                    subtitle = buildSubtitle(mission),
+                ) {
+                    Text(mission.description)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) {
+                        Button(onClick = { onOpenMission(mission.id) }) { Text("Open") }
+                        Button(onClick = { viewModel.complete(mission.id) }) { Text("Complete") }
+                        Button(onClick = { viewModel.snooze(mission.id, TimeUnit.HOURS.toMillis(1)) }) { Text("Snooze 1h") }
+                    }
                 }
             }
         }
