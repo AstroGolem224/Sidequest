@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +32,12 @@ import com.astrogolem.sidequest.core.data.model.MissionAction
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionDetailModel
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.ui.components.HudRing
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
+import com.astrogolem.sidequest.core.ui.components.StatusPill
+import com.astrogolem.sidequest.core.ui.components.HudTone
+import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.DateFormat
 import java.util.Calendar
@@ -49,6 +55,8 @@ fun MissionsRoute(
     viewModel: MissionsViewModel = hiltViewModel(),
 ) {
     val missions by viewModel.missions.collectAsStateWithLifecycle()
+    val activeCount = missions.count { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
+    val focusTargets = missions.take(3)
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -57,20 +65,53 @@ fun MissionsRoute(
     ) {
         item {
             ScaffoldCard(
-                title = "Mission Control",
+                title = "Mission Control v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
                 subtitle = if (missions.isEmpty()) {
                     "No missions yet. Capture or import something to let Sidequest build your first quest."
                 } else {
-                    "Your active queue of extracted work."
+                    "Time-to-failure sorted objective board."
                 },
             ) {
-                Text(
-                    if (missions.isEmpty()) {
-                        "Start with the Capture tab, then review candidates in Inbox. Promoted items will appear here."
-                    } else {
-                        "Open, complete or snooze missions as they move through your day."
-                    },
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    HudRing(
+                        progress = if (missions.isEmpty()) 0.08f else activeCount / missions.size.toFloat(),
+                        modifier = Modifier.weight(0.35f),
+                    )
+                    Column(
+                        modifier = Modifier.weight(0.65f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        StatusPill("daily focus x${focusTargets.size.coerceAtLeast(1)}", tone = HudTone.Amber)
+                        Text("${activeCount} active missions", style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            if (missions.isEmpty()) {
+                                "Start with the lens, confirm intel in Inbox, then deploy missions here."
+                            } else {
+                                "Top missions stay in thumb range so the next move is obvious in under half a second."
+                            },
+                            color = TextSecondary,
+                        )
+                        SegmentedMeter(progress = if (missions.isEmpty()) 0.12f else activeCount / (missions.size.coerceAtLeast(1)).toFloat())
+                    }
+                }
+            }
+        }
+
+        if (focusTargets.isNotEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = "Immediate Action",
+                    subtitle = "Your top three missions are pinned as high-contrast launch targets.",
+                ) {
+                    focusTargets.forEach { mission ->
+                        Button(
+                            onClick = { onOpenMission(mission.id) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        ) {
+                            Text(mission.title)
+                        }
+                    }
+                }
             }
         }
 
@@ -91,7 +132,11 @@ fun MissionsRoute(
                     title = mission.title,
                     subtitle = buildSubtitle(mission),
                 ) {
-                    Text(mission.description)
+                    StatusPill(
+                        text = urgencyLabel(mission),
+                        tone = urgencyTone(mission),
+                    )
+                    Text(mission.description, modifier = Modifier.padding(top = 12.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(top = 12.dp),
@@ -273,6 +318,27 @@ private fun buildSubtitle(mission: MissionCardModel): String {
         append("Priority ${mission.priorityScore} | ${mission.status.name.lowercase()}")
         mission.dueAt?.let { append(" | due ${formatTimestamp(it)}") }
         mission.remindAt?.let { append(" | remind ${formatTimestamp(it)}") }
+    }
+}
+
+private fun urgencyLabel(mission: MissionCardModel): String {
+    val dueAt = mission.dueAt ?: return "open window"
+    val remaining = dueAt - System.currentTimeMillis()
+    return when {
+        remaining <= 0L -> "time to failure"
+        remaining <= TimeUnit.HOURS.toMillis(6) -> "critical window"
+        remaining <= TimeUnit.DAYS.toMillis(1) -> "today"
+        else -> "queued"
+    }
+}
+
+private fun urgencyTone(mission: MissionCardModel): HudTone {
+    val dueAt = mission.dueAt ?: return HudTone.Cyan
+    val remaining = dueAt - System.currentTimeMillis()
+    return when {
+        remaining <= TimeUnit.HOURS.toMillis(6) -> HudTone.Amber
+        remaining <= TimeUnit.DAYS.toMillis(1) -> HudTone.Violet
+        else -> HudTone.Cyan
     }
 }
 

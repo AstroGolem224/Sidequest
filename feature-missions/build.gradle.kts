@@ -10,7 +10,10 @@ android {
     namespace = "com.astrogolem.sidequest.feature.missions"
     compileSdk = 36
 
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        buildConfigField("String", "SIDEQUEST_VERSION_LABEL", "\"0.1.0\"")
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -18,7 +21,10 @@ android {
     }
 
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

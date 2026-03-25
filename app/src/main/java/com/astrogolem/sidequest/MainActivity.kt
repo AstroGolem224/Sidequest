@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -38,6 +40,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.ui.theme.AccentCyan
+import com.astrogolem.sidequest.core.ui.theme.AccentViolet
+import com.astrogolem.sidequest.core.ui.theme.BgPrimary
+import com.astrogolem.sidequest.core.ui.theme.BgPanel
 import com.astrogolem.sidequest.core.ui.theme.SidequestTheme
 import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
 import com.astrogolem.sidequest.feature.capture.CaptureRoute
@@ -116,12 +122,12 @@ private fun SidequestApp(
 
     val navController = rememberNavController()
     val destinations = listOf(
-        TopLevelDestination("missions", "Missions"),
-        TopLevelDestination("capture", "Capture"),
-        TopLevelDestination("inbox", "Inbox"),
-        TopLevelDestination("lobby", "Lobby"),
+        TopLevelDestination("missions", "Board"),
+        TopLevelDestination("capture", "Lens"),
+        TopLevelDestination("inbox", "Intel"),
+        TopLevelDestination("lobby", "HUD"),
         TopLevelDestination("search", "Search"),
-        TopLevelDestination("settings", "Settings"),
+        TopLevelDestination("settings", "Ops"),
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -146,7 +152,7 @@ private fun SidequestApp(
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
+                NavigationBar(containerColor = BgPanel.copy(alpha = 0.96f)) {
                     destinations.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
@@ -188,7 +194,7 @@ private fun SidequestApp(
             }
             composable("capture") {
                 TopLevelScreenContainer {
-                    CaptureRoute()
+                    CaptureRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
             composable("captureDetail/{captureId}") {
@@ -225,11 +231,22 @@ private fun SidequestApp(
 
 @Composable
 private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(AccentViolet.copy(alpha = 0.18f), AccentCyan.copy(alpha = 0.08f), BgPrimary),
+                    radius = 1800f,
+                ),
+            ),
     ) {
-        content()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+        ) {
+            content()
+        }
     }
 }
 

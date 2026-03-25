@@ -57,7 +57,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
+import java.text.SimpleDateFormat
 import java.util.UUID
+import java.util.Calendar
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
@@ -259,7 +262,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
                     title = draft.title,
                     body = draft.body,
                     confidence = draft.confidence,
-                    dueAt = null,
+                    dueAt = deriveDueAt(draft.body),
                     status = ExtractionStatus.CANDIDATE,
                 )
             }
@@ -951,6 +954,84 @@ private fun deriveExtractionKind(value: String): ExtractionKind {
             value.trim().split(Regex("\\s+")).firstOrNull()?.lowercase() in VerbLikeLeadingTokens ->
             ExtractionKind.TASK
         else -> ExtractionKind.FACT
+    }
+}
+
+private fun deriveDueAt(value: String): Long? {
+    val trimmed = value.trim()
+    val lowered = trimmed.lowercase(Locale.ROOT)
+    val now = Calendar.getInstance()
+
+    if (Regex("""\btoday\b|\bheute\b""").containsMatchIn(lowered)) {
+        return now.apply {
+            set(Calendar.HOUR_OF_DAY, 18)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    if (Regex("""\btomorrow\b|\bmorgen\b""").containsMatchIn(lowered)) {
+        return now.apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 9)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+
+    val patterns = listOf(
+        "d MMMM yyyy",
+        "d MMM yyyy",
+        "dd MMMM yyyy",
+        "dd MMM yyyy",
+        "d.M.yyyy",
+        "dd.MM.yyyy",
+        "d/M/yyyy",
+        "dd/MM/yyyy",
+        "d-M-yyyy",
+        "dd-MM-yyyy",
+        "M/d/yyyy",
+        "MM/dd/yyyy",
+    )
+
+    val normalized = trimmed
+        .replace(Regex("""\b(until|valid until|due|by|am|bis|eta)\b""", RegexOption.IGNORE_CASE), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+
+    for (pattern in patterns) {
+        parseDateCandidate(normalized, pattern)?.let { return it }
+    }
+
+    Regex("""\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b""")
+        .find(trimmed)
+        ?.value
+        ?.let { token ->
+            for (pattern in patterns.filter { it.contains("d") || it.contains("M") }) {
+                parseDateCandidate(token, pattern)?.let { return it }
+            }
+        }
+
+    return null
+}
+
+private fun parseDateCandidate(value: String, pattern: String): Long? {
+    val locales = listOf(Locale.ENGLISH, Locale.GERMAN)
+    return locales.firstNotNullOfOrNull { locale ->
+        val parser = SimpleDateFormat(pattern, locale).apply { isLenient = false }
+        runCatching {
+            parser.parse(value)?.let { parsed ->
+                Calendar.getInstance().apply {
+                    time = parsed
+                    set(Calendar.HOUR_OF_DAY, 9)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+        }.getOrNull()
     }
 }
 
