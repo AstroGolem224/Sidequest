@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
@@ -42,16 +43,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -213,6 +222,8 @@ private fun CaptureScreen(
                 ),
         )
 
+        LensScanlineOverlay(modifier = Modifier.fillMaxSize())
+
         if (!hasCameraPermission) {
             Column(
                 modifier = Modifier
@@ -255,6 +266,53 @@ private fun CaptureScreen(
                 Text("Restore Vision")
             }
         }
+    }
+}
+
+@Composable
+private fun LensScanlineOverlay(
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "lens-scanlines")
+    val sweepProgress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = LinearEasing),
+        ),
+        label = "scanline-sweep",
+    )
+    val density = LocalDensity.current
+    val lineSpacing = with(density) { 4.dp.toPx() }
+    val beamHeight = with(density) { 120.dp.toPx() }
+
+    Canvas(modifier = modifier) {
+        var y = 0f
+        while (y <= size.height) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.055f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f,
+            )
+            y += lineSpacing
+        }
+
+        val beamTop = ((size.height + beamHeight) * sweepProgress) - beamHeight
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    AccentCyan.copy(alpha = 0.04f),
+                    AccentCyan.copy(alpha = 0.14f),
+                    Color.Transparent,
+                ),
+                startY = beamTop,
+                endY = beamTop + beamHeight,
+            ),
+            topLeft = Offset(0f, beamTop),
+            size = Size(size.width, beamHeight),
+        )
     }
 }
 
