@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,6 +120,8 @@ fun ShoppingRoute(
         }
     }
 
+    val activeLists = state.lists.filterNot { it.archived }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -129,7 +132,7 @@ fun ShoppingRoute(
             item {
                 ScaffoldCard(
                     title = "Shopping Lists",
-                    subtitle = "Create a checklist from text, voice, or a quick photo scan. Dictation is split into individual list items.",
+                    subtitle = "Create a checklist from text, voice, or a quick photo scan. Dictation is split into individual items.",
                 ) {
                     OutlinedTextField(
                         value = manualTitle,
@@ -140,7 +143,7 @@ fun ShoppingRoute(
                     OutlinedTextField(
                         value = manualItems,
                         onValueChange = { manualItems = it },
-                        label = { Text("Write one item per line or separated by commas") },
+                        label = { Text("Write one item per line or separate them with commas") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp),
@@ -194,15 +197,19 @@ fun ShoppingRoute(
                 }
             }
 
-            if (state.lists.isEmpty()) {
+            if (activeLists.isEmpty()) {
                 item {
                     ScaffoldCard(
-                        title = "No shopping lists yet",
-                        subtitle = "Dictate, photograph, or type a list and it will show up here.",
+                        title = "No active shopping lists",
+                        subtitle = if (state.lists.any { it.archived }) {
+                            "Your archived lists are safe in Inventory and can be reactivated there."
+                        } else {
+                            "Dictate, photograph, or type a list and it will show up here."
+                        },
                     ) {}
                 }
             } else {
-                items(state.lists, key = { it.id }) { list ->
+                items(activeLists, key = { it.id }) { list ->
                     ShoppingListSummaryCard(
                         summary = list,
                         onOpen = { onOpenList(list.id) },
@@ -238,6 +245,11 @@ fun ShoppingDetailRoute(
     viewModel: ShoppingDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    var draftTitle by rememberSaveable(detail?.id) { mutableStateOf("") }
+
+    LaunchedEffect(detail?.id, detail?.title) {
+        draftTitle = detail?.title.orEmpty()
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -255,29 +267,15 @@ fun ShoppingDetailRoute(
             }
         } else {
             item {
-                ScaffoldCard(
-                    title = shoppingDetail.title,
-                    subtitle = "${shoppingDetail.source.name.lowercase()} • ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(shoppingDetail.createdAt))}",
-                ) {
-                    Text(
-                        text = "${shoppingDetail.items.count { it.checked }}/${shoppingDetail.items.size} items checked",
-                        color = AccentPrimary,
-                    )
-                    shoppingDetail.sourceCaptureId?.let { captureId ->
-                        OutlinedButton(
-                            onClick = { onOpenCapture(captureId) },
-                            modifier = Modifier.padding(top = 12.dp),
-                        ) {
-                            Text("Open Source Intel")
-                        }
-                    }
-                    OutlinedButton(
-                        onClick = viewModel::deleteList,
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Text("Delete List")
-                    }
-                }
+                ShoppingListHeaderCard(
+                    detail = shoppingDetail,
+                    draftTitle = draftTitle,
+                    onDraftTitleChange = { draftTitle = it },
+                    onRename = { viewModel.renameList(draftTitle) },
+                    onToggleArchived = { viewModel.setArchived(!shoppingDetail.archived) },
+                    onOpenCapture = shoppingDetail.sourceCaptureId?.let { captureId -> { onOpenCapture(captureId) } },
+                    onDelete = viewModel::deleteList,
+                )
             }
             item {
                 ScaffoldCard(
@@ -309,6 +307,61 @@ fun ShoppingDetailRoute(
     }
 }
 
+@Composable
+private fun ShoppingListHeaderCard(
+    detail: ShoppingListDetailModel,
+    draftTitle: String,
+    onDraftTitleChange: (String) -> Unit,
+    onRename: () -> Unit,
+    onToggleArchived: () -> Unit,
+    onOpenCapture: (() -> Unit)?,
+    onDelete: () -> Unit,
+) {
+    ScaffoldCard(
+        title = detail.title,
+        subtitle = "${detail.source.name.lowercase()} | ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(detail.createdAt))}",
+    ) {
+        OutlinedTextField(
+            value = draftTitle,
+            onValueChange = onDraftTitleChange,
+            label = { Text("List title") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(onClick = onRename, modifier = Modifier.weight(1f)) {
+                Text("Save Title")
+            }
+            OutlinedButton(onClick = onToggleArchived, modifier = Modifier.weight(1f)) {
+                Text(if (detail.archived) "Reactivate" else "Archive")
+            }
+        }
+        Text(
+            text = "${detail.items.count { it.checked }}/${detail.items.size} items checked",
+            color = AccentPrimary,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        onOpenCapture?.let { openCapture ->
+            OutlinedButton(
+                onClick = openCapture,
+                modifier = Modifier.padding(top = 12.dp),
+            ) {
+                Text("Open Source Intel")
+            }
+        }
+        OutlinedButton(
+            onClick = onDelete,
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Delete List")
+        }
+    }
+}
+
 private fun createShoppingPhotoUri(context: android.content.Context): Uri {
     val file = File(context.cacheDir, "shopping-${System.currentTimeMillis()}.jpg")
     return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -322,7 +375,7 @@ private fun ShoppingListSummaryCard(
     val progress = if (summary.itemCount == 0) 0 else summary.checkedCount * 100 / summary.itemCount
     ScaffoldCard(
         title = summary.title,
-        subtitle = "${summary.source.name.lowercase()} • ${summary.checkedCount}/${summary.itemCount} checked",
+        subtitle = "${summary.source.name.lowercase()} | ${summary.checkedCount}/${summary.itemCount} checked",
     ) {
         Text(
             text = when {
@@ -448,6 +501,18 @@ class ShoppingDetailViewModel @Inject constructor(
     fun toggleItem(itemId: String, checked: Boolean) {
         viewModelScope.launch {
             shoppingListRepository.toggleItem(itemId, checked)
+        }
+    }
+
+    fun renameList(title: String) {
+        viewModelScope.launch {
+            shoppingListRepository.renameList(listId, title)
+        }
+    }
+
+    fun setArchived(archived: Boolean) {
+        viewModelScope.launch {
+            shoppingListRepository.setListArchived(listId, archived)
         }
     }
 

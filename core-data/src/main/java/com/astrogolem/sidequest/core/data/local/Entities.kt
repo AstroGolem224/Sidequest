@@ -148,6 +148,7 @@ data class ShoppingListEntity(
     val source: ShoppingListSource,
     val createdAt: Long,
     val sourceCaptureId: String?,
+    val archived: Boolean,
 )
 
 @Entity(

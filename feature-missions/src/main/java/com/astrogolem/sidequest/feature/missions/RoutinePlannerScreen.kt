@@ -70,12 +70,17 @@ private val routineTemplates = listOf(
     RoutineTemplate("garden-round", "Garden Round", RoutineCategory.OUTDOOR, 25, 28, RoutineTriggerMode.CAPTURE, "Garten", "Useful for later plant-care capture recognition."),
     RoutineTemplate("reading", "Reading", RoutineCategory.MIND, 30, 22, RoutineTriggerMode.MANUAL, "Book or article", "Low-friction recurring learning block."),
     RoutineTemplate("journal", "Journaling", RoutineCategory.MIND, 15, 18, RoutineTriggerMode.MANUAL, "Daily notes", "Works well morning or shutdown."),
+    RoutineTemplate("sleep-reset", "Sleep Reset", RoutineCategory.MIND, 20, 18, RoutineTriggerMode.MANUAL, "Wind-down", "Low-stimulation evening routine for better recovery."),
+    RoutineTemplate("hydration", "Hydration Reset", RoutineCategory.BODY, 5, 8, RoutineTriggerMode.MANUAL, "Water bottle", "Tiny repeatable health baseline that is easy to keep honest."),
+    RoutineTemplate("plant-care", "Plant Care", RoutineCategory.OUTDOOR, 12, 14, RoutineTriggerMode.CAPTURE, "Plants", "Small visual maintenance loop that can later use capture verification."),
     RoutineTemplate("laundry", "Laundry", RoutineCategory.HOME, 15, 16, RoutineTriggerMode.MANUAL, "Wash cycle", "Simple recurring household rhythm."),
     RoutineTemplate("shopping-restock", "Shopping Restock", RoutineCategory.LIFE, 20, 16, RoutineTriggerMode.MANUAL, "Groceries", "Pairs well with the shopping-list flow."),
     RoutineTemplate("deep-work", "Deep Work Sprint", RoutineCategory.LIFE, 50, 32, RoutineTriggerMode.MANUAL, "Project block", "Recurring focus slot with deterministic XP."),
     RoutineTemplate("language", "Language Practice", RoutineCategory.MIND, 20, 18, RoutineTriggerMode.MANUAL, "Lesson or vocabulary", "Simple recurring skill-building task."),
     RoutineTemplate("meal-prep", "Meal Prep", RoutineCategory.LIFE, 35, 26, RoutineTriggerMode.MANUAL, "Lunches or dinner prep", "Pairs well with shopping and kitchen reset."),
     RoutineTemplate("finance-review", "Finance Review", RoutineCategory.LIFE, 25, 20, RoutineTriggerMode.MANUAL, "Budget or invoices", "Weekly admin ritual with deterministic XP."),
+    RoutineTemplate("inbox-zero", "Inbox Zero", RoutineCategory.LIFE, 20, 18, RoutineTriggerMode.MANUAL, "Email or messages", "Useful for recurring admin cleanup."),
+    RoutineTemplate("social-checkin", "Social Check-in", RoutineCategory.MIND, 10, 12, RoutineTriggerMode.MANUAL, "Friend or family ping", "Keeps relational maintenance visible instead of accidental."),
 )
 
 private val weekdayOptions = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")

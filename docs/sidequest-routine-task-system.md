@@ -24,12 +24,17 @@ The app now ships with editable starter templates for:
 - garden round
 - reading
 - journaling
+- sleep reset
+- hydration reset
+- plant care
 - laundry
 - shopping restock
 - deep work sprint
 - language practice
 - meal prep
 - finance review
+- inbox zero
+- social check-in
 
 These are defaults, not locked content. Creating a plan from a template opens a full edit surface immediately.
 

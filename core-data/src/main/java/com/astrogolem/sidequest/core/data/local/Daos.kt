@@ -188,6 +188,7 @@ data class ShoppingListWithCount(
     val source: ShoppingListSource,
     val createdAt: Long,
     val sourceCaptureId: String?,
+    val archived: Boolean,
     val itemCount: Int,
     val checkedCount: Int,
 )
@@ -198,6 +199,7 @@ data class ShoppingListWithItems(
     val source: ShoppingListSource,
     val createdAt: Long,
     val sourceCaptureId: String?,
+    val archived: Boolean,
     val itemId: String,
     val itemLabel: String,
     val itemChecked: Boolean,
@@ -219,12 +221,13 @@ interface ShoppingListDao {
                shopping_lists.source,
                shopping_lists.createdAt,
                shopping_lists.sourceCaptureId,
+               shopping_lists.archived,
                COUNT(shopping_list_items.id) AS itemCount,
                SUM(CASE WHEN shopping_list_items.checked THEN 1 ELSE 0 END) AS checkedCount
         FROM shopping_lists
         LEFT JOIN shopping_list_items ON shopping_list_items.listId = shopping_lists.id
         GROUP BY shopping_lists.id
-        ORDER BY shopping_lists.createdAt DESC
+        ORDER BY shopping_lists.archived ASC, shopping_lists.createdAt DESC
         """,
     )
     fun observeLists(): Flow<List<ShoppingListWithCount>>
@@ -236,6 +239,7 @@ interface ShoppingListDao {
                shopping_lists.source,
                shopping_lists.createdAt,
                shopping_lists.sourceCaptureId,
+               shopping_lists.archived,
                shopping_list_items.id AS itemId,
                shopping_list_items.label AS itemLabel,
                shopping_list_items.checked AS itemChecked,
@@ -250,6 +254,12 @@ interface ShoppingListDao {
 
     @Query("UPDATE shopping_list_items SET checked = :checked WHERE id = :itemId")
     suspend fun updateItemChecked(itemId: String, checked: Boolean)
+
+    @Query("UPDATE shopping_lists SET title = :title WHERE id = :listId")
+    suspend fun updateListTitle(listId: String, title: String)
+
+    @Query("UPDATE shopping_lists SET archived = :archived WHERE id = :listId")
+    suspend fun updateListArchived(listId: String, archived: Boolean)
 
     @Query("DELETE FROM shopping_lists WHERE id = :listId")
     suspend fun deleteList(listId: String)

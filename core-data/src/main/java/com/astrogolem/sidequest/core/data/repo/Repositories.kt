@@ -53,6 +53,8 @@ interface ShoppingListRepository {
     suspend fun createVoiceList(rawInput: String): Result<String>
     suspend fun createPhotoList(imageUri: Uri): Result<String>
     suspend fun toggleItem(itemId: String, checked: Boolean)
+    suspend fun renameList(listId: String, title: String)
+    suspend fun setListArchived(listId: String, archived: Boolean)
     suspend fun deleteList(listId: String)
 }
 

@@ -592,6 +592,7 @@ class DefaultShoppingListRepository @Inject constructor(
                     itemCount = list.itemCount,
                     checkedCount = list.checkedCount,
                     sourceCaptureId = list.sourceCaptureId,
+                    archived = list.archived,
                 )
             }
         }
@@ -606,6 +607,7 @@ class DefaultShoppingListRepository @Inject constructor(
                 source = first.source,
                 createdAt = first.createdAt,
                 sourceCaptureId = first.sourceCaptureId,
+                archived = first.archived,
                 items = rows.map { row ->
                     ShoppingListItemModel(
                         id = row.itemId,
@@ -652,6 +654,16 @@ class DefaultShoppingListRepository @Inject constructor(
         shoppingListDao.updateItemChecked(itemId, checked)
     }
 
+    override suspend fun renameList(listId: String, title: String) {
+        val normalized = title.trim()
+        require(normalized.isNotBlank()) { "List title cannot be empty." }
+        shoppingListDao.updateListTitle(listId, normalized)
+    }
+
+    override suspend fun setListArchived(listId: String, archived: Boolean) {
+        shoppingListDao.updateListArchived(listId, archived)
+    }
+
     override suspend fun deleteList(listId: String) {
         shoppingListDao.deleteList(listId)
     }
@@ -671,6 +683,7 @@ class DefaultShoppingListRepository @Inject constructor(
                 source = source,
                 createdAt = System.currentTimeMillis(),
                 sourceCaptureId = sourceCaptureId,
+                archived = false,
             ),
         )
         shoppingListDao.upsertItems(
@@ -742,7 +755,7 @@ class DefaultArchiveService @Inject constructor(
             }
             val routinePlans = routinePlanDao.listPlans()
             val manifest = JSONObject().apply {
-                put("version", 5)
+                put("version", 6)
                 put("exportedAt", System.currentTimeMillis())
                 put("counts", JSONObject().apply {
                     put("captures", captures.size)
@@ -826,7 +839,7 @@ class DefaultArchiveService @Inject constructor(
             val entries = readArchiveEntries(source)
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: return ArchiveValidationResult.Invalid("Missing manifest.json")
-            if (manifest.optInt("version") !in setOf(2, 3, 4, 5)) {
+            if (manifest.optInt("version") !in setOf(2, 3, 4, 5, 6)) {
                 ArchiveValidationResult.Invalid("Unsupported archive version")
             } else if (!entries.containsKey("data/captures.json") || !entries.containsKey("data/missions.json")) {
                 ArchiveValidationResult.Invalid("Archive data is incomplete")
@@ -980,6 +993,7 @@ class DefaultArchiveService @Inject constructor(
                             source = ShoppingListSource.valueOf(json.getString("source")),
                             createdAt = json.getLong("createdAt"),
                             sourceCaptureId = json.optString("sourceCaptureId").takeIf { it.isNotBlank() },
+                            archived = json.optBoolean("archived", false),
                         ),
                     )
                 }
@@ -1611,6 +1625,7 @@ private fun ShoppingListWithCount.toJson(): JSONObject = JSONObject().apply {
     put("source", source.name)
     put("createdAt", createdAt)
     put("sourceCaptureId", sourceCaptureId)
+    put("archived", archived)
 }
 
 private fun ShoppingListWithItems.toJson(): JSONObject = JSONObject().apply {

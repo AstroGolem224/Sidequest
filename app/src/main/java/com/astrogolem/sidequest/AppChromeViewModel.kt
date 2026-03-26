@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class AppChromeUiState(
-    val totalGp: Int = 0,
     val level: Int = 1,
     val title: String = "ready",
 )
@@ -42,7 +41,6 @@ private fun toChromeState(missions: List<MissionCardModel>): AppChromeUiState {
         else -> "ready"
     }
     return AppChromeUiState(
-        totalGp = totalGp,
         level = level,
         title = title,
     )

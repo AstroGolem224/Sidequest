@@ -21,7 +21,7 @@ import androidx.room.TypeConverters
         ShoppingListItemEntity::class,
         RoutinePlanEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

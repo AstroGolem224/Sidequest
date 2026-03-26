@@ -6,13 +6,16 @@ Date: 2026-03-26
 - provider selection is single-active with persisted stored keys
 - OpenAI is currently the only provider wired for multimodal capture analysis
 - shopping lists are real and local-first across write, dictate, and photo flows
+- shopping lists now have a real lifecycle: rename, archive, reactivate
 - top-level swipe navigation is implemented for the main app shell
 - routine planning is now a real feature surface with editable scheduling and XP
+- inventory and stats now exist as dedicated utility surfaces
+- capture detail images are now full-view and zoomable instead of center-cropped
 
 ## Estimated Completion
-- app overall: ~98%
+- app overall: ~99%
 - core functionality: ~99%
-- production-hardening / quality: ~94%
+- production-hardening / quality: ~96%
 
 ## Phase Status
 
@@ -61,6 +64,18 @@ Must ship:
 - stronger local semantic retrieval
 - better result ranking
 - clearer memory/task/date/reference filtering
+
+### Phase 8C
+Inventory, stats, and utility management
+
+Status:
+- shipped
+
+Key outcomes:
+- inventory screen for shopping lists, routine plans, archived quests, and saved scans
+- stats screen for honest direct counters plus derived wellbeing signals
+- shopping list rename/archive/reactivate lifecycle
+- capture detail zoom and full-image inspection
 
 ### Phase 9
 Routine and planning quality

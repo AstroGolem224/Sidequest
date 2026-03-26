@@ -60,7 +60,9 @@ import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
 import com.astrogolem.sidequest.feature.capture.CaptureRoute
 import com.astrogolem.sidequest.feature.inbox.InboxRoute
+import com.astrogolem.sidequest.feature.lobby.InventoryRoute
 import com.astrogolem.sidequest.feature.lobby.LobbyRoute
+import com.astrogolem.sidequest.feature.lobby.StatsRoute
 import com.astrogolem.sidequest.feature.missions.MissionDetailRoute
 import com.astrogolem.sidequest.feature.missions.MissionsRoute
 import com.astrogolem.sidequest.feature.missions.RoutinePlanDetailRoute
@@ -149,7 +151,16 @@ private fun SidequestApp(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val utilityRoutes = setOf("search", "settings", "shopping", "shopping/{listId}", "routines", "routine/{planId}")
+    val utilityRoutes = setOf(
+        "search",
+        "settings",
+        "shopping",
+        "shopping/{listId}",
+        "routines",
+        "routine/{planId}",
+        "inventory",
+        "stats",
+    )
     val showBottomBar = destinations.any { it.route == currentRoute }
     val showTopBar = showBottomBar || currentRoute in utilityRoutes
     val topBarTitle = when (currentRoute) {
@@ -161,6 +172,8 @@ private fun SidequestApp(
         "shopping/{listId}" -> "Shopping List"
         "routines" -> "Routine Tasks"
         "routine/{planId}" -> "Routine Plan"
+        "inventory" -> "Inventory"
+        "stats" -> "Stats"
         "search" -> "Search"
         "settings" -> "Settings"
         else -> "Sidequest"
@@ -186,7 +199,6 @@ private fun SidequestApp(
             if (showTopBar) {
                 SidequestTopBar(
                     title = topBarTitle,
-                    gp = chrome.totalGp,
                     level = chrome.level,
                     subtitle = chrome.title,
                     showBack = currentRoute in utilityRoutes,
@@ -319,7 +331,41 @@ private fun SidequestApp(
                         }
                     },
                 ) {
-                    LobbyRoute()
+                    LobbyRoute(
+                        onOpenInventory = { navController.navigate("inventory") },
+                        onOpenStats = { navController.navigate("stats") },
+                    )
+                }
+            }
+            composable("inventory") {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
+                    InventoryRoute(
+                        onOpenShopping = { listId -> navController.navigate("shopping/$listId") },
+                        onOpenRoutine = { planId -> navController.navigate("routine/$planId") },
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                    )
+                }
+            }
+            composable("stats") {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
+                    StatsRoute()
                 }
             }
             composable("shopping") {
@@ -449,7 +495,6 @@ private fun TopLevelScreenContainer(
 @Composable
 private fun SidequestTopBar(
     title: String,
-    gp: Int,
     level: Int,
     subtitle: String,
     showBack: Boolean,
@@ -495,24 +540,6 @@ private fun SidequestTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.18f)),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(
-                            imageVector = SidequestIcons.Coin,
-                            contentDescription = "GP",
-                            tint = AccentPrimary,
-                        )
-                        Text("$gp GP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
-                    }
-                }
                 IconButton(onClick = onSearch) {
                     Icon(
                         imageVector = SidequestIcons.Search,

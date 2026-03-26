@@ -89,6 +89,7 @@ data class ShoppingListSummary(
     val itemCount: Int,
     val checkedCount: Int,
     val sourceCaptureId: String?,
+    val archived: Boolean,
 )
 
 data class ShoppingListItemModel(
@@ -103,6 +104,7 @@ data class ShoppingListDetailModel(
     val source: ShoppingListSource,
     val createdAt: Long,
     val sourceCaptureId: String?,
+    val archived: Boolean,
     val items: List<ShoppingListItemModel>,
 )
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,7 +56,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 @Composable
-fun LobbyRoute(viewModel: LobbyViewModel = hiltViewModel()) {
+fun LobbyRoute(
+    onOpenInventory: () -> Unit,
+    onOpenStats: () -> Unit,
+    viewModel: LobbyViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LazyColumn(
         modifier = Modifier
@@ -64,6 +69,20 @@ fun LobbyRoute(viewModel: LobbyViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item { ProfileHero(state) }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(onClick = onOpenInventory, modifier = Modifier.weight(1f)) {
+                    Text("Inventory")
+                }
+                OutlinedButton(onClick = onOpenStats, modifier = Modifier.weight(1f)) {
+                    Text("Stats")
+                }
+            }
+        }
 
         item { SectionTitle("Activity Metrics", "Live signals derived from actual mission history.") }
 
@@ -189,7 +208,7 @@ private fun ProfileHero(state: LobbyUiState) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                MetricStack("Current GP", state.totalGp.toString(), Modifier.weight(1f))
+                MetricStack("Saved Quests", state.totalCount.toString(), Modifier.weight(1f))
                 MetricStack("Completed", state.doneCount.toString(), Modifier.weight(1f))
                 MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
             }

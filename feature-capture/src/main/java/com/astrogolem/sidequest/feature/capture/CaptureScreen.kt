@@ -2,6 +2,7 @@ package com.astrogolem.sidequest.feature.capture
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,7 +19,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,11 +74,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -762,6 +772,84 @@ private fun PreviewImage(
 }
 
 @Composable
+private fun ZoomableCaptureImage(
+    imagePath: String,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap = remember(imagePath) { BitmapFactory.decodeFile(imagePath) }
+    var scale by remember(imagePath) { mutableStateOf(1f) }
+    var offset by remember(imagePath) { mutableStateOf(Offset.Zero) }
+    var containerSize by remember(imagePath) { mutableStateOf(IntSize.Zero) }
+
+    if (bitmap == null) {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(20.dp),
+            color = BgPanel.copy(alpha = 0.78f),
+        ) {
+            Text(
+                text = "image preview unavailable",
+                color = TextSecondary,
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+        return
+    }
+
+    val aspectRatio = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1).toFloat()
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(aspectRatio)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.28f))
+                .onSizeChanged { containerSize = it }
+                .pointerInput(imagePath) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val nextScale = (scale * zoom).coerceIn(1f, 5f)
+                        val maxX = (containerSize.width * (nextScale - 1f)) / 2f
+                        val maxY = (containerSize.height * (nextScale - 1f)) / 2f
+                        val nextOffset = if (nextScale <= 1.02f) {
+                            Offset.Zero
+                        } else {
+                            Offset(
+                                x = (offset.x + pan.x).coerceIn(-maxX, maxX),
+                                y = (offset.y + pan.y).coerceIn(-maxY, maxY),
+                            )
+                        }
+                        scale = nextScale
+                        offset = nextOffset
+                    }
+                },
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Capture image",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
+            )
+        }
+        Text(
+            text = "pinch to zoom and drag to inspect the full scan",
+            color = TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
 private fun rememberCameraPermission(): CameraPermissionState {
     val context = LocalContext.current
     var hasPermission by remember {
@@ -821,7 +909,12 @@ fun CaptureDetailRoute(
                             capture.documentType?.let { append(" | ${it.name.lowercase()}") }
                         },
                     ) {
-                        PreviewImage(uri = Uri.fromFile(File(capture.imagePath)))
+                        ZoomableCaptureImage(
+                            imagePath = capture.imagePath,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                        )
                         if (capture.summary.isNotBlank()) {
                             Text("Summary: ${capture.summary}", modifier = Modifier.padding(top = 12.dp))
                         }
