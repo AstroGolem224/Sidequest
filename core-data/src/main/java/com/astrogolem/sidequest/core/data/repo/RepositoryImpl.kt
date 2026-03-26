@@ -371,6 +371,9 @@ class DefaultMissionRepository @Inject constructor(
     private val captureDao: CaptureDao,
     private val missionDao: MissionDao,
     private val reminderDao: ReminderDao,
+    private val shoppingListDao: ShoppingListDao,
+    private val routinePlanDao: RoutinePlanDao,
+    private val noteDao: NoteDao,
     @ApplicationContext private val context: Context,
     private val workManager: WorkManager,
 ) : MissionRepository {
@@ -425,6 +428,98 @@ class DefaultMissionRepository @Inject constructor(
             scheduleReminder(mission.id, mission.title, mission.description, mission.remindAt)
         }
         captureDao.updateExtractedStatus(candidateId, ExtractionStatus.PROMOTED.name)
+    }
+
+    override suspend fun createQuestFromShoppingList(listId: String): String? {
+        val rows = shoppingListDao.observeList(listId).first()
+        val first = rows.firstOrNull() ?: return null
+        val openItems = rows.filterNot { it.itemChecked }
+        val body = buildString {
+            appendLine("quest created from shopping list `${first.title}`.")
+            appendLine()
+            if (openItems.isEmpty()) {
+                append("all items are already checked. use this quest for wrap-up or revalidation.")
+            } else {
+                appendLine("open items:")
+                openItems.take(12).forEach { item ->
+                    appendLine("- ${item.itemLabel}")
+                }
+                if (openItems.size > 12) {
+                    append("...and ${openItems.size - 12} more items.")
+                }
+            }
+        }.trim()
+        val mission = MissionEntity(
+            id = UUID.randomUUID().toString(),
+            title = "Shopping: ${first.title}",
+            description = body,
+            priorityScore = if (openItems.isEmpty()) 42 else 62,
+            status = MissionStatus.OPEN,
+            dueAt = null,
+            remindAt = null,
+            sourceCaptureId = first.sourceCaptureId,
+            createdAt = System.currentTimeMillis(),
+        )
+        missionDao.upsertMission(mission)
+        return mission.id
+    }
+
+    override suspend fun createQuestFromRoutinePlan(planId: String): String? {
+        val plan = routinePlanDao.observePlan(planId).first() ?: return null
+        val nextRunLabel = "${plan.weekdays.ifBlank { "one-off" }} @ ${plan.hour.toString().padStart(2, '0')}:${plan.minute.toString().padStart(2, '0')}"
+        val mission = MissionEntity(
+            id = UUID.randomUUID().toString(),
+            title = "Routine: ${plan.title}",
+            description = buildString {
+                appendLine("quest created from routine plan `${plan.title}`.")
+                appendLine()
+                appendLine("target: ${plan.targetLabel.ifBlank { "general execution" }}")
+                appendLine("schedule: $nextRunLabel")
+                appendLine("duration: ${plan.durationMinutes} min")
+                appendLine("xp on completion: ${plan.xpReward}")
+                if (plan.notes.isNotBlank()) {
+                    appendLine()
+                    append(plan.notes.trim())
+                }
+            }.trim(),
+            priorityScore = 58,
+            status = MissionStatus.OPEN,
+            dueAt = null,
+            remindAt = null,
+            sourceCaptureId = null,
+            createdAt = System.currentTimeMillis(),
+        )
+        missionDao.upsertMission(mission)
+        return mission.id
+    }
+
+    override suspend fun createQuestFromNote(noteId: String): String? {
+        val note = noteDao.observeNote(noteId).first() ?: return null
+        val excerpt = note.markdown
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(8)
+            .joinToString("\n")
+        val mission = MissionEntity(
+            id = UUID.randomUUID().toString(),
+            title = "Note: ${note.title}",
+            description = buildString {
+                appendLine("quest created from note `${note.title}`.")
+                if (excerpt.isNotBlank()) {
+                    appendLine()
+                    append(excerpt)
+                }
+            }.trim(),
+            priorityScore = 54,
+            status = MissionStatus.OPEN,
+            dueAt = null,
+            remindAt = null,
+            sourceCaptureId = null,
+            createdAt = System.currentTimeMillis(),
+        )
+        missionDao.upsertMission(mission)
+        return mission.id
     }
 
     override suspend fun applyAction(action: MissionAction) {

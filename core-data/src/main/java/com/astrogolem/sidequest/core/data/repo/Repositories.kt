@@ -42,6 +42,9 @@ interface MissionRepository {
     fun observeMissions(): Flow<List<MissionCardModel>>
     fun observeMission(missionId: String): Flow<MissionDetailModel?>
     suspend fun promoteCandidate(candidateId: String)
+    suspend fun createQuestFromShoppingList(listId: String): String?
+    suspend fun createQuestFromRoutinePlan(planId: String): String?
+    suspend fun createQuestFromNote(noteId: String): String?
     suspend fun applyAction(action: MissionAction)
 }
 

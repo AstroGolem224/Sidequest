@@ -242,10 +242,19 @@ fun ShoppingRoute(
 @Composable
 fun ShoppingDetailRoute(
     onOpenCapture: (String) -> Unit,
+    onOpenMission: (String) -> Unit,
     viewModel: ShoppingDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
     var draftTitle by rememberSaveable(detail?.id) { mutableStateOf("") }
+
+    LaunchedEffect(openMissionId) {
+        openMissionId?.let { missionId ->
+            onOpenMission(missionId)
+            viewModel.consumeOpenMission()
+        }
+    }
 
     LaunchedEffect(detail?.id, detail?.title) {
         draftTitle = detail?.title.orEmpty()
@@ -274,6 +283,7 @@ fun ShoppingDetailRoute(
                     onRename = { viewModel.renameList(draftTitle) },
                     onToggleArchived = { viewModel.setArchived(!shoppingDetail.archived) },
                     onOpenCapture = shoppingDetail.sourceCaptureId?.let { captureId -> { onOpenCapture(captureId) } },
+                    onCreateQuest = viewModel::createQuest,
                     onDelete = viewModel::deleteList,
                 )
             }
@@ -315,6 +325,7 @@ private fun ShoppingListHeaderCard(
     onRename: () -> Unit,
     onToggleArchived: () -> Unit,
     onOpenCapture: (() -> Unit)?,
+    onCreateQuest: () -> Unit,
     onDelete: () -> Unit,
 ) {
     ScaffoldCard(
@@ -352,6 +363,12 @@ private fun ShoppingListHeaderCard(
             ) {
                 Text("Open Source Intel")
             }
+        }
+        Button(
+            onClick = onCreateQuest,
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Create Quest")
         }
         OutlinedButton(
             onClick = onDelete,
@@ -491,8 +508,11 @@ class ShoppingViewModel @Inject constructor(
 class ShoppingDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val shoppingListRepository: ShoppingListRepository,
+    private val missionRepository: com.astrogolem.sidequest.core.data.repo.MissionRepository,
 ) : ViewModel() {
     private val listId: String = checkNotNull(savedStateHandle["listId"])
+    private val _openMissionId = MutableStateFlow<String?>(null)
+    val openMissionId: StateFlow<String?> = _openMissionId
 
     val detail: StateFlow<ShoppingListDetailModel?> =
         shoppingListRepository.observeList(listId)
@@ -520,5 +540,15 @@ class ShoppingDetailViewModel @Inject constructor(
         viewModelScope.launch {
             shoppingListRepository.deleteList(listId)
         }
+    }
+
+    fun createQuest() {
+        viewModelScope.launch {
+            _openMissionId.value = missionRepository.createQuestFromShoppingList(listId)
+        }
+    }
+
+    fun consumeOpenMission() {
+        _openMissionId.value = null
     }
 }

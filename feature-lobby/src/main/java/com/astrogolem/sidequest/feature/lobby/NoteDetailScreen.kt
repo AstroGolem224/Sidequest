@@ -26,6 +26,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.model.NoteDetail
 import com.astrogolem.sidequest.core.data.repo.NotesRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
@@ -42,12 +43,21 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun NoteDetailRoute(
+    onOpenMission: (String) -> Unit,
     viewModel: NoteDetailViewModel = hiltViewModel(),
 ) {
     val note by viewModel.note.collectAsStateWithLifecycle()
+    val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
     var previewMode by remember(note?.id) { mutableStateOf(false) }
     var title by remember(note?.id) { mutableStateOf("") }
     var markdown by remember(note?.id) { mutableStateOf("") }
+
+    LaunchedEffect(openMissionId) {
+        openMissionId?.let { missionId ->
+            onOpenMission(missionId)
+            viewModel.consumeOpenMission()
+        }
+    }
 
     LaunchedEffect(note?.id, note?.title, note?.markdown) {
         title = note?.title.orEmpty()
@@ -151,6 +161,14 @@ fun NoteDetailRoute(
                             Text("Delete")
                         }
                     }
+                    Button(
+                        onClick = viewModel::createQuest,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp),
+                    ) {
+                        Text("Create Quest")
+                    }
                 }
             }
         }
@@ -194,8 +212,11 @@ private fun MarkdownPreviewCard(
 class NoteDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val notesRepository: NotesRepository,
+    private val missionRepository: MissionRepository,
 ) : ViewModel() {
     private val noteId: String = checkNotNull(savedStateHandle["noteId"])
+    private val _openMissionId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val openMissionId: StateFlow<String?> = _openMissionId
 
     val note: StateFlow<NoteDetail?> =
         notesRepository.observeNote(noteId)
@@ -211,5 +232,15 @@ class NoteDetailViewModel @Inject constructor(
         viewModelScope.launch {
             notesRepository.deleteNote(noteId)
         }
+    }
+
+    fun createQuest() {
+        viewModelScope.launch {
+            _openMissionId.value = missionRepository.createQuestFromNote(noteId)
+        }
+    }
+
+    fun consumeOpenMission() {
+        _openMissionId.value = null
     }
 }

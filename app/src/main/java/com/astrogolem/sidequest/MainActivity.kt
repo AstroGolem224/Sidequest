@@ -379,7 +379,7 @@ private fun SidequestApp(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    NoteDetailRoute()
+                    NoteDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
                 }
             }
             composable("shopping") {
@@ -400,7 +400,10 @@ private fun SidequestApp(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    ShoppingDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                    ShoppingDetailRoute(
+                        onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                    )
                 }
             }
             composable("search") {
@@ -451,7 +454,7 @@ private fun SidequestApp(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    RoutinePlanDetailRoute()
+                    RoutinePlanDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
                 }
             }
         }

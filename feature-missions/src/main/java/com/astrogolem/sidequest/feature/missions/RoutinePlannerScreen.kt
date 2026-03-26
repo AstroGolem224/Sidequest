@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import com.astrogolem.sidequest.core.data.model.RoutineCategory
 import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
 import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
+import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -152,10 +154,19 @@ fun RoutinePlannerRoute(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RoutinePlanDetailRoute(
+    onOpenMission: (String) -> Unit,
     viewModel: RoutinePlanDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
     val plan = detail ?: return
+
+    LaunchedEffect(openMissionId) {
+        openMissionId?.let { missionId ->
+            onOpenMission(missionId)
+            viewModel.consumeOpenMission()
+        }
+    }
 
     var title by remember(plan.id, plan.title) { mutableStateOf(plan.title) }
     var targetLabel by remember(plan.id, plan.targetLabel) { mutableStateOf(plan.targetLabel) }
@@ -352,16 +363,24 @@ fun RoutinePlanDetailRoute(
                     ) {
                         Text("Save")
                     }
-                    OutlinedButton(
-                        onClick = viewModel::completePlan,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Complete")
-                    }
-                }
                 OutlinedButton(
-                    onClick = viewModel::deletePlan,
-                    modifier = Modifier
+                    onClick = viewModel::completePlan,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Complete")
+                }
+            }
+            Button(
+                onClick = viewModel::createQuest,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+            ) {
+                Text("Create Quest")
+            }
+            OutlinedButton(
+                onClick = viewModel::deletePlan,
+                modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp),
                 ) {
@@ -457,8 +476,11 @@ class RoutinePlannerViewModel @Inject constructor(
 class RoutinePlanDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val routinePlanRepository: RoutinePlanRepository,
+    private val missionRepository: MissionRepository,
 ) : ViewModel() {
     private val planId: String = checkNotNull(savedStateHandle["planId"])
+    private val _openMissionId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val openMissionId: StateFlow<String?> = _openMissionId
 
     val detail: StateFlow<RoutinePlanDetail?> =
         routinePlanRepository.observePlan(planId)
@@ -480,5 +502,15 @@ class RoutinePlanDetailViewModel @Inject constructor(
         viewModelScope.launch {
             routinePlanRepository.deletePlan(planId)
         }
+    }
+
+    fun createQuest() {
+        viewModelScope.launch {
+            _openMissionId.value = missionRepository.createQuestFromRoutinePlan(planId)
+        }
+    }
+
+    fun consumeOpenMission() {
+        _openMissionId.value = null
     }
 }

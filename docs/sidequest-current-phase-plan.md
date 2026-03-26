@@ -14,6 +14,7 @@ Date: 2026-03-26
 - inventory and stats now exist as dedicated utility surfaces
 - capture detail images are now full-view and zoomable instead of center-cropped
 - routine reminders now fire from active plans using weekday/time schedules
+- shopping lists, notes, and routine plans can now spawn editable quests directly from their detail screens
 
 ## Estimated Completion
 - app overall: ~99%
