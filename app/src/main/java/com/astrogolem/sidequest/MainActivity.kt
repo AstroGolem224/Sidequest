@@ -35,7 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,6 +47,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
@@ -104,7 +105,7 @@ class MainActivity : AppCompatActivity() {
 private data class TopLevelDestination(
     val route: String,
     val label: String,
-    val iconRes: Int,
+    val icon: ImageVector,
 )
 
 private sealed interface DeepLinkTarget {
@@ -134,10 +135,10 @@ private fun SidequestApp(
 
     val navController = rememberNavController()
     val destinations = listOf(
-        TopLevelDestination("missions", "Dashboard", android.R.drawable.ic_menu_view),
-        TopLevelDestination("inbox", "Quests", android.R.drawable.ic_menu_agenda),
-        TopLevelDestination("capture", "Create", android.R.drawable.ic_menu_camera),
-        TopLevelDestination("lobby", "Profile", android.R.drawable.ic_menu_myplaces),
+        TopLevelDestination("missions", "Dashboard", SidequestIcons.Dashboard),
+        TopLevelDestination("inbox", "Quests", SidequestIcons.QuestLog),
+        TopLevelDestination("capture", "Create", SidequestIcons.Camera),
+        TopLevelDestination("lobby", "Profile", SidequestIcons.Profile),
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -212,7 +213,7 @@ private fun SidequestApp(
                             label = { Text(destination.label) },
                             icon = {
                                 Icon(
-                                    painter = painterResource(destination.iconRes),
+                                    imageVector = destination.icon,
                                     contentDescription = destination.label,
                                 )
                             },
@@ -333,7 +334,7 @@ private fun SidequestTopBar(
                 if (showBack) {
                     IconButton(onClick = onBack) {
                         Icon(
-                            painter = painterResource(android.R.drawable.ic_media_previous),
+                            imageVector = SidequestIcons.Back,
                             contentDescription = "Back",
                             tint = AccentSecondary,
                         )
@@ -363,7 +364,7 @@ private fun SidequestTopBar(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(
-                            painter = painterResource(android.R.drawable.star_big_on),
+                            imageVector = SidequestIcons.Coin,
                             contentDescription = "GP",
                             tint = AccentPrimary,
                         )
@@ -372,7 +373,7 @@ private fun SidequestTopBar(
                 }
                 IconButton(onClick = onSearch) {
                     Icon(
-                        painter = painterResource(android.R.drawable.ic_menu_search),
+                        imageVector = SidequestIcons.Search,
                         contentDescription = "Search",
                         tint = TextSecondary,
                     )

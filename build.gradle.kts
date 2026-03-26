@@ -7,3 +7,18 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ksp) apply false
 }
+
+val localBuildRoot = System.getenv("LOCALAPPDATA")
+    ?.let(::file)
+    ?.resolve("SidequestBuild")
+    ?: rootDir.resolve(".local-build")
+
+rootProject.layout.buildDirectory.set(localBuildRoot.resolve("root"))
+
+subprojects {
+    val projectBuildPath = project.path
+        .trimStart(':')
+        .replace(':', '/')
+        .ifBlank { "root" }
+    layout.buildDirectory.set(localBuildRoot.resolve(projectBuildPath))
+}

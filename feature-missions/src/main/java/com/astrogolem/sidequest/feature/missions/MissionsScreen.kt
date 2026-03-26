@@ -35,8 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -52,6 +52,7 @@ import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.components.HudTone
 import com.astrogolem.sidequest.core.ui.components.StatusPill
+import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
@@ -179,7 +180,7 @@ fun MissionsRoute(
                             ) {
                                 Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
                                     Icon(
-                                        painter = painterResource(missionIconRes(mission)),
+                                        imageVector = missionIconRes(mission),
                                         contentDescription = mission.title,
                                         tint = AccentPrimary,
                                     )
@@ -200,8 +201,8 @@ fun MissionsRoute(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.padding(top = 18.dp),
                     ) {
-                        RewardChip(android.R.drawable.star_big_on, "${rewardXp(mission)} XP")
-                        RewardChip(android.R.drawable.ic_menu_info_details, "${rewardGp(mission)} GP")
+                        RewardChip(SidequestIcons.Spark, "${rewardXp(mission)} XP")
+                        RewardChip(SidequestIcons.Coin, "${rewardGp(mission)} GP")
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -432,11 +433,11 @@ private fun SpoilsCard(detail: MissionDetailModel) {
         title = "Potential Spoils",
         subtitle = "Rewards are deterministic so the game wrapper stays honest.",
     ) {
-        RewardStrip(label = "Experience", value = "+${rewardXp(detail.toMissionCard())} XP", iconRes = android.R.drawable.ic_menu_compass)
+        RewardStrip(label = "Experience", value = "+${rewardXp(detail.toMissionCard())} XP", icon = SidequestIcons.Spark)
         RewardStrip(
             label = "Gold Pieces",
             value = "+${rewardGp(detail.toMissionCard())} GP",
-            iconRes = android.R.drawable.star_big_on,
+            icon = SidequestIcons.Coin,
             modifier = Modifier.padding(top = 10.dp),
         )
         Surface(
@@ -463,7 +464,7 @@ private fun SpoilsCard(detail: MissionDetailModel) {
 private fun RewardStrip(
     label: String,
     value: String,
-    iconRes: Int,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -478,7 +479,7 @@ private fun RewardStrip(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(iconRes),
+                    imageVector = icon,
                     contentDescription = label,
                     tint = AccentPrimary,
                     modifier = Modifier.size(18.dp),
@@ -679,7 +680,7 @@ private fun estimatedDuration(priorityScore: Int): String {
 
 @Composable
 private fun RewardChip(
-    iconRes: Int,
+    icon: ImageVector,
     value: String,
 ) {
     Surface(
@@ -692,7 +693,7 @@ private fun RewardChip(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(
-                painter = painterResource(iconRes),
+                imageVector = icon,
                 contentDescription = value,
                 tint = AccentPrimary,
                 modifier = Modifier.size(16.dp),
@@ -751,13 +752,13 @@ private fun missionTierLabel(mission: MissionCardModel): String {
     }
 }
 
-private fun missionIconRes(mission: MissionCardModel): Int {
+private fun missionIconRes(mission: MissionCardModel): ImageVector {
     val title = mission.title.lowercase()
     return when {
-        "clean" in title || "desk" in title || "kitchen" in title -> android.R.drawable.ic_menu_delete
-        "read" in title || "book" in title || "study" in title -> android.R.drawable.ic_menu_edit
-        "run" in title || "walk" in title || "fit" in title -> android.R.drawable.ic_media_play
-        else -> android.R.drawable.ic_menu_compass
+        "clean" in title || "desk" in title || "kitchen" in title -> SidequestIcons.Clean
+        "read" in title || "book" in title || "study" in title -> SidequestIcons.Study
+        "run" in title || "walk" in title || "fit" in title -> SidequestIcons.Sprint
+        else -> SidequestIcons.Compass
     }
 }
 

@@ -66,7 +66,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,6 +86,7 @@ import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
@@ -615,9 +615,7 @@ private fun LensActionBar(
                 modifier = Modifier.size(44.dp),
             ) {
                 Icon(
-                    painter = painterResource(
-                        id = if (pendingCapture) android.R.drawable.ic_menu_revert else android.R.drawable.ic_menu_gallery,
-                    ),
+                    imageVector = if (pendingCapture) SidequestIcons.Retake else SidequestIcons.Gallery,
                     contentDescription = if (pendingCapture) "Retake capture" else "Photo library",
                     modifier = Modifier.size(18.dp),
                 )
@@ -632,9 +630,7 @@ private fun LensActionBar(
                 ),
             ) {
                 Icon(
-                    painter = painterResource(
-                        id = if (pendingCapture) android.R.drawable.ic_menu_save else android.R.drawable.ic_menu_camera,
-                    ),
+                    imageVector = if (pendingCapture) SidequestIcons.Save else SidequestIcons.Camera,
                     contentDescription = if (pendingCapture) "Save capture" else "Capture image",
                     modifier = Modifier.size(28.dp),
                 )
@@ -645,7 +641,7 @@ private fun LensActionBar(
                 modifier = Modifier.size(44.dp),
             ) {
                 Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_view),
+                    imageVector = SidequestIcons.Intel,
                     contentDescription = "Open latest intel",
                     modifier = Modifier.size(18.dp),
                 )
