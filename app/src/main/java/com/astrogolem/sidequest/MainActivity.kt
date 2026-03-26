@@ -21,11 +21,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.Image
@@ -51,7 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +67,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -76,6 +88,7 @@ import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
+import com.astrogolem.sidequest.core.ui.theme.AccentCoral
 import com.astrogolem.sidequest.core.ui.theme.BgElevated
 import com.astrogolem.sidequest.core.ui.theme.BgPrimary
 import com.astrogolem.sidequest.core.ui.theme.BgPanel
@@ -99,6 +112,8 @@ import com.astrogolem.sidequest.feature.search.SearchRoute
 import com.astrogolem.sidequest.feature.settings.SettingsRoute
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 private const val MissionIdExtra = "mission_id"
 private const val CaptureIdExtra = "capture_id"
@@ -287,16 +302,8 @@ private fun SidequestApp(
                 }
             }
         },
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (userPreferences.themePresetName == ThemePreset.CYBER.name) {
-                Image(
-                    painter = painterResource(id = R.drawable.cyber_hud_background),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
             navController = navController,
             startDestination = "missions",
@@ -331,10 +338,7 @@ private fun SidequestApp(
                 }
             }
             composable("mission/{missionId}") {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                GlassPageFrame(routeKey = "mission-detail") {
                     MissionDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
@@ -353,10 +357,7 @@ private fun SidequestApp(
                 }
             }
             composable("captureDetail/{captureId}") {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                GlassPageFrame(routeKey = "capture-detail") {
                     CaptureDetailRoute(
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
                         onDeleted = { navController.popBackStack() },
@@ -426,10 +427,7 @@ private fun SidequestApp(
                 }
             }
             composable("note/{noteId}") {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                GlassPageFrame(routeKey = "note-detail") {
                     NoteDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
                 }
             }
@@ -447,10 +445,7 @@ private fun SidequestApp(
                 }
             }
             composable("shopping/{listId}") {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                GlassPageFrame(routeKey = "shopping-detail") {
                     ShoppingDetailRoute(
                         onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
@@ -501,10 +496,7 @@ private fun SidequestApp(
                 }
             }
             composable("routine/{planId}") {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                GlassPageFrame(routeKey = "routine-detail") {
                     RoutinePlanDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
                 }
             }
@@ -522,6 +514,7 @@ private fun TopLevelScreenContainer(
     content: @Composable () -> Unit,
 ) {
     val currentIndex = destinations.indexOfFirst { it.route == currentRoute }
+    var dragParallax by remember(currentRoute) { mutableStateOf(0f) }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -540,28 +533,156 @@ private fun TopLevelScreenContainer(
                             }
                         }
                         totalDrag = 0f
+                        dragParallax = 0f
                     },
                 ) { _, dragAmount ->
                     totalDrag += dragAmount
+                    dragParallax = (totalDrag / 8f).coerceIn(-28f, 28f)
                 }
             }
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(AccentPrimary.copy(alpha = 0.16f), AccentSecondary.copy(alpha = 0.05f), BgPrimary),
-                    radius = 1800f,
-                ),
-            ),
     ) {
         if (wrapInSurface) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+            GlassPageFrame(
+                routeKey = currentRoute ?: "top-level",
+                gestureParallaxX = dragParallax,
             ) {
                 content()
             }
         } else {
             content()
         }
+    }
+}
+
+@Composable
+private fun GlassPageFrame(
+    routeKey: String,
+    gestureParallaxX: Float = 0f,
+    content: @Composable () -> Unit,
+) {
+    var scrollParallaxY by remember(routeKey) { mutableStateOf(0f) }
+    val nestedScrollConnection = remember(routeKey) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                scrollParallaxY = (scrollParallaxY + consumed.y * 0.18f).coerceIn(-28f, 28f)
+                return Offset.Zero
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection),
+    ) {
+        DiagonalGridBackdrop(
+            routeKey = routeKey,
+            parallaxX = gestureParallaxX,
+            parallaxY = scrollParallaxY,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.97f),
+                            BgElevated.copy(alpha = 0.95f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                        ),
+                    ),
+                ),
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun DiagonalGridBackdrop(
+    routeKey: String,
+    parallaxX: Float,
+    parallaxY: Float,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "grid-drift")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 48f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 16000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "grid-phase",
+    )
+    val seed = remember(routeKey) { (abs(routeKey.hashCode()) % 13).toFloat() }
+    val gridColor = Color.White.copy(alpha = 0.095f)
+
+    Canvas(
+        modifier = modifier,
+    ) {
+        val width = size.width
+        val height = size.height
+        val hexRadius = 42f
+        val hexWidth = sqrt(3f) * hexRadius
+        val verticalStep = 1.5f * hexRadius
+        val horizontalStep = hexWidth
+        val driftX = (drift + seed * 3f) % horizontalStep
+        val driftY = (drift * 0.75f + seed * 2f) % verticalStep
+
+        drawRect(color = BgPrimary)
+        drawCircle(
+            color = AccentPrimary.copy(alpha = 0.06f),
+            radius = size.minDimension * 0.55f,
+            center = Offset(width * 0.18f, height * 0.12f),
+        )
+        drawCircle(
+            color = AccentSecondary.copy(alpha = 0.045f),
+            radius = size.minDimension * 0.42f,
+            center = Offset(width * 0.84f, height * 0.22f),
+        )
+        drawCircle(
+            color = AccentCoral.copy(alpha = 0.03f),
+            radius = size.minDimension * 0.48f,
+            center = Offset(width * 0.72f, height * 0.88f),
+        )
+
+        var row = -3
+        while (true) {
+            val centerY = row * verticalStep + driftY - parallaxY
+            if (centerY > height + hexRadius * 4) break
+            val rowOffset = if (row % 2 == 0) 0f else horizontalStep / 2f
+            var column = -3
+            while (true) {
+                val centerX = column * horizontalStep + rowOffset + driftX - parallaxX
+                if (centerX > width + hexWidth * 2) break
+                drawPath(
+                    path = hexagonPath(centerX, centerY, hexRadius),
+                    color = gridColor,
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
+                column += 1
+            }
+            row += 1
+        }
+    }
+}
+
+private fun hexagonPath(
+    centerX: Float,
+    centerY: Float,
+    radius: Float,
+): Path {
+    val halfWidth = sqrt(3f) * radius / 2f
+    return Path().apply {
+        moveTo(centerX, centerY - radius)
+        lineTo(centerX + halfWidth, centerY - radius / 2f)
+        lineTo(centerX + halfWidth, centerY + radius / 2f)
+        lineTo(centerX, centerY + radius)
+        lineTo(centerX - halfWidth, centerY + radius / 2f)
+        lineTo(centerX - halfWidth, centerY - radius / 2f)
+        close()
     }
 }
 

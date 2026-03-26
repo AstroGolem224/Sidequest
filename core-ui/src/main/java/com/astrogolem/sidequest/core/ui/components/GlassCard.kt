@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,10 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
+import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
 import com.astrogolem.sidequest.core.ui.theme.BgPanel
+import com.astrogolem.sidequest.core.ui.theme.CardSurfaceStrong
 import com.astrogolem.sidequest.core.ui.theme.CardStroke
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 
@@ -29,37 +33,82 @@ fun GlassCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(26.dp)
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = BgPanel.copy(alpha = 0.82f),
-        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.7f)),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.82f)),
+        shadowElevation = 12.dp,
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(BgGlow.copy(alpha = 0.4f), Color.Transparent),
-                    ),
-                )
-                .padding(20.dp),
         ) {
-            Column(modifier = Modifier.padding(bottom = 16.dp)) {
-                Text(
-                    text = title.uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = AccentPrimary,
-                )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(BgPanel.copy(alpha = 0.95f)),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.05f),
+                                CardSurfaceStrong.copy(alpha = 0.12f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                AccentPrimary.copy(alpha = 0.04f),
+                                AccentSecondary.copy(alpha = 0.015f),
+                                Color.Transparent,
+                            ),
+                            radius = 900f,
+                        ),
+                    ),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                BgGlow.copy(alpha = 0.12f),
+                                Color.Transparent,
+                            ),
+                        ),
                     )
+                    .padding(20.dp),
+            ) {
+                Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                    Text(
+                        text = title.uppercase(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = AccentPrimary,
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                        )
+                    }
                 }
+                content()
             }
-            content()
         }
     }
 }

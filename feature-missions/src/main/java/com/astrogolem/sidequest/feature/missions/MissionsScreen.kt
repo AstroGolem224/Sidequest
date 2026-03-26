@@ -14,6 +14,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -61,8 +62,10 @@ import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
+import com.astrogolem.sidequest.core.ui.theme.CardSurface
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
 import com.astrogolem.sidequest.core.ui.theme.CardSurfaceStrong
+import com.astrogolem.sidequest.core.ui.theme.CardStroke
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.DateFormat
@@ -171,7 +174,7 @@ fun MissionsRoute(
 
             if (missions.isEmpty()) {
                 item {
-                    GlassCard(
+                    MissionBoardCard(
                         title = "No quests deployed",
                         subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
                     ) {
@@ -182,7 +185,7 @@ fun MissionsRoute(
                 }
             } else {
                 items(missions, key = { it.id }) { mission ->
-                    GlassCard(
+                    MissionBoardCard(
                         title = mission.title,
                         subtitle = mission.description,
                     ) {
@@ -273,6 +276,44 @@ fun MissionsRoute(
             completionReward?.let { reward ->
                 CompletionRewardBanner(reward = reward)
             }
+        }
+    }
+}
+
+@Composable
+private fun MissionBoardCard(
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = CardSurface,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.72f)),
+        shadowElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+        ) {
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                Text(
+                    text = title.uppercase(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = AccentPrimary,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                    )
+                }
+            }
+            content()
         }
     }
 }
