@@ -72,6 +72,7 @@ import com.astrogolem.sidequest.core.data.model.ShoppingListSource
 import com.astrogolem.sidequest.core.data.model.ShoppingListSummary
 import com.astrogolem.sidequest.core.data.model.RoutineCategory
 import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
+import com.astrogolem.sidequest.core.data.provider.AnthropicExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.NimExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.OpenAiExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.ProviderExtractionRequest
@@ -243,6 +244,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
     private val workManager: WorkManager,
     private val securityService: SecurityService,
     private val openAiExtractionProvider: OpenAiExtractionProvider,
+    private val anthropicExtractionProvider: AnthropicExtractionProvider,
     private val nimExtractionProvider: NimExtractionProvider,
 ) : ProcessingOrchestrator {
     override suspend fun enqueue(captureId: String) {
@@ -285,6 +287,19 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 ProviderKind.OPENAI -> {
                     if (result.text.isNotBlank() || providerImageDataUrl != null) {
                         openAiExtractionProvider.enhance(
+                            ProviderExtractionRequest(
+                                ocrText = result.text,
+                                documentHint = documentType.name,
+                                imageDataUrl = providerImageDataUrl,
+                            ),
+                        ).getOrNull()
+                    } else {
+                        null
+                    }
+                }
+                ProviderKind.ANTHROPIC -> {
+                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
+                        anthropicExtractionProvider.enhance(
                             ProviderExtractionRequest(
                                 ocrText = result.text,
                                 documentHint = documentType.name,
