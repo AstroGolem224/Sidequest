@@ -1,33 +1,50 @@
 package com.astrogolem.sidequest.feature.inbox
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
-import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
+import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
+import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
+import com.astrogolem.sidequest.core.ui.theme.BgGlow
+import com.astrogolem.sidequest.core.ui.theme.CardStroke
+import com.astrogolem.sidequest.core.ui.theme.CardSurface
+import com.astrogolem.sidequest.core.ui.theme.CardSurfaceStrong
+import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.math.max
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -40,23 +57,51 @@ fun InboxRoute(
     viewModel: InboxViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val totalCandidates = state.bestBetCount + state.reviewCount
+    val bestBets = state.candidates.filterNot { it.needsReview }
+    val reviewQueue = state.candidates.filter { it.needsReview }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            ScaffoldCard(
-                title = "Quest Intake",
-                subtitle = "Fresh candidates stage here after a scan so you can approve or reject them before deployment.",
-            ) {
-                Text("Queued: ${state.queuedCount}")
-                Text("Processing: ${state.processingCount}")
-                Text("Done: ${state.doneCount}")
-                Text("Failed: ${state.failedCount}")
-                Text("Needs review: ${state.reviewCount}")
-                Text("Best bets: ${state.bestBetCount}")
+            QuestIntakeHero(state = state, totalCandidates = totalCandidates)
+        }
+
+        if (bestBets.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    title = "Ready To Deploy",
+                    badge = "${bestBets.size} ready",
+                )
+            }
+            items(bestBets, key = { it.id }) { candidate ->
+                QuestCandidateCard(
+                    candidate = candidate,
+                    onPromote = { viewModel.promote(candidate.id) },
+                    onDismiss = { viewModel.dismiss(candidate.id) },
+                    onOpenCapture = { onOpenCapture(candidate.captureId) },
+                )
+            }
+        }
+
+        if (reviewQueue.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    title = "Needs Review",
+                    badge = "${reviewQueue.size} flagged",
+                )
+            }
+            items(reviewQueue, key = { it.id }) { candidate ->
+                QuestCandidateCard(
+                    candidate = candidate,
+                    onPromote = { viewModel.promote(candidate.id) },
+                    onDismiss = { viewModel.dismiss(candidate.id) },
+                    onOpenCapture = { onOpenCapture(candidate.captureId) },
+                )
             }
         }
 
@@ -66,47 +111,34 @@ fun InboxRoute(
                     title = "No staged quests",
                     subtitle = state.emptyStateMessage,
                 ) {
-                    state.recentCaptures.take(3).forEach { capture ->
-                        Text("${capture.sourceLabel}: ${capture.status.name.lowercase()}")
-                    }
+                    Text(
+                        text = "Completed scans can still hold facts, dates, and references inside intel. This queue only surfaces task-like candidates.",
+                        color = TextSecondary,
+                    )
                 }
+            }
+        }
+
+        item {
+            SectionHeader(
+                title = "Recent Scan Activity",
+                badge = "${state.recentCaptures.size} scans",
+            )
+        }
+
+        if (state.recentCaptures.isEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = "No scan history yet",
+                    subtitle = "Run a capture or import to start filling the intel archive.",
+                ) {}
             }
         } else {
-            val bestBets = state.candidates.filterNot { it.needsReview }
-            val reviewQueue = state.candidates.filter { it.needsReview }
-
-            if (bestBets.isNotEmpty()) {
-                item {
-                    ScaffoldCard(
-                        title = "Ready To Deploy",
-                        subtitle = "Higher-signal candidates that already look like real quests.",
-                    ) {}
-                }
-                items(bestBets, key = { it.id }) { candidate ->
-                    CandidateCard(
-                        candidate = candidate,
-                        onPromote = { viewModel.promote(candidate.id) },
-                        onDismiss = { viewModel.dismiss(candidate.id) },
-                        onOpenCapture = { onOpenCapture(candidate.captureId) },
-                    )
-                }
-            }
-
-            if (reviewQueue.isNotEmpty()) {
-                item {
-                    ScaffoldCard(
-                        title = "Needs Review",
-                        subtitle = "Low-signal OCR lines. Only keep the candidates that survive a human glance.",
-                    ) {}
-                }
-                items(reviewQueue, key = { it.id }) { candidate ->
-                    CandidateCard(
-                        candidate = candidate,
-                        onPromote = { viewModel.promote(candidate.id) },
-                        onDismiss = { viewModel.dismiss(candidate.id) },
-                        onOpenCapture = { onOpenCapture(candidate.captureId) },
-                    )
-                }
+            items(state.recentCaptures, key = { it.id }) { capture ->
+                RecentCaptureCard(
+                    capture = capture,
+                    onOpenCapture = { onOpenCapture(capture.id) },
+                )
             }
         }
     }
@@ -138,50 +170,267 @@ data class InboxCandidateItem(
 )
 
 @Composable
-private fun CandidateCard(
+private fun QuestIntakeHero(
+    state: InboxUiState,
+    totalCandidates: Int,
+) {
+    val intakeLevel = max(1, state.doneCount / 3 + state.bestBetCount + 1)
+    val progress = if (totalCandidates == 0) 0.16f else (state.bestBetCount / totalCandidates.toFloat()).coerceIn(0.12f, 1f)
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Quest Intake", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+                Text(
+                    "Level $intakeLevel intake officer",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                    color = AccentPrimary,
+                )
+            }
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                Text("${state.bestBetCount} deployable", style = androidx.compose.material3.MaterialTheme.typography.titleSmall, color = AccentSecondary)
+                Text("${state.reviewCount} need human veto", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(CardSurfaceStrong),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(AccentPrimary),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            HeroMetric(label = "Ready", value = state.bestBetCount.toString(), modifier = Modifier.weight(1f))
+            HeroMetric(label = "Review", value = state.reviewCount.toString(), modifier = Modifier.weight(1f))
+            HeroMetric(label = "Scans", value = state.doneCount.toString(), modifier = Modifier.weight(1f))
+        }
+        if (state.processingCount > 0 || state.queuedCount > 0) {
+            Surface(
+                color = BgGlow,
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
+            ) {
+                Text(
+                    text = if (state.processingCount > 0) {
+                        "${state.processingCount} scans are still resolving in the background."
+                    } else {
+                        "${state.queuedCount} scans are queued for extraction."
+                    },
+                    color = TextSecondary,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = BgGlow,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(label.uppercase(), style = androidx.compose.material3.MaterialTheme.typography.titleSmall, color = TextSecondary)
+            Text(value, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, color = AccentSecondary)
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    badge: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Surface(
+            color = AccentPrimary.copy(alpha = 0.12f),
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Text(
+                text = badge.uppercase(),
+                color = AccentSecondary,
+                style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuestCandidateCard(
     candidate: InboxCandidateItem,
     onPromote: () -> Unit,
     onDismiss: () -> Unit,
     onOpenCapture: () -> Unit,
 ) {
-    ScaffoldCard(
-        title = candidate.title,
-        subtitle = "${candidate.qualityLabel} | ${(candidate.confidence * 100).toInt()}% confidence",
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, CardStroke),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
-            AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
-            AssistChip(onClick = {}, label = { Text(candidate.kind.name.lowercase()) })
-        }
-        if (candidate.needsReview) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.Top,
+            ) {
+                Surface(
+                    color = AccentPrimary.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        Text(
+                            text = if (candidate.needsReview) "?" else "Q",
+                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                            color = AccentPrimary,
+                        )
+                    }
+                }
+                Surface(
+                    color = if (candidate.needsReview) BgGlow else AccentPrimary.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(
+                        text = questTierLabel(candidate),
+                        color = if (candidate.needsReview) TextSecondary else AccentPrimary,
+                        style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    )
+                }
+            }
+            Text(candidate.title, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+            Text(candidate.body, color = TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
+                AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
+            }
             Text(
-                "This extraction looks noisy. Dismiss it unless it clearly belongs in your mission queue.",
-                modifier = Modifier.padding(top = 12.dp),
+                text = candidate.qualityLabel,
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = if (candidate.needsReview) TextSecondary else AccentSecondary,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                RewardLine(label = "${rewardXp(candidate)} XP")
+                RewardLine(label = "${rewardGp(candidate)} GP")
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
+                    Text("Deploy")
+                }
+                OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
+                    Text("Intel")
+                }
+            }
+            TextButton(onClick = onDismiss) {
+                Text("Dismiss")
+            }
         }
-        Text(candidate.body, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun RewardLine(label: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(AccentPrimary),
+        )
+        Text(label, style = androidx.compose.material3.MaterialTheme.typography.titleSmall, color = AccentSecondary)
+    }
+}
+
+@Composable
+private fun RecentCaptureCard(
+    capture: CaptureSummary,
+    onOpenCapture: () -> Unit,
+) {
+    Surface(
+        color = BgGlow,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
-                Text("Promote")
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(intelLabel(capture), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                Text(capture.status.name.lowercase(), color = TextSecondary)
             }
-            OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = onOpenCapture) {
                 Text("Open Intel")
             }
         }
-        TextButton(
-            onClick = onDismiss,
-            modifier = Modifier.padding(top = 8.dp),
-        ) {
-            Text("Dismiss")
-        }
+    }
+}
+
+private fun questTierLabel(candidate: InboxCandidateItem): String {
+    return when {
+        candidate.confidence >= 0.85f -> "HARD"
+        candidate.confidence >= 0.7f -> "TIER II"
+        candidate.needsReview -> "REVIEW"
+        else -> "TIER I"
+    }
+}
+
+private fun rewardXp(candidate: InboxCandidateItem): Int {
+    return ((candidate.confidence * 240).toInt()).coerceAtLeast(40)
+}
+
+private fun rewardGp(candidate: InboxCandidateItem): Int {
+    return (rewardXp(candidate) / 4).coerceAtLeast(10)
+}
+
+private fun intelLabel(capture: CaptureSummary): String {
+    return when (capture.sourceLabel.lowercase()) {
+        "camera" -> "Field Scan"
+        "import" -> "Recovered Intel"
+        else -> capture.sourceLabel.replaceFirstChar { it.uppercase() }
     }
 }
 
