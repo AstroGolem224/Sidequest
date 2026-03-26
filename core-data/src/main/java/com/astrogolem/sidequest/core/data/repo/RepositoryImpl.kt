@@ -123,20 +123,21 @@ class DefaultCaptureRepository @Inject constructor(
                         id = it.id,
                         sourceLabel = it.sourceType,
                         imagePath = it.filePath,
-                    status = it.processingStatus,
-                    ocrText = analysis?.ocrText.orEmpty(),
-                    summary = analysis?.summary.orEmpty(),
-                    candidates = extracted.map { item ->
-                        item.toExtractionCandidate()
-                    },
-                    linkedMissions = missions.map { mission ->
-                        CaptureMissionLink(
-                            id = mission.id,
-                            title = mission.title,
-                            status = mission.status,
-                        )
-                    },
-                )
+                        status = it.processingStatus,
+                        documentType = analysis?.documentType,
+                        ocrText = analysis?.ocrText.orEmpty(),
+                        summary = analysis?.summary.orEmpty(),
+                        candidates = extracted.map { item ->
+                            item.toExtractionCandidate()
+                        },
+                        linkedMissions = missions.map { mission ->
+                            CaptureMissionLink(
+                                id = mission.id,
+                                title = mission.title,
+                                status = mission.status,
+                            )
+                        },
+                    )
             }
         }
     }
@@ -149,7 +150,8 @@ class DefaultCaptureRepository @Inject constructor(
             body = body,
             confidence = confidence,
             dueAt = dueAt,
-            kind = deriveExtractionKind(body),
+            kind = kind,
+            reasoning = reasoning,
             status = status,
         )
     }
@@ -245,7 +247,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val result = recognizer.process(image).await()
             val localLines = result.textBlocks.mapNotNull { it.text.trim().takeIf(String::isNotBlank) }
-            val documentType = classify(localLines.joinToString("\n"))
+            val documentType = classifyDocumentType(result.text)
             val enhanced = if (result.text.isNotBlank()) {
                 openAiExtractionProvider.enhance(
                     ProviderExtractionRequest(
@@ -256,33 +258,38 @@ class DefaultProcessingOrchestrator @Inject constructor(
             } else {
                 null
             }
-            val candidateDrafts = buildCandidateDrafts(
+            val extractionDrafts = buildExtractionDrafts(
+                documentType = documentType,
                 ocrText = result.text,
                 localLines = localLines,
                 providerLines = enhanced?.normalizedLines.orEmpty(),
             )
-            val lowConfidence = result.text.isBlank() || candidateDrafts.isEmpty() || candidateDrafts.first().confidence < 0.55f
+            val lowConfidence = result.text.isBlank() || extractionDrafts.isEmpty() || extractionDrafts.none { it.confidence >= 0.64f }
             val analysis = CaptureAnalysisEntity(
                 id = UUID.randomUUID().toString(),
                 captureId = capture.id,
                 documentType = documentType,
                 ocrText = result.text,
                 summary = enhanced?.summary?.ifBlank { null }
-                    ?: candidateDrafts.firstOrNull()?.title
+                    ?: extractionDrafts.firstOrNull { it.kind == ExtractionKind.TASK }?.title
+                    ?: extractionDrafts.firstOrNull { it.kind == ExtractionKind.FACT }?.title
+                    ?: extractionDrafts.firstOrNull()?.title
                     ?: localLines.firstOrNull()
                     ?: result.text.lineSequence().firstOrNull { it.isNotBlank() }
                     .orEmpty(),
                 processedAt = System.currentTimeMillis(),
                 errorCode = if (lowConfidence) "LOW_CONFIDENCE" else null,
             )
-            val candidates = candidateDrafts.take(5).map { draft ->
+            val candidates = extractionDrafts.map { draft ->
                 ExtractedItemEntity(
                     id = UUID.randomUUID().toString(),
                     captureId = capture.id,
                     title = draft.title,
                     body = draft.body,
                     confidence = draft.confidence,
-                    dueAt = deriveDueAt(draft.body),
+                    dueAt = draft.dueAt,
+                    kind = draft.kind,
+                    reasoning = draft.reasoning,
                     status = ExtractionStatus.CANDIDATE,
                 )
             }
@@ -300,7 +307,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
             )
             captureDao.updateStatus(capture.id, CaptureProcessingStatus.DONE.name)
             captureDao.updateRetryCount(capture.id, 0)
-            ProcessingResult.Success(capture.id, candidates.size)
+            ProcessingResult.Success(capture.id, candidates.count { it.kind == ExtractionKind.TASK })
         } catch (error: Throwable) {
             captureDao.updateStatus(capture.id, CaptureProcessingStatus.FAILED.name)
             captureDao.updateRetryCount(capture.id, capture.retryCount + 1)
@@ -364,6 +371,7 @@ class DefaultMissionRepository @Inject constructor(
 
     override suspend fun promoteCandidate(candidateId: String) {
         val candidate = captureDao.getExtractedItem(candidateId) ?: return
+        if (candidate.kind !in setOf(ExtractionKind.TASK, ExtractionKind.DATE)) return
         val mission = MissionEntity(
             id = UUID.randomUUID().toString(),
             title = candidate.title,
@@ -430,8 +438,10 @@ class DefaultMissionRepository @Inject constructor(
 
     private fun priorityFor(candidate: ExtractedItemEntity): Int {
         return when {
+            candidate.kind == ExtractionKind.DATE -> 88
             candidate.body.contains("today", ignoreCase = true) -> 95
             candidate.body.contains("urgent", ignoreCase = true) -> 90
+            candidate.kind == ExtractionKind.TASK -> (candidate.confidence * 100).toInt().coerceAtLeast(55)
             else -> (candidate.confidence * 100).toInt()
         }
     }
@@ -555,7 +565,7 @@ class DefaultArchiveService @Inject constructor(
             val reminders = reminderDao.listReminders()
             val nodes = searchDao.listNodes()
             val manifest = JSONObject().apply {
-                put("version", 2)
+                put("version", 3)
                 put("exportedAt", System.currentTimeMillis())
                 put("counts", JSONObject().apply {
                     put("captures", captures.size)
@@ -612,7 +622,7 @@ class DefaultArchiveService @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     createdAt = System.currentTimeMillis(),
                     fileUri = target.toString(),
-                    checksum = "zip-v2",
+                    checksum = "zip-v3",
                     itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size,
                 ),
             )
@@ -624,7 +634,7 @@ class DefaultArchiveService @Inject constructor(
             val entries = readArchiveEntries(source)
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: return ArchiveValidationResult.Invalid("Missing manifest.json")
-            if (manifest.optInt("version") != 2) {
+            if (manifest.optInt("version") !in setOf(2, 3)) {
                 ArchiveValidationResult.Invalid("Unsupported archive version")
             } else if (!entries.containsKey("data/captures.json") || !entries.containsKey("data/missions.json")) {
                 ArchiveValidationResult.Invalid("Archive data is incomplete")
@@ -639,7 +649,8 @@ class DefaultArchiveService @Inject constructor(
             val entries = readArchiveEntries(source)
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: error("Missing manifest")
-            require(manifest.optInt("version") == 2) { "Unsupported archive version" }
+            val archiveVersion = manifest.optInt("version")
+            require(archiveVersion in setOf(2, 3)) { "Unsupported archive version" }
 
             val captures = entries.requireJsonArray("data/captures.json")
             val analyses = entries.requireJsonArray("data/analyses.json")
@@ -704,6 +715,13 @@ class DefaultArchiveService @Inject constructor(
                             body = json.getString("body"),
                             confidence = json.getDouble("confidence").toFloat(),
                             dueAt = json.optLongOrNull("dueAt"),
+                            kind = json.optString("kind")
+                                .takeIf { it.isNotBlank() }
+                                ?.let(ExtractionKind::valueOf)
+                                ?: deriveExtractionKind(json.getString("body")),
+                            reasoning = json.optString("reasoning")
+                                .takeIf { it.isNotBlank() }
+                                ?: if (archiveVersion >= 3) "Imported extraction" else "Imported legacy extraction",
                             status = ExtractionStatus.valueOf(json.getString("status")),
                         ),
                     )
@@ -1167,6 +1185,8 @@ private fun ExtractedItemEntity.toJson(): JSONObject = JSONObject().apply {
     put("body", body)
     put("confidence", confidence.toDouble())
     put("dueAt", dueAt)
+    put("kind", kind.name)
+    put("reasoning", reasoning)
     put("status", status.name)
 }
 

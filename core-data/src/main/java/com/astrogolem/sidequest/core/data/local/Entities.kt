@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.DocumentType
+import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.model.ReminderState
@@ -64,6 +65,8 @@ data class ExtractedItemEntity(
     val body: String,
     val confidence: Float,
     val dueAt: Long?,
+    val kind: ExtractionKind,
+    val reasoning: String,
     val status: ExtractionStatus,
 )
 

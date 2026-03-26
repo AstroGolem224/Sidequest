@@ -232,6 +232,7 @@ data class InboxCandidateItem(
     val captureId: String,
     val title: String,
     val body: String,
+    val reasoning: String,
     val confidence: Float,
     val sourceLabel: String,
     val captureStatusLabel: String,
@@ -431,6 +432,11 @@ private fun QuestCandidateCard(
             }
             Text(candidate.title, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
             Text(candidate.body, color = TextSecondary)
+            Text(
+                text = candidate.reasoning,
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                color = AccentPrimary,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -583,10 +589,11 @@ class InboxViewModel @Inject constructor(
                     captureId = candidate.captureId,
                     title = candidate.title,
                     body = candidate.body,
+                    reasoning = candidate.reasoning,
                     confidence = candidate.confidence,
                     sourceLabel = statusByCapture[candidate.captureId]?.sourceLabel?.replaceFirstChar { it.uppercase() } ?: "Capture",
                     captureStatusLabel = statusLabel(statusByCapture[candidate.captureId]?.status),
-                    needsReview = candidate.confidence < 0.55f,
+                    needsReview = candidate.confidence < 0.64f,
                     qualityLabel = qualityLabel(candidate.confidence),
                     kind = candidate.kind,
                 )
@@ -595,8 +602,8 @@ class InboxViewModel @Inject constructor(
             processingCount = captures.count { it.status == CaptureProcessingStatus.PROCESSING },
             doneCount = captures.count { it.status == CaptureProcessingStatus.DONE },
             failedCount = captures.count { it.status == CaptureProcessingStatus.FAILED },
-            reviewCount = candidates.count { it.confidence < 0.55f },
-            bestBetCount = candidates.count { it.confidence >= 0.55f },
+            reviewCount = candidates.count { it.confidence < 0.64f },
+            bestBetCount = candidates.count { it.confidence >= 0.64f },
             recentCaptures = captures.take(5),
             emptyStateMessage = deriveEmptyMessage(captures),
             feedbackMessage = feedback,
@@ -666,7 +673,7 @@ class InboxViewModel @Inject constructor(
     private fun qualityLabel(confidence: Float): String = when {
         confidence >= 0.85f -> "Strong signal"
         confidence >= 0.7f -> "Good candidate"
-        confidence >= 0.55f -> "Review quickly"
+        confidence >= 0.64f -> "Review quickly"
         else -> "Noisy OCR"
     }
 }

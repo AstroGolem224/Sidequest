@@ -203,6 +203,8 @@ Exit criteria:
 - inbox noise drops materially
 - non-task documents stop polluting the task queue
 - extracted dates and references are consistently useful
+Status:
+- shipped in the current working tree
 
 ### Phase 8 — Search & Memory Quality
 Goal:
@@ -249,11 +251,9 @@ Exit criteria:
 - no major dead-end or mock-only interaction remains
 
 ## Recommended Immediate Order
-1. Phase 6
-2. Phase 7
-3. Phase 8
-4. Phase 9
-5. Phase 10
+1. Phase 8
+2. Phase 9
+3. Phase 10
 
 ## Notes For The Next Implementation Pass
 - Keep the app local-first.

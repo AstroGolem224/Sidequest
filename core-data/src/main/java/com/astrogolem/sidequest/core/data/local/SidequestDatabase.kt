@@ -18,7 +18,7 @@ import androidx.room.TypeConverters
         ReminderEntity::class,
         ExportBundleEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

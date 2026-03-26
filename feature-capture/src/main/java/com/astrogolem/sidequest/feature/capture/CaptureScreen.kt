@@ -541,6 +541,11 @@ private fun FreshQuestCandidateCard(
                 )
             }
             Text(candidate.body, color = TextSecondary)
+            Text(
+                text = candidate.reasoning,
+                style = MaterialTheme.typography.bodySmall,
+                color = AccentPrimary,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -811,7 +816,10 @@ fun CaptureDetailRoute(
                 item {
                     ScaffoldCard(
                         title = capture.sourceLabel.replaceFirstChar { it.uppercase() },
-                        subtitle = "Status: ${capture.status.name.lowercase()}",
+                        subtitle = buildString {
+                            append("Status: ${capture.status.name.lowercase()}")
+                            capture.documentType?.let { append(" | ${it.name.lowercase()}") }
+                        },
                     ) {
                         PreviewImage(uri = Uri.fromFile(File(capture.imagePath)))
                         if (capture.summary.isNotBlank()) {
@@ -1001,6 +1009,12 @@ private fun CaptureDetailCandidateCard(
             )
         }
         Text(candidate.body)
+        Text(
+            text = candidate.reasoning,
+            style = MaterialTheme.typography.bodySmall,
+            color = AccentPrimary,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         if (candidate.status == ExtractionStatus.CANDIDATE) {
             when (candidate.kind) {
                 ExtractionKind.TASK -> {

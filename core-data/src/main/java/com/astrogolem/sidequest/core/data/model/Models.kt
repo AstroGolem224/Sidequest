@@ -24,6 +24,7 @@ data class ExtractionCandidate(
     val confidence: Float,
     val dueAt: Long?,
     val kind: ExtractionKind,
+    val reasoning: String,
     val status: ExtractionStatus,
 )
 
@@ -61,6 +62,7 @@ data class CaptureDetailModel(
     val sourceLabel: String,
     val imagePath: String,
     val status: CaptureProcessingStatus,
+    val documentType: DocumentType?,
     val ocrText: String,
     val summary: String,
     val candidates: List<ExtractionCandidate>,
