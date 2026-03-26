@@ -2,6 +2,7 @@ package com.astrogolem.sidequest.core.data.repo
 
 import com.astrogolem.sidequest.core.data.model.DocumentType
 import com.astrogolem.sidequest.core.data.model.ExtractionKind
+import com.astrogolem.sidequest.core.data.provider.ProviderExtractionItem
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -20,18 +21,17 @@ internal fun buildExtractionDrafts(
     documentType: DocumentType,
     ocrText: String,
     localLines: List<String>,
-    providerLines: List<String>,
+    providerItems: List<ProviderExtractionItem>,
 ): List<ExtractionDraft> {
-    val lines = buildMergedLines(ocrText, localLines, providerLines)
-    if (lines.isEmpty()) return emptyList()
-
+    val lines = buildMergedLines(ocrText, localLines)
     val reserved = mutableSetOf<String>()
+    val providerDrafts = buildProviderDrafts(providerItems, reserved)
     val references = extractReferenceDrafts(lines, reserved)
     val tasks = extractTaskDrafts(lines, documentType, reserved)
     val dates = extractDateDrafts(lines, reserved)
     val facts = extractFactDrafts(lines, documentType, reserved)
 
-    return (tasks + dates + references + facts)
+    return (providerDrafts + tasks + dates + references + facts)
         .sortedWith(
             compareByDescending<ExtractionDraft> { extractionPriority(it.kind) }
                 .thenByDescending { it.score },
@@ -143,34 +143,54 @@ internal fun inferExtractionKindFromText(body: String): ExtractionKind {
 private data class MergedLine(
     val cleaned: String,
     val normalized: String,
-    val fromProvider: Boolean,
 )
 
 private fun buildMergedLines(
     ocrText: String,
     localLines: List<String>,
-    providerLines: List<String>,
 ): List<MergedLine> {
-    val providerEntries = providerLines.map { it to true }
-    val localEntries = buildRawCandidateLines(ocrText, localLines).map { it to false }
-    return (providerEntries + localEntries)
+    return buildRawCandidateLines(ocrText, localLines)
         .asSequence()
-        .map { (line, fromProvider) ->
+        .map { line ->
             val cleaned = cleanCandidateLine(line)
             MergedLine(
                 cleaned = cleaned,
                 normalized = normalizeLine(cleaned),
-                fromProvider = fromProvider,
             )
         }
         .filter { isUsefulCandidateLine(it.cleaned, it.normalized) }
         .groupBy { it.normalized }
         .values
-        .map { dupes ->
-            dupes.maxWith(
-                compareBy<MergedLine>({ if (it.fromProvider) 1 else 0 }, { it.cleaned.length }),
+        .map { dupes -> dupes.maxBy { it.cleaned.length } }
+}
+
+private fun buildProviderDrafts(
+    providerItems: List<ProviderExtractionItem>,
+    reserved: MutableSet<String>,
+): List<ExtractionDraft> {
+    return providerItems.asSequence()
+        .mapNotNull { item ->
+            val cleaned = cleanCandidateLine(item.text)
+            val normalized = normalizeLine(cleaned)
+            if (!isUsefulCandidateLine(cleaned, normalized)) return@mapNotNull null
+            if (!reserved.add(normalized)) return@mapNotNull null
+            val score = when (item.kind) {
+                ExtractionKind.TASK -> 0.9f
+                ExtractionKind.DATE -> 0.84f
+                ExtractionKind.REFERENCE -> 0.8f
+                ExtractionKind.FACT -> 0.72f
+            }
+            ExtractionDraft(
+                title = deriveCandidateTitle(cleaned),
+                body = cleaned,
+                confidence = score,
+                dueAt = extractDueAtFromText(cleaned),
+                kind = item.kind,
+                reasoning = item.reasoning.ifBlank { "provider insight" },
+                score = score,
             )
         }
+        .toList()
 }
 
 private fun extractReferenceDrafts(
@@ -181,7 +201,7 @@ private fun extractReferenceDrafts(
         .filter { isReferenceLike(it.cleaned, it.normalized) }
         .mapNotNull { line ->
             if (!reserved.add(line.normalized)) return@mapNotNull null
-            val score = (if (line.fromProvider) 0.82f else 0.74f)
+            val score = 0.74f
             ExtractionDraft(
                 title = deriveCandidateTitle(line.cleaned),
                 body = line.cleaned,
@@ -205,7 +225,6 @@ private fun extractDateDrafts(
             val dueAt = extractDueAtFromText(line.cleaned) ?: return@mapNotNull null
             val score = when {
                 Regex("""\b(due|until|valid|deadline|appointment|eta|date|bis)\b""", RegexOption.IGNORE_CASE).containsMatchIn(line.cleaned) -> 0.86f
-                line.fromProvider -> 0.78f
                 else -> 0.72f
             }
             if (!reserved.add(line.normalized)) return@mapNotNull null
@@ -230,9 +249,9 @@ private fun extractTaskDrafts(
 ): List<ExtractionDraft> {
     return lines.asSequence()
         .mapNotNull { line ->
-            if (!isActionableLine(line.cleaned, line.normalized, documentType, line.fromProvider)) return@mapNotNull null
+            if (!isActionableLine(line.cleaned, line.normalized, documentType, fromProvider = false)) return@mapNotNull null
             if (!reserved.add(line.normalized)) return@mapNotNull null
-            val score = taskScore(line.cleaned, line.normalized, documentType, line.fromProvider)
+            val score = taskScore(line.cleaned, line.normalized, documentType, fromProvider = false)
             val confidence = when {
                 score >= 0.86f -> 0.92f
                 score >= 0.74f -> 0.8f
@@ -244,7 +263,7 @@ private fun extractTaskDrafts(
                 confidence = confidence,
                 dueAt = extractDueAtFromText(line.cleaned),
                 kind = ExtractionKind.TASK,
-                reasoning = taskReasoning(line.cleaned, line.normalized, documentType, line.fromProvider),
+                reasoning = taskReasoning(line.cleaned, line.normalized, documentType, fromProvider = false),
                 score = score,
             )
         }
@@ -262,7 +281,7 @@ private fun extractFactDrafts(
         .filterNot { it.normalized in reserved }
         .filter { looksLikeUsefulFact(it.cleaned, it.normalized, documentType) }
         .map { line ->
-            val score = if (line.fromProvider) 0.66f else 0.58f
+            val score = 0.58f
             ExtractionDraft(
                 title = deriveCandidateTitle(line.cleaned),
                 body = line.cleaned,

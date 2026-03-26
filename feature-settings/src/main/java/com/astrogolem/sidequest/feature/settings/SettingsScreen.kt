@@ -18,7 +18,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,7 +48,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
     val archiveMessage by viewModel.archiveMessage.collectAsStateWithLifecycle()
     val biometricEnabled by viewModel.biometricEnabled.collectAsStateWithLifecycle()
     val providerMessage by viewModel.providerMessage.collectAsStateWithLifecycle()
-    val drafts = remember { mutableStateMapOf<ProviderKind, String>() }
+    val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
     var notificationsGranted by remember {
         mutableStateOf(
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -80,6 +79,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                 subtitle = "Sidequest works offline by default. Add a provider key only if you want enhanced extraction.",
             ) {
                 Text("Exports are manual snapshot bundles. No sync service is active in v1.")
+                Text("When an OpenAI key is configured, Sidequest can inspect the capture image plus OCR text to propose quests, dates, references, and facts.")
                 Text(text = archiveMessage, modifier = Modifier.padding(top = 8.dp))
                 Button(
                     onClick = { exportLauncher.launch("sidequest-export.zip") },
@@ -139,21 +139,21 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                 subtitle = if (provider.configured) "Ready for optional enhancement" else "Not configured",
             ) {
                 OutlinedTextField(
-                    value = drafts[provider.kind].orEmpty(),
-                    onValueChange = { drafts[provider.kind] = it },
+                    value = providerDrafts[provider.kind].orEmpty(),
+                    onValueChange = { viewModel.updateDraft(provider.kind, it) },
                     label = { Text("${provider.kind.name} API key") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
                     text = if (provider.configured) {
-                        "A key is already stored securely on this device."
+                        "A key is already stored on this device. Editing the field overwrites it."
                     } else {
                         "Leave this empty if you want to stay fully local-only."
                     },
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 Button(
-                    onClick = { viewModel.save(provider.kind, drafts[provider.kind].orEmpty()) },
+                    onClick = { viewModel.save(provider.kind) },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
                     Text("Save key")
@@ -186,18 +186,35 @@ class SettingsViewModel @Inject constructor(
     val providerMessage: StateFlow<String> = _providerMessage.asStateFlow()
     private val _biometricEnabled = MutableStateFlow(false)
     val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
+    private val _providerDrafts = MutableStateFlow<Map<ProviderKind, String>>(emptyMap())
+    val providerDrafts: StateFlow<Map<ProviderKind, String>> = _providerDrafts.asStateFlow()
 
     init {
         refresh()
     }
 
-    fun save(kind: ProviderKind, key: String) {
+    fun updateDraft(kind: ProviderKind, value: String) {
+        _providerDrafts.value = _providerDrafts.value.toMutableMap().apply {
+            this[kind] = value
+        }
+    }
+
+    fun save(kind: ProviderKind) {
         viewModelScope.launch {
+            val key = _providerDrafts.value[kind].orEmpty().trim()
             if (key.isBlank()) {
                 _providerMessage.value = "Enter an API key first or leave providers unused."
             } else {
-                securityService.saveProviderKey(kind, key)
-                _providerMessage.value = "${kind.name} key saved securely."
+                runCatching {
+                    securityService.saveProviderKey(kind, key)
+                }.fold(
+                    onSuccess = {
+                        _providerMessage.value = "${kind.name} key saved on this device."
+                    },
+                    onFailure = { error ->
+                        _providerMessage.value = error.message ?: "${kind.name} key could not be saved."
+                    },
+                )
             }
             refresh()
         }
@@ -237,7 +254,11 @@ class SettingsViewModel @Inject constructor(
 
     private fun refresh() {
         viewModelScope.launch {
-            _providers.value = securityService.getProviderAvailability()
+            val availabilities = securityService.getProviderAvailability()
+            _providers.value = availabilities
+            _providerDrafts.value = availabilities.associate { availability ->
+                availability.kind to securityService.getProviderKey(availability.kind).orEmpty()
+            }
             _biometricEnabled.value = securityService.isBiometricLockEnabled()
         }
     }

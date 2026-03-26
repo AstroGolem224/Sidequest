@@ -23,7 +23,7 @@ class ExtractionEngineTest {
                 "Your ETA is valid until: 15 MARCH 2028",
                 "ETA reference number: 2020-0000-4659",
             ),
-            providerLines = emptyList(),
+            providerItems = emptyList(),
         )
 
         val debugKinds = drafts.joinToString(separator = " | ") { "${it.kind}:${it.body}" }
@@ -47,7 +47,7 @@ class ExtractionEngineTest {
                 "Call dentist tomorrow",
                 "Review launch checklist",
             ),
-            providerLines = emptyList(),
+            providerItems = emptyList(),
         )
 
         val tasks = drafts.filter { it.kind == ExtractionKind.TASK }
@@ -71,7 +71,7 @@ class ExtractionEngineTest {
                 "Order number 8844-1122",
                 "Card payment approved",
             ),
-            providerLines = emptyList(),
+            providerItems = emptyList(),
         )
 
         assertFalse(drafts.any { it.kind == ExtractionKind.TASK })

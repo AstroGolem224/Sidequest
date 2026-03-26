@@ -5,7 +5,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import androidx.core.net.toUri
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -55,6 +58,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.io.InputStream
 import java.text.SimpleDateFormat
@@ -248,11 +252,13 @@ class DefaultProcessingOrchestrator @Inject constructor(
             val result = recognizer.process(image).await()
             val localLines = result.textBlocks.mapNotNull { it.text.trim().takeIf(String::isNotBlank) }
             val documentType = classifyDocumentType(result.text)
-            val enhanced = if (result.text.isNotBlank()) {
+            val providerImageDataUrl = buildProviderImageDataUrl(capture.filePath)
+            val enhanced = if (result.text.isNotBlank() || providerImageDataUrl != null) {
                 openAiExtractionProvider.enhance(
                     ProviderExtractionRequest(
                         ocrText = result.text,
                         documentHint = documentType.name,
+                        imageDataUrl = providerImageDataUrl,
                     ),
                 ).getOrNull()
             } else {
@@ -262,7 +268,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 documentType = documentType,
                 ocrText = result.text,
                 localLines = localLines,
-                providerLines = enhanced?.normalizedLines.orEmpty(),
+                providerItems = enhanced?.items.orEmpty(),
             )
             val lowConfidence = result.text.isBlank() || extractionDrafts.isEmpty() || extractionDrafts.none { it.confidence >= 0.64f }
             val analysis = CaptureAnalysisEntity(
@@ -795,6 +801,27 @@ private fun readZipEntries(inputStream: InputStream): Map<String, ByteArray> {
     return entries
 }
 
+private fun buildProviderImageDataUrl(filePath: String): String? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(filePath, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var inSampleSize = 1
+    while ((bounds.outWidth / inSampleSize) > 1280 || (bounds.outHeight / inSampleSize) > 1280) {
+        inSampleSize *= 2
+    }
+
+    val decodeOptions = BitmapFactory.Options().apply {
+        this.inSampleSize = inSampleSize
+    }
+    val bitmap = BitmapFactory.decodeFile(filePath, decodeOptions) ?: return null
+    val output = ByteArrayOutputStream()
+    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, output)
+    bitmap.recycle()
+    val encoded = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+    return "data:image/jpeg;base64,$encoded"
+}
+
 private data class CandidateDraft(
     val title: String,
     val body: String,
@@ -1222,7 +1249,8 @@ class DefaultSecurityService @Inject constructor(
 ) : SecurityService {
     override suspend fun saveProviderKey(kind: ProviderKind, apiKey: String) {
         val prefs = securePrefs()
-        prefs.edit().putString(kind.name, apiKey).apply()
+        val normalizedKey = apiKey.trim()
+        check(prefs.edit().putString(kind.name, normalizedKey).commit()) { "Provider key could not be stored" }
     }
 
     override suspend fun getProviderAvailability(): List<ProviderAvailability> {
@@ -1238,20 +1266,26 @@ class DefaultSecurityService @Inject constructor(
     }
 
     override suspend fun setBiometricLockEnabled(enabled: Boolean) {
-        securePrefs().edit().putBoolean("biometric_lock_enabled", enabled).apply()
+        check(securePrefs().edit().putBoolean("biometric_lock_enabled", enabled).commit()) { "Biometric setting could not be stored" }
     }
 
     override suspend fun isBiometricLockEnabled(): Boolean {
         return securePrefs().getBoolean("biometric_lock_enabled", false)
     }
 
-    private fun securePrefs() = EncryptedSharedPreferences.create(
-        context,
-        "sidequest_secure",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private fun securePrefs(): SharedPreferences {
+        return runCatching {
+            EncryptedSharedPreferences.create(
+                context,
+                "sidequest_secure",
+                MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrElse {
+            context.getSharedPreferences("sidequest_secure_fallback", Context.MODE_PRIVATE)
+        }
+    }
 }
 
 @HiltWorker

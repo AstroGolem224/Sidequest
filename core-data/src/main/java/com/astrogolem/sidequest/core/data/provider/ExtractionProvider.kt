@@ -1,15 +1,23 @@
 package com.astrogolem.sidequest.core.data.provider
 
 import com.astrogolem.sidequest.core.data.model.ProviderKind
+import com.astrogolem.sidequest.core.data.model.ExtractionKind
 
 data class ProviderExtractionRequest(
     val ocrText: String,
     val documentHint: String,
+    val imageDataUrl: String? = null,
+)
+
+data class ProviderExtractionItem(
+    val text: String,
+    val kind: ExtractionKind,
+    val reasoning: String,
 )
 
 data class ProviderExtractionResponse(
     val summary: String,
-    val normalizedLines: List<String>,
+    val items: List<ProviderExtractionItem>,
 )
 
 interface ExtractionProvider {
