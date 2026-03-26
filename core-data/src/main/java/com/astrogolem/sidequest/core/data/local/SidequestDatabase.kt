@@ -17,8 +17,11 @@ import androidx.room.TypeConverters
         KnowledgeEdgeEntity::class,
         ReminderEntity::class,
         ExportBundleEntity::class,
+        ShoppingListEntity::class,
+        ShoppingListItemEntity::class,
+        RoutinePlanEntity::class,
     ],
-    version = 5,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -28,4 +31,6 @@ abstract class SidequestDatabase : RoomDatabase() {
     abstract fun searchDao(): SearchDao
     abstract fun reminderDao(): ReminderDao
     abstract fun exportBundleDao(): ExportBundleDao
+    abstract fun shoppingListDao(): ShoppingListDao
+    abstract fun routinePlanDao(): RoutinePlanDao
 }

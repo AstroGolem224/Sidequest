@@ -11,6 +11,9 @@ import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.model.ReminderState
+import com.astrogolem.sidequest.core.data.model.RoutineCategory
+import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
+import com.astrogolem.sidequest.core.data.model.ShoppingListSource
 
 @Entity(tableName = "captures")
 data class CaptureEntity(
@@ -136,4 +139,54 @@ data class ExportBundleEntity(
     val fileUri: String,
     val checksum: String,
     val itemCount: Int,
+)
+
+@Entity(tableName = "shopping_lists")
+data class ShoppingListEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val source: ShoppingListSource,
+    val createdAt: Long,
+    val sourceCaptureId: String?,
+)
+
+@Entity(
+    tableName = "shopping_list_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = ShoppingListEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["listId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("listId")],
+)
+data class ShoppingListItemEntity(
+    @PrimaryKey val id: String,
+    val listId: String,
+    val label: String,
+    val checked: Boolean,
+    val sortOrder: Int,
+)
+
+@Entity(tableName = "routine_plans")
+data class RoutinePlanEntity(
+    @PrimaryKey val id: String,
+    val templateKey: String,
+    val title: String,
+    val category: RoutineCategory,
+    val durationMinutes: Int,
+    val recurring: Boolean,
+    val weekdays: String,
+    val hour: Int,
+    val minute: Int,
+    val xpReward: Int,
+    val triggerMode: RoutineTriggerMode,
+    val targetLabel: String,
+    val notes: String,
+    val active: Boolean,
+    val completionCount: Int,
+    val lastCompletedAt: Long?,
+    val createdAt: Long,
 )

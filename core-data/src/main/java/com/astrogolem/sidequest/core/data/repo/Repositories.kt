@@ -12,6 +12,10 @@ import com.astrogolem.sidequest.core.data.model.ProcessingResult
 import com.astrogolem.sidequest.core.data.model.ProviderAvailability
 import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
+import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
+import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
+import com.astrogolem.sidequest.core.data.model.ShoppingListDetailModel
+import com.astrogolem.sidequest.core.data.model.ShoppingListSummary
 import kotlinx.coroutines.flow.Flow
 
 interface CaptureRepository {
@@ -42,6 +46,24 @@ interface SearchRepository {
     suspend fun search(query: String): List<SearchResultModel>
 }
 
+interface ShoppingListRepository {
+    fun observeLists(): Flow<List<ShoppingListSummary>>
+    fun observeList(listId: String): Flow<ShoppingListDetailModel?>
+    suspend fun createManualList(title: String, rawInput: String): Result<String>
+    suspend fun createVoiceList(rawInput: String): Result<String>
+    suspend fun createPhotoList(imageUri: Uri): Result<String>
+    suspend fun toggleItem(itemId: String, checked: Boolean)
+    suspend fun deleteList(listId: String)
+}
+
+interface RoutinePlanRepository {
+    fun observePlans(): Flow<List<RoutinePlanSummary>>
+    fun observePlan(planId: String): Flow<RoutinePlanDetail?>
+    suspend fun upsertPlan(detail: RoutinePlanDetail)
+    suspend fun completePlan(planId: String)
+    suspend fun deletePlan(planId: String)
+}
+
 interface ArchiveService {
     suspend fun exportSnapshot(target: Uri): Result<Unit>
     suspend fun validateImport(source: Uri): ArchiveValidationResult
@@ -52,6 +74,8 @@ interface SecurityService {
     suspend fun saveProviderKey(kind: ProviderKind, apiKey: String)
     suspend fun getProviderKey(kind: ProviderKind): String?
     suspend fun getProviderAvailability(): List<ProviderAvailability>
+    suspend fun getActiveProviderKind(): ProviderKind?
+    suspend fun setActiveProviderKind(kind: ProviderKind?)
     suspend fun setBiometricLockEnabled(enabled: Boolean)
     suspend fun isBiometricLockEnabled(): Boolean
 }

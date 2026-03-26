@@ -7,7 +7,9 @@ import com.astrogolem.sidequest.core.data.local.CaptureDao
 import com.astrogolem.sidequest.core.data.local.ExportBundleDao
 import com.astrogolem.sidequest.core.data.local.MissionDao
 import com.astrogolem.sidequest.core.data.local.ReminderDao
+import com.astrogolem.sidequest.core.data.local.RoutinePlanDao
 import com.astrogolem.sidequest.core.data.local.SearchDao
+import com.astrogolem.sidequest.core.data.local.ShoppingListDao
 import com.astrogolem.sidequest.core.data.local.SidequestDatabase
 import com.astrogolem.sidequest.core.data.repo.ArchiveService
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
@@ -17,10 +19,14 @@ import com.astrogolem.sidequest.core.data.repo.DefaultMissionRepository
 import com.astrogolem.sidequest.core.data.repo.DefaultProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.DefaultSearchRepository
 import com.astrogolem.sidequest.core.data.repo.DefaultSecurityService
+import com.astrogolem.sidequest.core.data.repo.DefaultRoutinePlanRepository
+import com.astrogolem.sidequest.core.data.repo.DefaultShoppingListRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SearchRepository
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
+import com.astrogolem.sidequest.core.data.repo.ShoppingListRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -49,6 +55,8 @@ object DatabaseModule {
     @Provides fun provideSearchDao(database: SidequestDatabase): SearchDao = database.searchDao()
     @Provides fun provideReminderDao(database: SidequestDatabase): ReminderDao = database.reminderDao()
     @Provides fun provideExportBundleDao(database: SidequestDatabase): ExportBundleDao = database.exportBundleDao()
+    @Provides fun provideShoppingListDao(database: SidequestDatabase): ShoppingListDao = database.shoppingListDao()
+    @Provides fun provideRoutinePlanDao(database: SidequestDatabase): RoutinePlanDao = database.routinePlanDao()
 }
 
 @Module
@@ -58,6 +66,8 @@ abstract class RepositoryModule {
     @Binds abstract fun bindProcessingOrchestrator(impl: DefaultProcessingOrchestrator): ProcessingOrchestrator
     @Binds abstract fun bindMissionRepository(impl: DefaultMissionRepository): MissionRepository
     @Binds abstract fun bindSearchRepository(impl: DefaultSearchRepository): SearchRepository
+    @Binds abstract fun bindShoppingListRepository(impl: DefaultShoppingListRepository): ShoppingListRepository
+    @Binds abstract fun bindRoutinePlanRepository(impl: DefaultRoutinePlanRepository): RoutinePlanRepository
     @Binds abstract fun bindArchiveService(impl: DefaultArchiveService): ArchiveService
     @Binds abstract fun bindSecurityService(impl: DefaultSecurityService): SecurityService
 }

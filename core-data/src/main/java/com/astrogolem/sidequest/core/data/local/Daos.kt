@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.astrogolem.sidequest.core.data.model.ShoppingListSource
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -179,4 +180,113 @@ interface ReminderDao {
 
     @Query("DELETE FROM reminders")
     suspend fun clearReminders()
+}
+
+data class ShoppingListWithCount(
+    val id: String,
+    val title: String,
+    val source: ShoppingListSource,
+    val createdAt: Long,
+    val sourceCaptureId: String?,
+    val itemCount: Int,
+    val checkedCount: Int,
+)
+
+data class ShoppingListWithItems(
+    val id: String,
+    val title: String,
+    val source: ShoppingListSource,
+    val createdAt: Long,
+    val sourceCaptureId: String?,
+    val itemId: String,
+    val itemLabel: String,
+    val itemChecked: Boolean,
+    val itemSortOrder: Int,
+)
+
+@Dao
+interface ShoppingListDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertList(entity: ShoppingListEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertItems(items: List<ShoppingListItemEntity>)
+
+    @Query(
+        """
+        SELECT shopping_lists.id,
+               shopping_lists.title,
+               shopping_lists.source,
+               shopping_lists.createdAt,
+               shopping_lists.sourceCaptureId,
+               COUNT(shopping_list_items.id) AS itemCount,
+               SUM(CASE WHEN shopping_list_items.checked THEN 1 ELSE 0 END) AS checkedCount
+        FROM shopping_lists
+        LEFT JOIN shopping_list_items ON shopping_list_items.listId = shopping_lists.id
+        GROUP BY shopping_lists.id
+        ORDER BY shopping_lists.createdAt DESC
+        """,
+    )
+    fun observeLists(): Flow<List<ShoppingListWithCount>>
+
+    @Query(
+        """
+        SELECT shopping_lists.id,
+               shopping_lists.title,
+               shopping_lists.source,
+               shopping_lists.createdAt,
+               shopping_lists.sourceCaptureId,
+               shopping_list_items.id AS itemId,
+               shopping_list_items.label AS itemLabel,
+               shopping_list_items.checked AS itemChecked,
+               shopping_list_items.sortOrder AS itemSortOrder
+        FROM shopping_lists
+        JOIN shopping_list_items ON shopping_list_items.listId = shopping_lists.id
+        WHERE shopping_lists.id = :listId
+        ORDER BY shopping_list_items.sortOrder ASC, shopping_list_items.id ASC
+        """,
+    )
+    fun observeList(listId: String): Flow<List<ShoppingListWithItems>>
+
+    @Query("UPDATE shopping_list_items SET checked = :checked WHERE id = :itemId")
+    suspend fun updateItemChecked(itemId: String, checked: Boolean)
+
+    @Query("DELETE FROM shopping_lists WHERE id = :listId")
+    suspend fun deleteList(listId: String)
+
+    @Query("DELETE FROM shopping_list_items WHERE listId = :listId")
+    suspend fun clearItemsForList(listId: String)
+
+    @Query("DELETE FROM shopping_list_items")
+    suspend fun clearItems()
+
+    @Query("DELETE FROM shopping_lists")
+    suspend fun clearLists()
+}
+
+@Dao
+interface RoutinePlanDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPlan(entity: RoutinePlanEntity)
+
+    @Query("SELECT * FROM routine_plans ORDER BY active DESC, hour ASC, minute ASC, createdAt DESC")
+    fun observePlans(): Flow<List<RoutinePlanEntity>>
+
+    @Query("SELECT * FROM routine_plans ORDER BY active DESC, hour ASC, minute ASC, createdAt DESC")
+    suspend fun listPlans(): List<RoutinePlanEntity>
+
+    @Query("SELECT * FROM routine_plans WHERE id = :planId LIMIT 1")
+    fun observePlan(planId: String): Flow<RoutinePlanEntity?>
+
+    @Query("UPDATE routine_plans SET active = :active WHERE id = :planId")
+    suspend fun updateActive(planId: String, active: Boolean)
+
+    @Query("UPDATE routine_plans SET completionCount = completionCount + 1, lastCompletedAt = :completedAt WHERE id = :planId")
+    suspend fun markCompleted(planId: String, completedAt: Long)
+
+    @Query("DELETE FROM routine_plans WHERE id = :planId")
+    suspend fun deletePlan(planId: String)
+
+    @Query("DELETE FROM routine_plans")
+    suspend fun clearPlans()
 }

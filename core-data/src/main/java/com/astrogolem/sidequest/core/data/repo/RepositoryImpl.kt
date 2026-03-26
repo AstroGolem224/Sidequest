@@ -32,7 +32,14 @@ import com.astrogolem.sidequest.core.data.local.MissionDao
 import com.astrogolem.sidequest.core.data.local.MissionEntity
 import com.astrogolem.sidequest.core.data.local.ReminderDao
 import com.astrogolem.sidequest.core.data.local.ReminderEntity
+import com.astrogolem.sidequest.core.data.local.RoutinePlanDao
+import com.astrogolem.sidequest.core.data.local.RoutinePlanEntity
 import com.astrogolem.sidequest.core.data.local.SearchDao
+import com.astrogolem.sidequest.core.data.local.ShoppingListDao
+import com.astrogolem.sidequest.core.data.local.ShoppingListEntity
+import com.astrogolem.sidequest.core.data.local.ShoppingListItemEntity
+import com.astrogolem.sidequest.core.data.local.ShoppingListWithCount
+import com.astrogolem.sidequest.core.data.local.ShoppingListWithItems
 import com.astrogolem.sidequest.core.data.model.ArchiveValidationResult
 import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.CaptureDetailModel
@@ -50,7 +57,15 @@ import com.astrogolem.sidequest.core.data.model.ProcessingResult
 import com.astrogolem.sidequest.core.data.model.ProviderAvailability
 import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.ReminderState
+import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
+import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
+import com.astrogolem.sidequest.core.data.model.ShoppingListDetailModel
+import com.astrogolem.sidequest.core.data.model.ShoppingListItemModel
+import com.astrogolem.sidequest.core.data.model.ShoppingListSource
+import com.astrogolem.sidequest.core.data.model.ShoppingListSummary
+import com.astrogolem.sidequest.core.data.model.RoutineCategory
+import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
 import com.astrogolem.sidequest.core.data.provider.OpenAiExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.ProviderExtractionRequest
 import com.google.mlkit.vision.common.InputImage
@@ -72,6 +87,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -82,6 +98,7 @@ import java.util.zip.ZipOutputStream
 import androidx.hilt.work.HiltWorker
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.ByteArrayInputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -215,6 +232,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
     private val captureDao: CaptureDao,
     private val searchDao: SearchDao,
     private val workManager: WorkManager,
+    private val securityService: SecurityService,
     private val openAiExtractionProvider: OpenAiExtractionProvider,
 ) : ProcessingOrchestrator {
     override suspend fun enqueue(captureId: String) {
@@ -253,16 +271,21 @@ class DefaultProcessingOrchestrator @Inject constructor(
             val localLines = result.textBlocks.mapNotNull { it.text.trim().takeIf(String::isNotBlank) }
             val documentType = classifyDocumentType(result.text)
             val providerImageDataUrl = buildProviderImageDataUrl(capture.filePath)
-            val enhanced = if (result.text.isNotBlank() || providerImageDataUrl != null) {
-                openAiExtractionProvider.enhance(
-                    ProviderExtractionRequest(
-                        ocrText = result.text,
-                        documentHint = documentType.name,
-                        imageDataUrl = providerImageDataUrl,
-                    ),
-                ).getOrNull()
-            } else {
-                null
+            val enhanced = when (securityService.getActiveProviderKind()) {
+                ProviderKind.OPENAI -> {
+                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
+                        openAiExtractionProvider.enhance(
+                            ProviderExtractionRequest(
+                                ocrText = result.text,
+                                documentHint = documentType.name,
+                                imageDataUrl = providerImageDataUrl,
+                            ),
+                        ).getOrNull()
+                    } else {
+                        null
+                    }
+                }
+                else -> null
             }
             val extractionDrafts = buildExtractionDrafts(
                 documentType = documentType,
@@ -554,6 +577,147 @@ class DefaultSearchRepository @Inject constructor(
 }
 
 @Singleton
+class DefaultShoppingListRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val shoppingListDao: ShoppingListDao,
+) : ShoppingListRepository {
+    override fun observeLists(): Flow<List<ShoppingListSummary>> {
+        return shoppingListDao.observeLists().map { lists ->
+            lists.map { list ->
+                ShoppingListSummary(
+                    id = list.id,
+                    title = list.title,
+                    source = list.source,
+                    createdAt = list.createdAt,
+                    itemCount = list.itemCount,
+                    checkedCount = list.checkedCount,
+                    sourceCaptureId = list.sourceCaptureId,
+                )
+            }
+        }
+    }
+
+    override fun observeList(listId: String): Flow<ShoppingListDetailModel?> {
+        return shoppingListDao.observeList(listId).map { rows ->
+            val first = rows.firstOrNull() ?: return@map null
+            ShoppingListDetailModel(
+                id = first.id,
+                title = first.title,
+                source = first.source,
+                createdAt = first.createdAt,
+                sourceCaptureId = first.sourceCaptureId,
+                items = rows.map { row ->
+                    ShoppingListItemModel(
+                        id = row.itemId,
+                        label = row.itemLabel,
+                        checked = row.itemChecked,
+                    )
+                },
+            )
+        }
+    }
+
+    override suspend fun createManualList(title: String, rawInput: String): Result<String> {
+        return createList(
+            source = ShoppingListSource.MANUAL,
+            title = title,
+            items = parseShoppingItems(rawInput),
+            sourceCaptureId = null,
+        )
+    }
+
+    override suspend fun createVoiceList(rawInput: String): Result<String> {
+        return createList(
+            source = ShoppingListSource.VOICE,
+            title = "",
+            items = parseVoiceShoppingItems(rawInput),
+            sourceCaptureId = null,
+        )
+    }
+
+    override suspend fun createPhotoList(imageUri: Uri): Result<String> = runCatching {
+        val image = InputImage.fromFilePath(context, imageUri)
+        val result = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            .process(image)
+            .await()
+        createList(
+            source = ShoppingListSource.PHOTO,
+            title = "",
+            items = parseShoppingItems(result.text),
+            sourceCaptureId = null,
+        ).getOrThrow()
+    }
+
+    override suspend fun toggleItem(itemId: String, checked: Boolean) {
+        shoppingListDao.updateItemChecked(itemId, checked)
+    }
+
+    override suspend fun deleteList(listId: String) {
+        shoppingListDao.deleteList(listId)
+    }
+
+    private suspend fun createList(
+        source: ShoppingListSource,
+        title: String,
+        items: List<String>,
+        sourceCaptureId: String?,
+    ): Result<String> = runCatching {
+        require(items.isNotEmpty()) { "No shopping items detected." }
+        val listId = UUID.randomUUID().toString()
+        shoppingListDao.upsertList(
+            ShoppingListEntity(
+                id = listId,
+                title = title.ifBlank { deriveShoppingTitle(items) },
+                source = source,
+                createdAt = System.currentTimeMillis(),
+                sourceCaptureId = sourceCaptureId,
+            ),
+        )
+        shoppingListDao.upsertItems(
+            items.mapIndexed { index, label ->
+                ShoppingListItemEntity(
+                    id = UUID.randomUUID().toString(),
+                    listId = listId,
+                    label = label,
+                    checked = false,
+                    sortOrder = index,
+                )
+            },
+        )
+        listId
+    }
+}
+
+@Singleton
+class DefaultRoutinePlanRepository @Inject constructor(
+    private val routinePlanDao: RoutinePlanDao,
+) : RoutinePlanRepository {
+    override fun observePlans(): Flow<List<RoutinePlanSummary>> {
+        return routinePlanDao.observePlans().map { plans ->
+            plans.map { it.toSummary() }
+        }
+    }
+
+    override fun observePlan(planId: String): Flow<RoutinePlanDetail?> {
+        return routinePlanDao.observePlan(planId).map { entity ->
+            entity?.toDetail()
+        }
+    }
+
+    override suspend fun upsertPlan(detail: RoutinePlanDetail) {
+        routinePlanDao.upsertPlan(detail.toEntity())
+    }
+
+    override suspend fun completePlan(planId: String) {
+        routinePlanDao.markCompleted(planId, System.currentTimeMillis())
+    }
+
+    override suspend fun deletePlan(planId: String) {
+        routinePlanDao.deletePlan(planId)
+    }
+}
+
+@Singleton
 class DefaultArchiveService @Inject constructor(
     @ApplicationContext private val context: Context,
     private val exportBundleDao: ExportBundleDao,
@@ -561,6 +725,8 @@ class DefaultArchiveService @Inject constructor(
     private val missionDao: MissionDao,
     private val reminderDao: ReminderDao,
     private val searchDao: SearchDao,
+    private val shoppingListDao: ShoppingListDao,
+    private val routinePlanDao: RoutinePlanDao,
 ) : ArchiveService {
     override suspend fun exportSnapshot(target: Uri): Result<Unit> {
         return runCatching {
@@ -570,8 +736,13 @@ class DefaultArchiveService @Inject constructor(
             val missions = missionDao.listMissions()
             val reminders = reminderDao.listReminders()
             val nodes = searchDao.listNodes()
+            val shoppingListSnapshots = shoppingListDao.observeLists().first()
+            val shoppingItems = shoppingListSnapshots.flatMap { snapshot ->
+                shoppingListDao.observeList(snapshot.id).first()
+            }
+            val routinePlans = routinePlanDao.listPlans()
             val manifest = JSONObject().apply {
-                put("version", 3)
+                put("version", 5)
                 put("exportedAt", System.currentTimeMillis())
                 put("counts", JSONObject().apply {
                     put("captures", captures.size)
@@ -580,6 +751,9 @@ class DefaultArchiveService @Inject constructor(
                     put("missions", missions.size)
                     put("reminders", reminders.size)
                     put("knowledgeNodes", nodes.size)
+                    put("shoppingLists", shoppingListSnapshots.size)
+                    put("shoppingItems", shoppingItems.size)
+                    put("routinePlans", routinePlans.size)
                 })
             }
 
@@ -613,6 +787,18 @@ class DefaultArchiveService @Inject constructor(
                     zip.write(JSONArray(nodes.map { it.toJson() }).toString().toByteArray())
                     zip.closeEntry()
 
+                    zip.putNextEntry(ZipEntry("data/shopping_lists.json"))
+                    zip.write(JSONArray(shoppingListSnapshots.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/shopping_items.json"))
+                    zip.write(JSONArray(shoppingItems.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
+                    zip.putNextEntry(ZipEntry("data/routine_plans.json"))
+                    zip.write(JSONArray(routinePlans.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
                     captures.forEach { capture ->
                         val file = File(capture.filePath)
                         if (file.exists()) {
@@ -628,8 +814,8 @@ class DefaultArchiveService @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     createdAt = System.currentTimeMillis(),
                     fileUri = target.toString(),
-                    checksum = "zip-v3",
-                    itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size,
+                    checksum = "zip-v5",
+                    itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size + shoppingListSnapshots.size + shoppingItems.size + routinePlans.size,
                 ),
             )
         }
@@ -640,7 +826,7 @@ class DefaultArchiveService @Inject constructor(
             val entries = readArchiveEntries(source)
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: return ArchiveValidationResult.Invalid("Missing manifest.json")
-            if (manifest.optInt("version") !in setOf(2, 3)) {
+            if (manifest.optInt("version") !in setOf(2, 3, 4, 5)) {
                 ArchiveValidationResult.Invalid("Unsupported archive version")
             } else if (!entries.containsKey("data/captures.json") || !entries.containsKey("data/missions.json")) {
                 ArchiveValidationResult.Invalid("Archive data is incomplete")
@@ -656,7 +842,7 @@ class DefaultArchiveService @Inject constructor(
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: error("Missing manifest")
             val archiveVersion = manifest.optInt("version")
-            require(archiveVersion in setOf(2, 3)) { "Unsupported archive version" }
+            require(archiveVersion in setOf(2, 3, 4, 5)) { "Unsupported archive version" }
 
             val captures = entries.requireJsonArray("data/captures.json")
             val analyses = entries.requireJsonArray("data/analyses.json")
@@ -664,6 +850,9 @@ class DefaultArchiveService @Inject constructor(
             val missions = entries.requireJsonArray("data/missions.json")
             val reminders = entries.requireJsonArray("data/reminders.json")
             val nodes = entries.requireJsonArray("data/knowledge_nodes.json")
+            val shoppingLists = entries.optionalJsonArray("data/shopping_lists.json")
+            val shoppingItems = entries.optionalJsonArray("data/shopping_items.json")
+            val routinePlans = entries.optionalJsonArray("data/routine_plans.json")
 
             reminderDao.clearReminders()
             missionDao.clearMissions()
@@ -671,6 +860,9 @@ class DefaultArchiveService @Inject constructor(
             captureDao.clearAnalyses()
             captureDao.clearCaptures()
             searchDao.clearNodes()
+            shoppingListDao.clearItems()
+            shoppingListDao.clearLists()
+            routinePlanDao.clearPlans()
 
             for (index in 0 until captures.length()) {
                 val json = captures.getJSONObject(index)
@@ -776,6 +968,65 @@ class DefaultArchiveService @Inject constructor(
                         body = json.getString("body"),
                     ),
                 )
+            }
+
+            if (archiveVersion >= 4) {
+                for (index in 0 until shoppingLists.length()) {
+                    val json = shoppingLists.getJSONObject(index)
+                    shoppingListDao.upsertList(
+                        ShoppingListEntity(
+                            id = json.getString("id"),
+                            title = json.getString("title"),
+                            source = ShoppingListSource.valueOf(json.getString("source")),
+                            createdAt = json.getLong("createdAt"),
+                            sourceCaptureId = json.optString("sourceCaptureId").takeIf { it.isNotBlank() },
+                        ),
+                    )
+                }
+                if (shoppingItems.length() > 0) {
+                    val importedItems = buildList {
+                        for (index in 0 until shoppingItems.length()) {
+                            val json = shoppingItems.getJSONObject(index)
+                            add(
+                                ShoppingListItemEntity(
+                                    id = json.getString("id"),
+                                    listId = json.getString("listId"),
+                                    label = json.getString("label"),
+                                    checked = json.getBoolean("checked"),
+                                    sortOrder = json.getInt("sortOrder"),
+                                ),
+                            )
+                        }
+                    }
+                    shoppingListDao.upsertItems(importedItems)
+                }
+            }
+
+            if (archiveVersion >= 5) {
+                for (index in 0 until routinePlans.length()) {
+                    val json = routinePlans.getJSONObject(index)
+                    routinePlanDao.upsertPlan(
+                        RoutinePlanEntity(
+                            id = json.getString("id"),
+                            templateKey = json.getString("templateKey"),
+                            title = json.getString("title"),
+                            category = RoutineCategory.valueOf(json.getString("category")),
+                            durationMinutes = json.getInt("durationMinutes"),
+                            recurring = json.getBoolean("recurring"),
+                            weekdays = json.getString("weekdays"),
+                            hour = json.getInt("hour"),
+                            minute = json.getInt("minute"),
+                            xpReward = json.getInt("xpReward"),
+                            triggerMode = RoutineTriggerMode.valueOf(json.getString("triggerMode")),
+                            targetLabel = json.getString("targetLabel"),
+                            notes = json.getString("notes"),
+                            active = json.getBoolean("active"),
+                            completionCount = json.optInt("completionCount", 0),
+                            lastCompletedAt = json.optLongOrNull("lastCompletedAt"),
+                            createdAt = json.optLongOrNull("createdAt") ?: System.currentTimeMillis(),
+                        ),
+                    )
+                }
             }
         }
     }
@@ -1112,6 +1363,49 @@ private fun parseDateCandidate(value: String, pattern: String): Long? {
     }
 }
 
+private fun parseShoppingItems(rawInput: String): List<String> {
+    return rawInput
+        .lineSequence()
+        .flatMap { line -> line.split(Regex("[,;]")).asSequence() }
+        .map { entry ->
+            entry
+                .replace(Regex("""^\s*[-*•\d.)\[\]xX]+\s*"""), "")
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+        }
+        .filter { it.length >= 2 }
+        .filterNot { item ->
+            val lowered = item.lowercase(Locale.ROOT)
+            lowered in setOf("shopping list", "einkaufsliste", "groceries", "items") ||
+                lowered.startsWith("total") ||
+                lowered.startsWith("summe")
+        }
+        .distinctBy { it.lowercase(Locale.ROOT) }
+        .take(24)
+        .toList()
+}
+
+private fun parseVoiceShoppingItems(rawInput: String): List<String> {
+    val normalized = rawInput
+        .replace(Regex("""\b(ich brauche|ich brauche noch|bitte|kaufe|kauf|need|please add|add|shopping list|einkaufsliste)\b""", RegexOption.IGNORE_CASE), " ")
+        .replace(Regex("""\s+(und|and|plus|sowie)\s+""", RegexOption.IGNORE_CASE), ", ")
+        .replace(Regex("""\s*,\s*"""), ", ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+    return parseShoppingItems(normalized)
+}
+
+private fun deriveShoppingTitle(items: List<String>): String {
+    val first = items.firstOrNull().orEmpty()
+    val prefix = when {
+        first.isBlank() -> "Shopping List"
+        first.length <= 18 -> first.replaceFirstChar { it.uppercase() }
+        else -> first.take(18).trimEnd()
+    }
+    val stamp = SimpleDateFormat("dd.MM", Locale.GERMAN).format(java.util.Date())
+    return "$prefix • $stamp"
+}
+
 private val ActionHints = setOf(
     "add",
     "book",
@@ -1174,6 +1468,10 @@ private val MetaLinePhrases = setOf(
 
 private fun Map<String, ByteArray>.requireJsonArray(path: String): JSONArray {
     return this[path]?.decodeToString()?.let(::JSONArray) ?: error("Missing $path")
+}
+
+private fun Map<String, ByteArray>.optionalJsonArray(path: String): JSONArray {
+    return this[path]?.decodeToString()?.let(::JSONArray) ?: JSONArray()
 }
 
 private fun JSONArray.forEachJsonObject(block: (JSONObject) -> Unit) {
@@ -1243,6 +1541,106 @@ private fun KnowledgeNodeEntity.toJson(): JSONObject = JSONObject().apply {
     put("body", body)
 }
 
+private fun RoutinePlanEntity.toSummary(): RoutinePlanSummary {
+    return RoutinePlanSummary(
+        id = id,
+        templateKey = templateKey,
+        title = title,
+        category = category,
+        durationMinutes = durationMinutes,
+        recurring = recurring,
+        weekdays = weekdays,
+        hour = hour,
+        minute = minute,
+        xpReward = xpReward,
+        triggerMode = triggerMode,
+        targetLabel = targetLabel,
+        active = active,
+        completionCount = completionCount,
+        lastCompletedAt = lastCompletedAt,
+    )
+}
+
+private fun RoutinePlanEntity.toDetail(): RoutinePlanDetail {
+    return RoutinePlanDetail(
+        id = id,
+        templateKey = templateKey,
+        title = title,
+        category = category,
+        createdAt = createdAt,
+        durationMinutes = durationMinutes,
+        recurring = recurring,
+        weekdays = weekdays,
+        hour = hour,
+        minute = minute,
+        xpReward = xpReward,
+        triggerMode = triggerMode,
+        targetLabel = targetLabel,
+        notes = notes,
+        active = active,
+        completionCount = completionCount,
+        lastCompletedAt = lastCompletedAt,
+    )
+}
+
+private fun RoutinePlanDetail.toEntity(): RoutinePlanEntity {
+    return RoutinePlanEntity(
+        id = id,
+        templateKey = templateKey,
+        title = title,
+        category = category,
+        createdAt = createdAt,
+        durationMinutes = durationMinutes,
+        recurring = recurring,
+        weekdays = weekdays,
+        hour = hour,
+        minute = minute,
+        xpReward = xpReward,
+        triggerMode = triggerMode,
+        targetLabel = targetLabel,
+        notes = notes,
+        active = active,
+        completionCount = completionCount,
+        lastCompletedAt = lastCompletedAt,
+    )
+}
+
+private fun ShoppingListWithCount.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("title", title)
+    put("source", source.name)
+    put("createdAt", createdAt)
+    put("sourceCaptureId", sourceCaptureId)
+}
+
+private fun ShoppingListWithItems.toJson(): JSONObject = JSONObject().apply {
+    put("id", itemId)
+    put("listId", id)
+    put("label", itemLabel)
+    put("checked", itemChecked)
+    put("sortOrder", itemSortOrder)
+}
+
+private fun RoutinePlanEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("templateKey", templateKey)
+    put("title", title)
+    put("category", category.name)
+    put("durationMinutes", durationMinutes)
+    put("recurring", recurring)
+    put("weekdays", weekdays)
+    put("hour", hour)
+    put("minute", minute)
+    put("xpReward", xpReward)
+    put("triggerMode", triggerMode.name)
+    put("targetLabel", targetLabel)
+    put("notes", notes)
+    put("active", active)
+    put("completionCount", completionCount)
+    put("lastCompletedAt", lastCompletedAt)
+    put("createdAt", createdAt)
+}
+
 @Singleton
 class DefaultSecurityService @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -1255,14 +1653,36 @@ class DefaultSecurityService @Inject constructor(
 
     override suspend fun getProviderAvailability(): List<ProviderAvailability> {
         val prefs = securePrefs()
+        val activeProvider = prefs.getString(ACTIVE_PROVIDER_KEY, null)
         return ProviderKind.entries.map { kind ->
             val configured = !prefs.getString(kind.name, null).isNullOrBlank()
-            ProviderAvailability(kind = kind, configured = configured, enabled = configured)
+            ProviderAvailability(kind = kind, configured = configured, enabled = configured && activeProvider == kind.name)
         }
     }
 
     override suspend fun getProviderKey(kind: ProviderKind): String? {
         return securePrefs().getString(kind.name, null)
+    }
+
+    override suspend fun getActiveProviderKind(): ProviderKind? {
+        return securePrefs()
+            .getString(ACTIVE_PROVIDER_KEY, null)
+            ?.let { raw -> ProviderKind.entries.firstOrNull { it.name == raw } }
+    }
+
+    override suspend fun setActiveProviderKind(kind: ProviderKind?) {
+        val prefs = securePrefs()
+        if (kind != null) {
+            val storedKey = prefs.getString(kind.name, null)?.trim().orEmpty()
+            check(storedKey.isNotBlank()) { "${kind.name} must have a saved key before activation" }
+        }
+        val editor = prefs.edit()
+        if (kind == null) {
+            editor.remove(ACTIVE_PROVIDER_KEY)
+        } else {
+            editor.putString(ACTIVE_PROVIDER_KEY, kind.name)
+        }
+        check(editor.commit()) { "Active provider could not be stored" }
     }
 
     override suspend fun setBiometricLockEnabled(enabled: Boolean) {
@@ -1285,6 +1705,10 @@ class DefaultSecurityService @Inject constructor(
         }.getOrElse {
             context.getSharedPreferences("sidequest_secure_fallback", Context.MODE_PRIVATE)
         }
+    }
+
+    private companion object {
+        const val ACTIVE_PROVIDER_KEY = "active_provider_kind"
     }
 }
 

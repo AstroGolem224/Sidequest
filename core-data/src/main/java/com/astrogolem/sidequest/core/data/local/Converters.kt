@@ -7,6 +7,9 @@ import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.model.ReminderState
+import com.astrogolem.sidequest.core.data.model.RoutineCategory
+import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
+import com.astrogolem.sidequest.core.data.model.ShoppingListSource
 
 class Converters {
     @TypeConverter fun fromDocumentType(value: DocumentType): String = value.name
@@ -21,4 +24,10 @@ class Converters {
     @TypeConverter fun toMissionStatus(value: String): MissionStatus = MissionStatus.valueOf(value)
     @TypeConverter fun fromReminderState(value: ReminderState): String = value.name
     @TypeConverter fun toReminderState(value: String): ReminderState = ReminderState.valueOf(value)
+    @TypeConverter fun fromShoppingListSource(value: ShoppingListSource): String = value.name
+    @TypeConverter fun toShoppingListSource(value: String): ShoppingListSource = ShoppingListSource.valueOf(value)
+    @TypeConverter fun fromRoutineCategory(value: RoutineCategory): String = value.name
+    @TypeConverter fun toRoutineCategory(value: String): RoutineCategory = RoutineCategory.valueOf(value)
+    @TypeConverter fun fromRoutineTriggerMode(value: RoutineTriggerMode): String = value.name
+    @TypeConverter fun toRoutineTriggerMode(value: String): RoutineTriggerMode = RoutineTriggerMode.valueOf(value)
 }

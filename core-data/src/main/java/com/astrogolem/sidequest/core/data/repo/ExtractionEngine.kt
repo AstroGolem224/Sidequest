@@ -173,6 +173,7 @@ private fun buildProviderDrafts(
             val cleaned = cleanCandidateLine(item.text)
             val normalized = normalizeLine(cleaned)
             if (!isUsefulCandidateLine(cleaned, normalized)) return@mapNotNull null
+            if (item.kind == ExtractionKind.TASK && looksLikeProviderMetaTask(cleaned, item.reasoning)) return@mapNotNull null
             if (!reserved.add(normalized)) return@mapNotNull null
             val score = when (item.kind) {
                 ExtractionKind.TASK -> 0.9f
@@ -473,6 +474,12 @@ private fun looksLikeMetaOrCodeLine(cleaned: String, normalized: String): Boolea
     if (Regex("""[\\/].+\.[a-z]{2,6}\b""").containsMatchIn(cleaned)) return true
     if (normalized.count { it == ' ' } <= 1 && normalized.any(Char::isDigit)) return true
     return false
+}
+
+private fun looksLikeProviderMetaTask(cleaned: String, reasoning: String): Boolean {
+    val combined = "${cleaned.lowercase()} ${reasoning.lowercase()}"
+    return Regex("""\b(test|testing|build|gradle|compile|commit|push|branch|repo|repository|apk|adb|debug|screenshot|import image|open settings|device)\b""")
+        .containsMatchIn(combined)
 }
 
 private val ActionHints = setOf(

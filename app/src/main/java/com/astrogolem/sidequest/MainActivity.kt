@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,6 +63,10 @@ import com.astrogolem.sidequest.feature.inbox.InboxRoute
 import com.astrogolem.sidequest.feature.lobby.LobbyRoute
 import com.astrogolem.sidequest.feature.missions.MissionDetailRoute
 import com.astrogolem.sidequest.feature.missions.MissionsRoute
+import com.astrogolem.sidequest.feature.missions.RoutinePlanDetailRoute
+import com.astrogolem.sidequest.feature.missions.RoutinePlannerRoute
+import com.astrogolem.sidequest.feature.missions.ShoppingDetailRoute
+import com.astrogolem.sidequest.feature.missions.ShoppingRoute
 import com.astrogolem.sidequest.feature.search.SearchRoute
 import com.astrogolem.sidequest.feature.settings.SettingsRoute
 import dagger.hilt.android.AndroidEntryPoint
@@ -143,7 +149,7 @@ private fun SidequestApp(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val utilityRoutes = setOf("search", "settings")
+    val utilityRoutes = setOf("search", "settings", "shopping", "shopping/{listId}", "routines", "routine/{planId}")
     val showBottomBar = destinations.any { it.route == currentRoute }
     val showTopBar = showBottomBar || currentRoute in utilityRoutes
     val topBarTitle = when (currentRoute) {
@@ -151,6 +157,10 @@ private fun SidequestApp(
         "inbox" -> "Quest Intake"
         "capture" -> "Create"
         "lobby" -> "Profile"
+        "shopping" -> "Shopping Lists"
+        "shopping/{listId}" -> "Shopping List"
+        "routines" -> "Routine Tasks"
+        "routine/{planId}" -> "Routine Plan"
         "search" -> "Search"
         "settings" -> "Settings"
         else -> "Sidequest"
@@ -236,10 +246,20 @@ private fun SidequestApp(
             modifier = Modifier.padding(innerPadding),
         ) {
             composable("missions") {
-                TopLevelScreenContainer {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
                     MissionsRoute(
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
                         onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                        onOpenShopping = { navController.navigate("shopping") },
+                        onOpenRoutines = { navController.navigate("routines") },
                     )
                 }
             }
@@ -252,7 +272,18 @@ private fun SidequestApp(
                 }
             }
             composable("capture") {
-                CaptureRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    wrapInSurface = false,
+                ) {
+                    CaptureRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                }
             }
             composable("captureDetail/{captureId}") {
                 Surface(
@@ -266,23 +297,97 @@ private fun SidequestApp(
                 }
             }
             composable("inbox") {
-                TopLevelScreenContainer {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
                     InboxRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
             composable("lobby") {
-                TopLevelScreenContainer {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
                     LobbyRoute()
                 }
             }
+            composable("shopping") {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
+                    ShoppingRoute(onOpenList = { listId -> navController.navigate("shopping/$listId") })
+                }
+            }
+            composable("shopping/{listId}") {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    ShoppingDetailRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                }
+            }
             composable("search") {
-                TopLevelScreenContainer {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
                     SearchRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
             composable("settings") {
-                TopLevelScreenContainer {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
                     SettingsRoute()
+                }
+            }
+            composable("routines") {
+                TopLevelScreenContainer(
+                    currentRoute = currentRoute,
+                    destinations = destinations,
+                    onNavigateTo = { route ->
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                        }
+                    },
+                ) {
+                    RoutinePlannerRoute(onOpenPlan = { planId -> navController.navigate("routine/$planId") })
+                }
+            }
+            composable("routine/{planId}") {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    RoutinePlanDetailRoute()
                 }
             }
         }
@@ -290,10 +395,37 @@ private fun SidequestApp(
 }
 
 @Composable
-private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
+private fun TopLevelScreenContainer(
+    currentRoute: String?,
+    destinations: List<TopLevelDestination>,
+    onNavigateTo: (String) -> Unit,
+    wrapInSurface: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val currentIndex = destinations.indexOfFirst { it.route == currentRoute }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .pointerInput(currentRoute) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (currentIndex >= 0 && kotlin.math.abs(totalDrag) > 120f) {
+                            val targetIndex = when {
+                                totalDrag < 0 && currentIndex < destinations.lastIndex -> currentIndex + 1
+                                totalDrag > 0 && currentIndex > 0 -> currentIndex - 1
+                                else -> -1
+                            }
+                            if (targetIndex >= 0) {
+                                onNavigateTo(destinations[targetIndex].route)
+                            }
+                        }
+                        totalDrag = 0f
+                    },
+                ) { _, dragAmount ->
+                    totalDrag += dragAmount
+                }
+            }
             .background(
                 Brush.radialGradient(
                     colors = listOf(AccentPrimary.copy(alpha = 0.16f), AccentSecondary.copy(alpha = 0.05f), BgPrimary),
@@ -301,10 +433,14 @@ private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
                 ),
             ),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
-        ) {
+        if (wrapInSurface) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+            ) {
+                content()
+            }
+        } else {
             content()
         }
     }

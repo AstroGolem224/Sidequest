@@ -264,6 +264,8 @@ class OpenAiExtractionProvider @Inject constructor(
             - Use FACT for notable searchable context that is not actionable.
             - Keep items concise and deduplicated.
             - Prefer 0 tasks over inventing action.
+            - Never emit TASK for developer notes, build/test instructions, terminal output, git workflow text, or UI review copy about the app itself.
+            - If the capture is informational but not actionable, return FACT, DATE, or REFERENCE only.
         """.trimIndent()
     }
 

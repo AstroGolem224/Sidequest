@@ -83,6 +83,8 @@ import kotlinx.coroutines.launch
 fun MissionsRoute(
     onOpenMission: (String) -> Unit,
     onOpenCapture: (String) -> Unit,
+    onOpenShopping: () -> Unit,
+    onOpenRoutines: () -> Unit,
     viewModel: MissionsViewModel = hiltViewModel(),
 ) {
     val missions by viewModel.missions.collectAsStateWithLifecycle()
@@ -142,8 +144,16 @@ fun MissionsRoute(
                                 .fillMaxWidth((xpCurrent / 180f).coerceIn(0.08f, 1f))
                                 .height(6.dp)
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                                .background(AccentPrimary),
+                            .background(AccentPrimary),
                         )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = onOpenShopping, modifier = Modifier.weight(1f)) {
+                            Text("Shopping Lists")
+                        }
+                        OutlinedButton(onClick = onOpenRoutines, modifier = Modifier.weight(1f)) {
+                            Text("Routine Tasks")
+                        }
                     }
                 }
             }

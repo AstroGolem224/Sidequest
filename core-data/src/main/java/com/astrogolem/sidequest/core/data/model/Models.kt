@@ -7,6 +7,9 @@ enum class ExtractionKind { TASK, FACT, DATE, REFERENCE }
 enum class MissionStatus { OPEN, ACTIVE, DONE, SNOOZED, ARCHIVED }
 enum class ReminderState { PENDING, FIRED, CANCELLED }
 enum class ProviderKind { OPENAI, ANTHROPIC, NIM, OPENROUTER }
+enum class ShoppingListSource { MANUAL, VOICE, PHOTO }
+enum class RoutineCategory { MIND, BODY, HOME, OUTDOOR, LIFE }
+enum class RoutineTriggerMode { MANUAL, CAPTURE, FITNESS }
 
 data class CaptureSummary(
     val id: String,
@@ -76,6 +79,69 @@ data class SearchResultModel(
     val snippet: String,
     val sourceLabel: String,
     val matchLabel: String,
+)
+
+data class ShoppingListSummary(
+    val id: String,
+    val title: String,
+    val source: ShoppingListSource,
+    val createdAt: Long,
+    val itemCount: Int,
+    val checkedCount: Int,
+    val sourceCaptureId: String?,
+)
+
+data class ShoppingListItemModel(
+    val id: String,
+    val label: String,
+    val checked: Boolean,
+)
+
+data class ShoppingListDetailModel(
+    val id: String,
+    val title: String,
+    val source: ShoppingListSource,
+    val createdAt: Long,
+    val sourceCaptureId: String?,
+    val items: List<ShoppingListItemModel>,
+)
+
+data class RoutinePlanSummary(
+    val id: String,
+    val templateKey: String,
+    val title: String,
+    val category: RoutineCategory,
+    val durationMinutes: Int,
+    val recurring: Boolean,
+    val weekdays: String,
+    val hour: Int,
+    val minute: Int,
+    val xpReward: Int,
+    val triggerMode: RoutineTriggerMode,
+    val targetLabel: String,
+    val active: Boolean,
+    val completionCount: Int,
+    val lastCompletedAt: Long?,
+)
+
+data class RoutinePlanDetail(
+    val id: String,
+    val templateKey: String,
+    val title: String,
+    val category: RoutineCategory,
+    val createdAt: Long,
+    val durationMinutes: Int,
+    val recurring: Boolean,
+    val weekdays: String,
+    val hour: Int,
+    val minute: Int,
+    val xpReward: Int,
+    val triggerMode: RoutineTriggerMode,
+    val targetLabel: String,
+    val notes: String,
+    val active: Boolean,
+    val completionCount: Int,
+    val lastCompletedAt: Long?,
 )
 
 data class ProviderAvailability(
