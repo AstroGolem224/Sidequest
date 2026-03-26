@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,6 +47,7 @@ fun NoteDetailRoute(
     onOpenMission: (String) -> Unit,
     viewModel: NoteDetailViewModel = hiltViewModel(),
 ) {
+    val noteFieldShape = RoundedCornerShape(24.dp)
     val note by viewModel.note.collectAsStateWithLifecycle()
     val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
     var previewMode by remember(note?.id) { mutableStateOf(false) }
@@ -118,6 +120,7 @@ fun NoteDetailRoute(
                         value = title,
                         onValueChange = { title = it },
                         label = { Text("Title") },
+                        shape = noteFieldShape,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp),
@@ -129,6 +132,7 @@ fun NoteDetailRoute(
                             value = markdown,
                             onValueChange = { markdown = it },
                             label = { Text("Markdown") },
+                            shape = noteFieldShape,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 12.dp),

@@ -12,6 +12,7 @@ import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.SecurityService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,6 +29,7 @@ internal const val DefaultCaptureMessage = "Ready for the next capture."
 
 data class CaptureUiState(
     val captures: List<CaptureSummary> = emptyList(),
+    val aiFirstEnabled: Boolean = false,
     val isSaving: Boolean = false,
     val lastMessage: String = DefaultCaptureMessage,
     val actionFeedback: String? = null,
@@ -42,6 +44,7 @@ class CaptureViewModel @Inject constructor(
     private val captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
     private val processingOrchestrator: ProcessingOrchestrator,
+    private val securityService: SecurityService,
 ) : ViewModel() {
     private val isSaving = MutableStateFlow(false)
     private val lastMessage = MutableStateFlow(DefaultCaptureMessage)
@@ -84,9 +87,10 @@ class CaptureViewModel @Inject constructor(
 
     val state: StateFlow<CaptureUiState> = combine(
         captureRepository.observeCaptures(),
+        securityService.observeUserPreferences(),
         chromeInputs,
         reviewCaptureDetail,
-    ) { captures, chromeInputs, reviewDetail ->
+    ) { captures, userPreferences, chromeInputs, reviewDetail ->
         val reviewCandidates = reviewDetail
             ?.candidates
             ?.filter { candidate ->
@@ -95,6 +99,7 @@ class CaptureViewModel @Inject constructor(
             .orEmpty()
         CaptureUiState(
             captures = captures,
+            aiFirstEnabled = userPreferences.aiFirstCaptureEnabled,
             isSaving = chromeInputs.saving,
             lastMessage = if (chromeInputs.saving) {
                 "Saving capture locally..."
@@ -153,6 +158,17 @@ class CaptureViewModel @Inject constructor(
 
     fun clearActionFeedback() {
         actionFeedback.value = null
+    }
+
+    fun setAiFirstEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            securityService.setAiFirstCaptureEnabled(enabled)
+            actionFeedback.value = if (enabled) {
+                "ai-first enabled - image analysis runs before ocr"
+            } else {
+                "ai-first disabled - local ocr leads again"
+            }
+        }
     }
 
     private fun deriveCaptureMessage(captures: List<CaptureSummary>, fallback: String): String {

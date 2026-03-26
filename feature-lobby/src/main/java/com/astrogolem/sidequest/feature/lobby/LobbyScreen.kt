@@ -1,6 +1,12 @@
 package com.astrogolem.sidequest.feature.lobby
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,16 +25,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -36,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.ui.components.HudRing
 import com.astrogolem.sidequest.core.ui.components.HudTone
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
@@ -52,8 +71,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 @Composable
 fun LobbyRoute(
@@ -61,13 +82,27 @@ fun LobbyRoute(
     viewModel: LobbyViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showDeleteAvatarDialog by remember { mutableStateOf(false) }
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.saveAvatar(uri)
+        }
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        item { ProfileHero(state) }
+        item {
+            ProfileHero(
+                state = state,
+                onPickAvatar = {
+                    avatarPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                onClearAvatar = { showDeleteAvatarDialog = true },
+            )
+        }
 
         item {
             OutlinedButton(onClick = onOpenStats, modifier = Modifier.fillMaxWidth()) {
@@ -108,10 +143,36 @@ fun LobbyRoute(
             }
         }
     }
+    if (showDeleteAvatarDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAvatarDialog = false },
+            title = { Text("Delete avatar?") },
+            text = { Text("This removes the local profile image and restores the default profile glyph.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAvatarDialog = false
+                        viewModel.clearAvatar()
+                    },
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAvatarDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun ProfileHero(state: LobbyUiState) {
+private fun ProfileHero(
+    state: LobbyUiState,
+    onPickAvatar: () -> Unit,
+    onClearAvatar: () -> Unit,
+) {
     val animatedXpProgress = animateFloatAsState(
         targetValue = state.xpProgress,
         animationSpec = tween(durationMillis = 520),
@@ -152,24 +213,10 @@ private fun ProfileHero(state: LobbyUiState) {
                         shape = CircleShape,
                         modifier = Modifier.size(80.dp),
                     ) {
-                        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Column(
-                                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Icon(
-                                    imageVector = SidequestIcons.Profile,
-                                    contentDescription = "Profile",
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Text(
-                                    "LV ${state.level}",
-                                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                                    color = AccentSecondary,
-                                )
-                            }
-                        }
+                        AvatarCore(
+                            avatarImagePath = state.avatarImagePath,
+                            level = state.level,
+                        )
                     }
                 }
                 Column(
@@ -186,6 +233,23 @@ private fun ProfileHero(state: LobbyUiState) {
                         text = if (state.systemOverload) "system overload" else "systems stable",
                         tone = if (state.systemOverload) HudTone.Amber else HudTone.Violet,
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        AvatarActionButton(
+                            icon = SidequestIcons.Gallery,
+                            contentDescription = if (state.avatarImagePath == null) "Choose avatar" else "Change avatar",
+                            onClick = onPickAvatar,
+                        )
+                        if (state.avatarImagePath != null) {
+                            AvatarActionButton(
+                                icon = SidequestIcons.Delete,
+                                contentDescription = "Delete avatar",
+                                onClick = onClearAvatar,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -208,6 +272,67 @@ private fun ProfileHero(state: LobbyUiState) {
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
             )
+        }
+    }
+}
+
+@Composable
+private fun AvatarActionButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    OutlinedIconButton(
+        onClick = onClick,
+        modifier = Modifier.size(56.dp),
+        colors = IconButtonDefaults.outlinedIconButtonColors(
+            contentColor = AccentPrimary,
+        ),
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.9f)),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+@Composable
+private fun AvatarCore(
+    avatarImagePath: String?,
+    level: Int,
+) {
+    val bitmap = remember(avatarImagePath) {
+        avatarImagePath?.let(BitmapFactory::decodeFile)
+    }
+    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Profile avatar",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+            )
+        } else {
+            Column(
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = SidequestIcons.Profile,
+                    contentDescription = "Profile",
+                    tint = AccentPrimary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    "LV $level",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                    color = AccentSecondary,
+                )
+            }
         }
     }
 }
@@ -274,14 +399,16 @@ private fun LootCard(
     Surface(
         color = if (loot.unlocked) BgGlow else BgPanel.copy(alpha = 0.55f),
         shape = RoundedCornerShape(18.dp),
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 220.dp),
         border = BorderStroke(
             1.dp,
             if (loot.unlocked) CardStroke.copy(alpha = 0.9f) else CardStroke.copy(alpha = 0.35f),
         ),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Surface(
@@ -308,6 +435,7 @@ private fun LootCard(
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                 color = TextSecondary,
             )
+            Spacer(modifier = Modifier.weight(1f, fill = true))
             StatusPill(
                 text = if (loot.unlocked) loot.rarity else "locked",
                 tone = if (loot.unlocked) HudTone.Amber else HudTone.Neutral,
@@ -386,6 +514,7 @@ data class LobbyUiState(
     val xpProgress: Float = 0.1f,
     val rankLabel: String = "",
     val rankTitle: String = "Ready",
+    val avatarImagePath: String? = null,
     val systemOverload: Boolean = false,
     val loot: List<LootCardModel> = emptyList(),
     val spotlight: List<MissionCardModel> = emptyList(),
@@ -395,10 +524,13 @@ data class LobbyUiState(
 @HiltViewModel
 class LobbyViewModel @Inject constructor(
     missionRepository: MissionRepository,
+    private val securityService: SecurityService,
 ) : ViewModel() {
     val state: StateFlow<LobbyUiState> =
-        missionRepository.observeMissions()
-            .map { missions ->
+        combine(
+            missionRepository.observeMissions(),
+            securityService.observeUserPreferences(),
+        ) { missions, userPreferences ->
                 val openCount = missions.count { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
                 val doneCount = missions.count { it.status.name == "DONE" }
                 val totalCount = missions.size
@@ -415,6 +547,7 @@ class LobbyViewModel @Inject constructor(
                     xpProgress = (xpCurrent / 180f).coerceIn(0.1f, 1f),
                     rankLabel = doneCount.toString(),
                     rankTitle = rankTitle(doneCount),
+                    avatarImagePath = userPreferences.avatarImagePath,
                     systemOverload = openCount > 10,
                     loot = buildLoot(doneCount, totalCount, openCount),
                     spotlight = missions.take(3),
@@ -424,6 +557,18 @@ class LobbyViewModel @Inject constructor(
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LobbyUiState())
+
+    fun saveAvatar(uri: Uri) {
+        viewModelScope.launch {
+            securityService.saveAvatarImage(uri)
+        }
+    }
+
+    fun clearAvatar() {
+        viewModelScope.launch {
+            securityService.clearAvatarImage()
+        }
+    }
 }
 
 private fun buildLoot(

@@ -164,6 +164,7 @@ class NimExtractionProvider @Inject constructor(
     private fun buildPrompt(request: ProviderExtractionRequest): String {
         return buildString {
             appendLine("Analyze this Sidequest capture.")
+            appendLine("Analysis mode: ${request.analysisMode.name}")
             appendLine("Document hint: ${request.documentHint}")
             if (request.ocrText.isNotBlank()) {
                 appendLine("OCR text:")
@@ -171,6 +172,7 @@ class NimExtractionProvider @Inject constructor(
             } else {
                 appendLine("OCR text is empty or unreliable. Use the image directly.")
             }
+            appendLine("Decide from the image first whether the user likely needs reading help, cleanup help, a reminder, or only memory storage.")
             appendLine("Return only JSON.")
         }
     }
@@ -197,6 +199,9 @@ class NimExtractionProvider @Inject constructor(
             - Use FACT for notable searchable context that is not actionable.
             - Keep items concise and deduplicated.
             - Prefer 0 tasks over inventing action.
+            - If the image shows clutter, mess, or a reset opportunity, you may emit one TASK that frames the likely cleanup quest.
+            - If the image is mostly a scene and not a document, focus on likely intent and scene-based action before OCR.
+            - If no reading is needed, still emit scene-based TASK or FACT items when useful.
             - Never emit TASK for developer notes, build/test instructions, terminal output, git workflow text, or UI review copy about the app itself.
             - If the capture is informational but not actionable, return FACT, DATE, or REFERENCE only.
         """.trimIndent()

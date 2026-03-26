@@ -2,6 +2,7 @@ package com.astrogolem.sidequest
 
 import android.content.Intent
 import android.os.Bundle
+import android.graphics.BitmapFactory
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -11,11 +12,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,18 +34,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -49,13 +61,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.data.model.UserPreferences
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
+import com.astrogolem.sidequest.core.ui.theme.BgElevated
 import com.astrogolem.sidequest.core.ui.theme.BgPrimary
 import com.astrogolem.sidequest.core.ui.theme.BgPanel
 import com.astrogolem.sidequest.core.ui.theme.SidequestTheme
+import com.astrogolem.sidequest.core.ui.theme.ThemePreset
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
 import com.astrogolem.sidequest.feature.capture.CaptureRoute
@@ -92,12 +107,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         pendingDeepLink = intent.toDeepLinkTarget()
         enableEdgeToEdge()
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.statusBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         setContent {
-            SidequestTheme {
+            val userPreferences by securityService.observeUserPreferences().collectAsState(initial = UserPreferences())
+            val themePreset = ThemePreset.entries.firstOrNull { it.name == userPreferences.themePresetName } ?: ThemePreset.SOLAR
+            SidequestTheme(themePreset = themePreset) {
                 SidequestApp(
                     activity = this,
-                    securityService = securityService,
                     processingOrchestrator = processingOrchestrator,
+                    userPreferences = userPreferences,
                     pendingDeepLink = pendingDeepLink,
                     onDeepLinkConsumed = { pendingDeepLink = null },
                 )
@@ -127,19 +148,16 @@ private sealed interface DeepLinkTarget {
 @Composable
 private fun SidequestApp(
     activity: AppCompatActivity,
-    securityService: SecurityService,
     processingOrchestrator: ProcessingOrchestrator,
+    userPreferences: UserPreferences,
     pendingDeepLink: DeepLinkTarget?,
     onDeepLinkConsumed: () -> Unit,
 ) {
     val chromeViewModel: AppChromeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val chrome by chromeViewModel.state.collectAsStateWithLifecycle()
-    val biometricEnabled by produceState<Boolean?>(initialValue = null) {
-        value = securityService.isBiometricLockEnabled()
-    }
     var unlocked by remember { mutableStateOf(false) }
 
-    if (biometricEnabled == true && !unlocked) {
+    if (userPreferences.biometricLockEnabled && !unlocked) {
         BiometricGate(activity = activity, onUnlocked = { unlocked = true })
         return
     }
@@ -207,6 +225,7 @@ private fun SidequestApp(
                     title = topBarTitle,
                     level = chrome.level,
                     subtitle = chrome.title,
+                    avatarImagePath = userPreferences.avatarImagePath,
                     showBack = currentRoute in utilityRoutes,
                     onBack = { navController.popBackStack() },
                     onSearch = {
@@ -518,13 +537,14 @@ private fun SidequestTopBar(
     title: String,
     level: Int,
     subtitle: String,
+    avatarImagePath: String?,
     showBack: Boolean,
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Surface(
-        color = BgPanel.copy(alpha = 0.96f),
+        color = BgElevated,
         tonalElevation = 0.dp,
         shadowElevation = 12.dp,
     ) {
@@ -568,15 +588,80 @@ private fun SidequestTopBar(
                         tint = TextSecondary,
                     )
                 }
-                Surface(
-                    color = AccentPrimary.copy(alpha = 0.14f),
-                    shape = androidx.compose.foundation.shape.CircleShape,
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clickable(onClick = onSettings),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    IconButton(onClick = onSettings) {
-                        Text("L$level", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
-                    }
+                    TopBarAvatarBadge(
+                        avatarImagePath = avatarImagePath,
+                        level = level,
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TopBarAvatarBadge(
+    avatarImagePath: String?,
+    level: Int,
+) {
+    val bitmap = remember(avatarImagePath) {
+        avatarImagePath?.let(BitmapFactory::decodeFile)
+    }
+    Box(
+        modifier = Modifier
+            .size(54.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .align(Alignment.Center)
+                .clip(CircleShape)
+                .background(AccentPrimary.copy(alpha = 0.18f)),
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Open settings",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(AccentPrimary.copy(alpha = 0.24f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = SidequestIcons.Profile,
+                        contentDescription = "Open settings",
+                        tint = AccentSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 4.dp, y = 2.dp)
+                .zIndex(1f),
+            color = BgPrimary,
+            shape = CircleShape,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+        ) {
+            Text(
+                text = "L$level",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentSecondary,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            )
         }
     }
 }

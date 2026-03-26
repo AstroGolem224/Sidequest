@@ -11,6 +11,7 @@ import com.astrogolem.sidequest.core.data.model.MissionDetailModel
 import com.astrogolem.sidequest.core.data.model.ProcessingResult
 import com.astrogolem.sidequest.core.data.model.ProviderAvailability
 import com.astrogolem.sidequest.core.data.model.ProviderKind
+import com.astrogolem.sidequest.core.data.model.UserPreferences
 import com.astrogolem.sidequest.core.data.model.NoteDetail
 import com.astrogolem.sidequest.core.data.model.NoteSummary
 import com.astrogolem.sidequest.core.data.model.SearchFilter
@@ -88,11 +89,17 @@ interface ArchiveService {
 }
 
 interface SecurityService {
+    fun observeUserPreferences(): Flow<UserPreferences>
     suspend fun saveProviderKey(kind: ProviderKind, apiKey: String)
     suspend fun getProviderKey(kind: ProviderKind): String?
     suspend fun getProviderAvailability(): List<ProviderAvailability>
     suspend fun getActiveProviderKind(): ProviderKind?
     suspend fun setActiveProviderKind(kind: ProviderKind?)
+    suspend fun setThemePreset(themePresetName: String)
+    suspend fun setAiFirstCaptureEnabled(enabled: Boolean)
+    suspend fun isAiFirstCaptureEnabled(): Boolean
+    suspend fun saveAvatarImage(uri: Uri): String
+    suspend fun clearAvatarImage()
     suspend fun setBiometricLockEnabled(enabled: Boolean)
     suspend fun isBiometricLockEnabled(): Boolean
 }

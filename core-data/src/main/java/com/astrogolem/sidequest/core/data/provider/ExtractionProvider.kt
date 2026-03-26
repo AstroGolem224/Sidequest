@@ -3,10 +3,13 @@ package com.astrogolem.sidequest.core.data.provider
 import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.ExtractionKind
 
+enum class ProviderAnalysisMode { IMAGE_FIRST, OCR_FIRST, IMAGE_PLUS_OCR }
+
 data class ProviderExtractionRequest(
     val ocrText: String,
     val documentHint: String,
     val imageDataUrl: String? = null,
+    val analysisMode: ProviderAnalysisMode = ProviderAnalysisMode.OCR_FIRST,
 )
 
 data class ProviderExtractionItem(

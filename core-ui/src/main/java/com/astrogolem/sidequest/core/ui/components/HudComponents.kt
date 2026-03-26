@@ -23,10 +23,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
+import com.astrogolem.sidequest.core.ui.theme.AccentCoral
 import com.astrogolem.sidequest.core.ui.theme.AccentGold
+import com.astrogolem.sidequest.core.ui.theme.AccentNeutral
 import com.astrogolem.sidequest.core.ui.theme.AccentViolet
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
-import com.astrogolem.sidequest.core.ui.theme.TextPrimary
 
 @Composable
 fun StatusPill(
@@ -109,6 +110,7 @@ enum class HudTone {
     Cyan,
     Amber,
     Violet,
+    Coral,
     Neutral,
 }
 
@@ -116,5 +118,6 @@ private fun HudTone.color(): Color = when (this) {
     HudTone.Cyan -> AccentCyan
     HudTone.Amber -> AccentGold
     HudTone.Violet -> AccentViolet
-    HudTone.Neutral -> TextPrimary
+    HudTone.Coral -> AccentCoral
+    HudTone.Neutral -> AccentNeutral
 }

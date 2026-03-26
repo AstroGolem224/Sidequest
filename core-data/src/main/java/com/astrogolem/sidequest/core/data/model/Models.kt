@@ -175,6 +175,13 @@ data class ProviderAvailability(
     val enabled: Boolean,
 )
 
+data class UserPreferences(
+    val biometricLockEnabled: Boolean = false,
+    val aiFirstCaptureEnabled: Boolean = false,
+    val themePresetName: String = "SOLAR",
+    val avatarImagePath: String? = null,
+)
+
 sealed interface ProcessingResult {
     data class Success(val captureId: String, val candidateCount: Int) : ProcessingResult
     data class Deferred(val captureId: String, val reason: String) : ProcessingResult

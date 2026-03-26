@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -495,16 +496,22 @@ private fun RecentCaptureCard(
         border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
         modifier = Modifier.clickable(onClick = onOpenCapture),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Text(
+                text = intelLabel(capture),
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(capture.status.name.lowercase(), color = TextSecondary)
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 Surface(
@@ -521,24 +528,56 @@ private fun RecentCaptureCard(
                         )
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(intelLabel(capture), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                    Text(capture.status.name.lowercase(), color = TextSecondary)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (capture.status == CaptureProcessingStatus.FAILED) {
-                    OutlinedButton(onClick = onRetry) {
-                        Text("Retry")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    if (capture.status == CaptureProcessingStatus.FAILED) {
+                        CaptureActionIcon(
+                            icon = SidequestIcons.Retake,
+                            contentDescription = "Retry scan",
+                            onClick = onRetry,
+                        )
                     }
-                }
-                OutlinedButton(onClick = onDelete) {
-                    Text("Delete")
-                }
-                OutlinedButton(onClick = onOpenCapture) {
-                    Text("Open Details")
+                    CaptureActionIcon(
+                        icon = SidequestIcons.Delete,
+                        contentDescription = "Delete scan",
+                        onClick = onDelete,
+                    )
+                    CaptureActionIcon(
+                        icon = SidequestIcons.Intel,
+                        contentDescription = "Open scan details",
+                        onClick = onOpenCapture,
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CaptureActionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = androidx.compose.ui.graphics.Color.Transparent,
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.85f)),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = AccentSecondary,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

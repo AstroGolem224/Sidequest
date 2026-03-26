@@ -7,6 +7,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,6 +38,8 @@ import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.repo.ArchiveService
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.theme.paletteFor
+import com.astrogolem.sidequest.core.ui.theme.ThemePreset
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +57,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
     val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
     val editingProviders by viewModel.editingProviders.collectAsStateWithLifecycle()
     val storedProviderKeys by viewModel.storedProviderKeys.collectAsStateWithLifecycle()
+    val themePreset by viewModel.themePreset.collectAsStateWithLifecycle()
     var notificationsGranted by remember {
         mutableStateOf(
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -77,6 +82,43 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        item {
+            ScaffoldCard(
+                title = "Theme",
+                subtitle = "Only the color palette changes here. Layout and stitched structure stay intact.",
+            ) {
+                ThemePreset.entries.forEach { preset ->
+                    val palette = paletteFor(preset)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = { viewModel.setThemePreset(preset) },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(if (themePreset == preset) "${preset.name.lowercase()} active" else preset.name.lowercase())
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.Surface(
+                                color = palette.bgPrimary,
+                                modifier = Modifier.size(18.dp),
+                            ) {}
+                            androidx.compose.material3.Surface(
+                                color = palette.accentPrimary,
+                                modifier = Modifier.size(18.dp),
+                            ) {}
+                            androidx.compose.material3.Surface(
+                                color = palette.accentSecondary,
+                                modifier = Modifier.size(18.dp),
+                            ) {}
+                        }
+                    }
+                }
+            }
+        }
         item {
             ScaffoldCard(
                 title = "Privacy + Provider Setup",
@@ -153,7 +195,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                     text = if (provider.kind == ProviderKind.OPENAI) {
                         "Only one AI provider can be active. Keys stay stored locally even when the provider is disabled."
                     } else {
-                        "You can already store and select this provider. In this build, capture analysis still falls back to the local pipeline unless OpenAI is the active provider."
+                        "Only one AI provider can be active. Keys stay stored locally even when the provider is disabled."
                     },
                 )
                 Text(text = "AI provider active", modifier = Modifier.padding(top = 12.dp))
@@ -238,9 +280,17 @@ class SettingsViewModel @Inject constructor(
     val storedProviderKeys: StateFlow<Map<ProviderKind, String>> = _storedProviderKeys.asStateFlow()
     private val _editingProviders = MutableStateFlow<Set<ProviderKind>>(emptySet())
     val editingProviders: StateFlow<Set<ProviderKind>> = _editingProviders.asStateFlow()
+    private val _themePreset = MutableStateFlow(ThemePreset.SOLAR)
+    val themePreset: StateFlow<ThemePreset> = _themePreset.asStateFlow()
 
     init {
         refresh()
+        viewModelScope.launch {
+            securityService.observeUserPreferences().collect { preferences ->
+                _biometricEnabled.value = preferences.biometricLockEnabled
+                _themePreset.value = ThemePreset.entries.firstOrNull { it.name == preferences.themePresetName } ?: ThemePreset.SOLAR
+            }
+        }
     }
 
     fun updateDraft(kind: ProviderKind, value: String) {
@@ -297,8 +347,7 @@ class SettingsViewModel @Inject constructor(
                 onSuccess = {
                     _providerMessage.value = when {
                         !enabled -> "AI provider disabled. Sidequest is running local-only."
-                        kind == ProviderKind.OPENAI -> "${kind.name} is now the active AI provider."
-                        else -> "${kind.name} is selected. This build still uses local-only analysis unless OpenAI is active."
+                        else -> "${kind.name} is now the active AI provider."
                     }
                 },
                 onFailure = { error ->
@@ -341,6 +390,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setThemePreset(preset: ThemePreset) {
+        viewModelScope.launch {
+            securityService.setThemePreset(preset.name)
+            _themePreset.value = preset
+        }
+    }
+
     private fun refresh() {
         viewModelScope.launch {
             val availabilities = securityService.getProviderAvailability()
@@ -348,7 +404,6 @@ class SettingsViewModel @Inject constructor(
             _storedProviderKeys.value = availabilities.associate { availability ->
                 availability.kind to securityService.getProviderKey(availability.kind).orEmpty()
             }
-            _biometricEnabled.value = securityService.isBiometricLockEnabled()
         }
     }
 

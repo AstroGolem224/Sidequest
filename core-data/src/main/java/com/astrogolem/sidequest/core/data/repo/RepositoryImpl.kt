@@ -63,6 +63,7 @@ import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.ReminderState
 import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
+import com.astrogolem.sidequest.core.data.model.UserPreferences
 import com.astrogolem.sidequest.core.data.model.SearchFilter
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
 import com.astrogolem.sidequest.core.data.model.SearchResultType
@@ -76,6 +77,7 @@ import com.astrogolem.sidequest.core.data.provider.AnthropicExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.NimExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.OpenAiExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.OpenRouterExtractionProvider
+import com.astrogolem.sidequest.core.data.provider.ProviderAnalysisMode
 import com.astrogolem.sidequest.core.data.provider.ProviderExtractionRequest
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -96,11 +98,13 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
@@ -279,72 +283,46 @@ class DefaultProcessingOrchestrator @Inject constructor(
         return try {
             captureDao.clearAnalysisForCapture(capture.id)
             captureDao.clearExtractedItemsForCapture(capture.id)
+            val aiFirstEnabled = securityService.isAiFirstCaptureEnabled()
+            val providerImageDataUrl = buildProviderImageDataUrl(capture.filePath)
+            val imageFirstEnhanced = if (aiFirstEnabled && providerImageDataUrl != null) {
+                enhanceWithActiveProvider(
+                    request = ProviderExtractionRequest(
+                        ocrText = "",
+                        documentHint = "UNKNOWN",
+                        imageDataUrl = providerImageDataUrl,
+                        analysisMode = ProviderAnalysisMode.IMAGE_FIRST,
+                    ),
+                )
+            } else {
+                null
+            }
             val image = InputImage.fromFilePath(context, File(capture.filePath).toUri())
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val result = recognizer.process(image).await()
             val localLines = result.textBlocks.mapNotNull { it.text.trim().takeIf(String::isNotBlank) }
             val documentType = classifyDocumentType(result.text)
-            val providerImageDataUrl = buildProviderImageDataUrl(capture.filePath)
-            val enhanced = when (securityService.getActiveProviderKind()) {
-                ProviderKind.OPENAI -> {
-                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
-                        openAiExtractionProvider.enhance(
-                            ProviderExtractionRequest(
-                                ocrText = result.text,
-                                documentHint = documentType.name,
-                                imageDataUrl = providerImageDataUrl,
-                            ),
-                        ).getOrNull()
-                    } else {
-                        null
-                    }
-                }
-                ProviderKind.ANTHROPIC -> {
-                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
-                        anthropicExtractionProvider.enhance(
-                            ProviderExtractionRequest(
-                                ocrText = result.text,
-                                documentHint = documentType.name,
-                                imageDataUrl = providerImageDataUrl,
-                            ),
-                        ).getOrNull()
-                    } else {
-                        null
-                    }
-                }
-                ProviderKind.NIM -> {
-                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
-                        nimExtractionProvider.enhance(
-                            ProviderExtractionRequest(
-                                ocrText = result.text,
-                                documentHint = documentType.name,
-                                imageDataUrl = providerImageDataUrl,
-                            ),
-                        ).getOrNull()
-                    } else {
-                        null
-                    }
-                }
-                ProviderKind.OPENROUTER -> {
-                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
-                        openRouterExtractionProvider.enhance(
-                            ProviderExtractionRequest(
-                                ocrText = result.text,
-                                documentHint = documentType.name,
-                                imageDataUrl = providerImageDataUrl,
-                            ),
-                        ).getOrNull()
-                    } else {
-                        null
-                    }
-                }
-                else -> null
+            val enhanced = if (result.text.isNotBlank() || providerImageDataUrl != null) {
+                enhanceWithActiveProvider(
+                    request = ProviderExtractionRequest(
+                        ocrText = result.text,
+                        documentHint = documentType.name,
+                        imageDataUrl = providerImageDataUrl,
+                        analysisMode = if (aiFirstEnabled) ProviderAnalysisMode.IMAGE_PLUS_OCR else ProviderAnalysisMode.OCR_FIRST,
+                    ),
+                )
+            } else {
+                null
+            }
+            val mergedProviderItems = buildList {
+                imageFirstEnhanced?.items?.let(::addAll)
+                enhanced?.items?.let(::addAll)
             }
             val extractionDrafts = buildExtractionDrafts(
                 documentType = documentType,
                 ocrText = result.text,
                 localLines = localLines,
-                providerItems = enhanced?.items.orEmpty(),
+                providerItems = mergedProviderItems,
             )
             val lowConfidence = result.text.isBlank() || extractionDrafts.isEmpty() || extractionDrafts.none { it.confidence >= 0.64f }
             val analysis = CaptureAnalysisEntity(
@@ -352,7 +330,8 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 captureId = capture.id,
                 documentType = documentType,
                 ocrText = result.text,
-                summary = enhanced?.summary?.ifBlank { null }
+                summary = imageFirstEnhanced?.summary?.ifBlank { null }
+                    ?: enhanced?.summary?.ifBlank { null }
                     ?: extractionDrafts.firstOrNull { it.kind == ExtractionKind.TASK }?.title
                     ?: extractionDrafts.firstOrNull { it.kind == ExtractionKind.FACT }?.title
                     ?: extractionDrafts.firstOrNull()?.title
@@ -398,6 +377,15 @@ class DefaultProcessingOrchestrator @Inject constructor(
     }
 
     private fun uniqueWorkName(captureId: String) = "capture-processing-$captureId"
+
+    private suspend fun enhanceWithActiveProvider(request: ProviderExtractionRequest) =
+        when (securityService.getActiveProviderKind()) {
+            ProviderKind.OPENAI -> openAiExtractionProvider.enhance(request).getOrNull()
+            ProviderKind.ANTHROPIC -> anthropicExtractionProvider.enhance(request).getOrNull()
+            ProviderKind.NIM -> nimExtractionProvider.enhance(request).getOrNull()
+            ProviderKind.OPENROUTER -> openRouterExtractionProvider.enhance(request).getOrNull()
+            null -> null
+        }
 
     private fun classify(text: String): DocumentType {
         val lowered = text.lowercase()
@@ -2103,6 +2091,10 @@ private fun NoteEntity.toNoteDetail(): NoteDetail {
 class DefaultSecurityService @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : SecurityService {
+    private val userPreferences = MutableStateFlow(loadUserPreferences())
+
+    override fun observeUserPreferences(): Flow<UserPreferences> = userPreferences.asStateFlow()
+
     override suspend fun saveProviderKey(kind: ProviderKind, apiKey: String) {
         val prefs = securePrefs()
         val normalizedKey = apiKey.trim()
@@ -2143,12 +2135,65 @@ class DefaultSecurityService @Inject constructor(
         check(editor.commit()) { "Active provider could not be stored" }
     }
 
+    override suspend fun setThemePreset(themePresetName: String) {
+        check(securePrefs().edit().putString(THEME_PRESET_KEY, themePresetName).commit()) { "Theme setting could not be stored" }
+        refreshUserPreferences()
+    }
+
+    override suspend fun setAiFirstCaptureEnabled(enabled: Boolean) {
+        check(securePrefs().edit().putBoolean(AI_FIRST_CAPTURE_KEY, enabled).commit()) { "AI-first setting could not be stored" }
+        refreshUserPreferences()
+    }
+
+    override suspend fun isAiFirstCaptureEnabled(): Boolean {
+        return securePrefs().getBoolean(AI_FIRST_CAPTURE_KEY, false)
+    }
+
+    override suspend fun saveAvatarImage(uri: Uri): String {
+        val avatarDir = File(context.filesDir, "profile").apply { mkdirs() }
+        val target = File(avatarDir, "avatar.jpg")
+        val inputStream = when (uri.scheme) {
+            "file" -> FileInputStream(File(requireNotNull(uri.path)))
+            else -> context.contentResolver.openInputStream(uri)
+        } ?: error("Avatar image could not be opened")
+        inputStream.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
+        check(securePrefs().edit().putString(AVATAR_IMAGE_PATH_KEY, target.absolutePath).commit()) { "Avatar setting could not be stored" }
+        refreshUserPreferences()
+        return target.absolutePath
+    }
+
+    override suspend fun clearAvatarImage() {
+        securePrefs().getString(AVATAR_IMAGE_PATH_KEY, null)?.let { existingPath ->
+            runCatching { File(existingPath).takeIf(File::exists)?.delete() }
+        }
+        check(securePrefs().edit().remove(AVATAR_IMAGE_PATH_KEY).commit()) { "Avatar setting could not be cleared" }
+        refreshUserPreferences()
+    }
+
     override suspend fun setBiometricLockEnabled(enabled: Boolean) {
         check(securePrefs().edit().putBoolean("biometric_lock_enabled", enabled).commit()) { "Biometric setting could not be stored" }
+        refreshUserPreferences()
     }
 
     override suspend fun isBiometricLockEnabled(): Boolean {
         return securePrefs().getBoolean("biometric_lock_enabled", false)
+    }
+
+    private fun loadUserPreferences(): UserPreferences {
+        val prefs = securePrefs()
+        return UserPreferences(
+            biometricLockEnabled = prefs.getBoolean("biometric_lock_enabled", false),
+            aiFirstCaptureEnabled = prefs.getBoolean(AI_FIRST_CAPTURE_KEY, false),
+            themePresetName = prefs.getString(THEME_PRESET_KEY, "SOLAR") ?: "SOLAR",
+            avatarImagePath = prefs.getString(AVATAR_IMAGE_PATH_KEY, null)
+                ?.takeIf { path -> File(path).exists() },
+        )
+    }
+
+    private fun refreshUserPreferences() {
+        userPreferences.value = loadUserPreferences()
     }
 
     private fun securePrefs(): SharedPreferences {
@@ -2167,6 +2212,9 @@ class DefaultSecurityService @Inject constructor(
 
     private companion object {
         const val ACTIVE_PROVIDER_KEY = "active_provider_kind"
+        const val AI_FIRST_CAPTURE_KEY = "ai_first_capture_enabled"
+        const val THEME_PRESET_KEY = "theme_preset"
+        const val AVATAR_IMAGE_PATH_KEY = "avatar_image_path"
     }
 }
 

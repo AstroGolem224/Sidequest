@@ -8,13 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +52,7 @@ import com.astrogolem.sidequest.core.ui.components.HudTone
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
 import com.astrogolem.sidequest.core.ui.components.StatusPill
+import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
@@ -59,6 +66,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -96,22 +104,23 @@ fun InventoryRoute(
         item {
             ScaffoldCard(
                 title = "Inventory",
-                subtitle = "Reusable assets that stay editable instead of disappearing into the quest feed.",
+                subtitle = "Reusable assets that stay editable, searchable, and re-openable instead of disappearing into the quest feed.",
             ) {
                 Text("Shopping lists, notes, routine plans, archived quests, and saved scans live here.")
-                Row(
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::updateQuery,
+                    label = { Text("Search inventory") },
+                    shape = RoundedCornerShape(22.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Button(onClick = onOpenShoppingHub, modifier = Modifier.weight(1f)) {
-                        Text("Shopping Lists")
-                    }
-                    OutlinedButton(onClick = onOpenRoutineHub, modifier = Modifier.weight(1f)) {
-                        Text("Routine Tasks")
-                    }
-                }
+                )
+                Text(
+                    text = "${state.notes.size} notes • ${state.shoppingLists.size} lists • ${state.routinePlans.size} routines • ${state.archivedMissions.size} archived • ${state.captures.size} scans",
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
                 if (state.feedback.isNotBlank()) {
                     Text(
                         text = state.feedback,
@@ -143,6 +152,15 @@ fun InventoryRoute(
         }
 
         item { InventorySectionTitle("Shopping Lists", "Active and dormant purchase flows.") }
+        item {
+            SectionActionCard(
+                title = "Shopping hub",
+                subtitle = "Open the full list builder, dictate groceries, or import a photo list.",
+                icon = SidequestIcons.QuestLog,
+                contentDescription = "Open shopping lists",
+                onPrimary = onOpenShoppingHub,
+            )
+        }
         if (state.shoppingLists.isEmpty()) {
             item {
                 ScaffoldCard(
@@ -162,6 +180,15 @@ fun InventoryRoute(
         }
 
         item { InventorySectionTitle("Routine Plans", "Repeatable systems with editable schedules and reminders.") }
+        item {
+            SectionActionCard(
+                title = "Routine hub",
+                subtitle = "Build recurring plans, set reminder cadence, and keep repeatable work out of the main quest feed.",
+                icon = SidequestIcons.Sprint,
+                contentDescription = "Open routine tasks",
+                onPrimary = onOpenRoutineHub,
+            )
+        }
         if (state.routinePlans.isEmpty()) {
             item {
                 ScaffoldCard(
@@ -224,45 +251,35 @@ fun StatsRoute(
     ) {
         item {
             ScaffoldCard(
-                title = "Stats",
-                subtitle = "Real completion history plus derived health indicators. The formulas stay tied to actual completed work.",
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    StatsMetricCard("Completed Quests", state.completedQuests.toString(), Modifier.weight(1f))
-                    StatsMetricCard("Routine Sessions", state.completedRoutineSessions.toString(), Modifier.weight(1f))
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    StatsMetricCard("Checked Items", state.checkedShoppingItems.toString(), Modifier.weight(1f))
-                    StatsMetricCard("Saved Scans", state.savedScans.toString(), Modifier.weight(1f))
-                }
-                FlowRow(
-                    modifier = Modifier.padding(top = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    state.wellbeing.forEach { metric ->
-                        StatusPill(
-                            text = "${metric.label} ${metric.score}%",
-                            tone = metric.tone,
-                        )
-                    }
-                }
-            }
+                title = "Core Signals",
+                subtitle = "The top bars are your real wellbeing readout, derived from finished work instead of self-report.",
+            ) {}
         }
 
-        item { InventorySectionTitle("Wellbeing Signals", "Pill-bars plus breakdowns derived from real completions.") }
+        item { InventorySectionTitle("Wellbeing Signals", "The four system-health bars come first. Activity totals sit below them.") }
         items(state.wellbeing, key = { it.label }) { metric ->
             WellbeingCard(metric)
         }
 
+        item { InventorySectionTitle("Activity Totals", "Raw completion counters and mix below the top-level wellbeing bars.") }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                StatsMetricCard("Completed Quests", state.completedQuests.toString(), Modifier.weight(1f))
+                StatsMetricCard("Routine Sessions", state.completedRoutineSessions.toString(), Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                StatsMetricCard("Checked Items", state.checkedShoppingItems.toString(), Modifier.weight(1f))
+                StatsMetricCard("Saved Scans", state.savedScans.toString(), Modifier.weight(1f))
+            }
+        }
         item { InventorySectionTitle("Completion Mix", "How work is distributed across the system.") }
         items(state.breakdown, key = { it.label }) { slice ->
             BreakdownCard(slice)
@@ -283,12 +300,17 @@ private fun NotesCreateCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Button(onClick = onCreateBlank, modifier = Modifier.weight(1f)) {
-                Text("New Note")
-            }
-            OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                Text("Import Markdown")
-            }
+            CompactActionIcon(
+                icon = SidequestIcons.Document,
+                contentDescription = "Create note",
+                onClick = onCreateBlank,
+                filled = true,
+            )
+            CompactActionIcon(
+                icon = SidequestIcons.Folder,
+                contentDescription = "Import markdown",
+                onClick = onImport,
+            )
         }
     }
 }
@@ -305,6 +327,61 @@ private fun InventorySectionTitle(
 }
 
 @Composable
+private fun SectionActionCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onPrimary: () -> Unit,
+) {
+    ScaffoldCard(
+        title = title,
+        subtitle = subtitle,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.weight(1f))
+            CompactActionIcon(
+                icon = icon,
+                contentDescription = contentDescription,
+                onClick = onPrimary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactActionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    filled: Boolean = false,
+) {
+    val colors = if (filled) {
+        IconButtonDefaults.filledIconButtonColors(
+            containerColor = AccentPrimary,
+            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
+        )
+    } else {
+        IconButtonDefaults.outlinedIconButtonColors(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            contentColor = AccentSecondary,
+        )
+    }
+    OutlinedIconButton(
+        onClick = onClick,
+        colors = colors,
+        border = if (filled) null else IconButtonDefaults.outlinedIconButtonBorder(enabled = true),
+        modifier = Modifier.size(48.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
 private fun NoteInventoryCard(
     note: NoteSummary,
     onOpen: () -> Unit,
@@ -313,8 +390,13 @@ private fun NoteInventoryCard(
         title = note.title,
         subtitle = "${if (note.imported) "imported" else "local"} • updated ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(note.updatedAt))}",
     ) {
-        OutlinedButton(onClick = onOpen) {
-            Text("Open Note")
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.weight(1f))
+            CompactActionIcon(
+                icon = SidequestIcons.Document,
+                contentDescription = "Open note",
+                onClick = onOpen,
+            )
         }
     }
 }
@@ -468,12 +550,12 @@ private fun WellbeingCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatusPill(text = "${metric.score}%", tone = metric.tone)
-            StatusPill(text = metric.signal, tone = metric.tone)
+            StatusPill(text = "${metric.score}%", tone = metric.accentTone)
+            StatusPill(text = metric.signal, tone = metric.signalTone)
         }
         SegmentedMeter(
             progress = (metric.score / 100f).coerceIn(0.08f, 1f),
-            tone = metric.tone,
+            tone = metric.accentTone,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
@@ -497,6 +579,7 @@ private fun BreakdownCard(
 }
 
 data class InventoryUiState(
+    val query: String = "",
     val notes: List<NoteSummary> = emptyList(),
     val shoppingLists: List<ShoppingListSummary> = emptyList(),
     val routinePlans: List<RoutinePlanSummary> = emptyList(),
@@ -512,7 +595,8 @@ data class WellbeingMetricUi(
     val description: String,
     val breakdown: String,
     val signal: String,
-    val tone: HudTone,
+    val accentTone: HudTone,
+    val signalTone: HudTone,
 )
 
 data class StatsBreakdownUi(
@@ -540,6 +624,7 @@ class InventoryViewModel @Inject constructor(
 ) : ViewModel() {
     private val feedback = MutableStateFlow("")
     private val openNoteId = MutableStateFlow<String?>(null)
+    private val query = MutableStateFlow("")
 
     val state: StateFlow<InventoryUiState> =
         combine(
@@ -550,6 +635,7 @@ class InventoryViewModel @Inject constructor(
             captureRepository.observeCaptures(),
             feedback,
             openNoteId,
+            query,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val notes = values[0] as List<NoteSummary>
@@ -563,16 +649,44 @@ class InventoryViewModel @Inject constructor(
             val captures = values[4] as List<CaptureSummary>
             val currentFeedback = values[5] as String
             val currentOpenNoteId = values[6] as String?
+            val currentQuery = (values[7] as String).trim()
+            val normalizedQuery = currentQuery.lowercase()
+            val filteredNotes = notes.filter { note ->
+                normalizedQuery.isBlank() || note.title.lowercase().contains(normalizedQuery)
+            }
+            val filteredShoppingLists = shoppingLists.filter { list ->
+                normalizedQuery.isBlank() || list.title.lowercase().contains(normalizedQuery)
+            }
+            val filteredRoutinePlans = routinePlans.filter { plan ->
+                normalizedQuery.isBlank() ||
+                    plan.title.lowercase().contains(normalizedQuery) ||
+                    plan.targetLabel.lowercase().contains(normalizedQuery)
+            }
+            val filteredArchivedMissions = missions.filter { it.status == MissionStatus.ARCHIVED }.filter { mission ->
+                normalizedQuery.isBlank() ||
+                    mission.title.lowercase().contains(normalizedQuery) ||
+                    mission.description.lowercase().contains(normalizedQuery)
+            }
+            val filteredCaptures = captures.filter { capture ->
+                normalizedQuery.isBlank() ||
+                    capture.sourceLabel.lowercase().contains(normalizedQuery) ||
+                    capture.status.name.lowercase().contains(normalizedQuery)
+            }
             InventoryUiState(
-                notes = notes,
-                shoppingLists = shoppingLists,
-                routinePlans = routinePlans,
-                archivedMissions = missions.filter { it.status == MissionStatus.ARCHIVED },
-                captures = captures.take(10),
+                query = currentQuery,
+                notes = filteredNotes,
+                shoppingLists = filteredShoppingLists,
+                routinePlans = filteredRoutinePlans,
+                archivedMissions = filteredArchivedMissions,
+                captures = filteredCaptures.take(if (normalizedQuery.isBlank()) 12 else filteredCaptures.size),
                 feedback = currentFeedback,
                 openNoteId = currentOpenNoteId,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InventoryUiState())
+
+    fun updateQuery(value: String) {
+        query.value = value
+    }
 
     fun createBlankNote() {
         viewModelScope.launch {
@@ -660,6 +774,7 @@ class StatsViewModel @Inject constructor(
                         count = physicalCount,
                         baseline = 28,
                         multiplier = 11,
+                        accentTone = HudTone.Coral,
                     ),
                     buildWellbeingMetric(
                         label = "Mental Health",
@@ -667,6 +782,7 @@ class StatsViewModel @Inject constructor(
                         count = mentalCount,
                         baseline = 32,
                         multiplier = 10,
+                        accentTone = HudTone.Violet,
                     ),
                     buildWellbeingMetric(
                         label = "Home Order",
@@ -674,6 +790,7 @@ class StatsViewModel @Inject constructor(
                         count = homeCount,
                         baseline = 26,
                         multiplier = 12,
+                        accentTone = HudTone.Cyan,
                     ),
                     buildWellbeingMetric(
                         label = "Life Admin",
@@ -681,6 +798,7 @@ class StatsViewModel @Inject constructor(
                         count = adminCount,
                         baseline = 24,
                         multiplier = 11,
+                        accentTone = HudTone.Amber,
                     ),
                 ).map { metric ->
                     when (metric.label) {
@@ -729,6 +847,7 @@ private fun buildWellbeingMetric(
     count: Int,
     baseline: Int,
     multiplier: Int,
+    accentTone: HudTone,
 ): WellbeingMetricUi {
     val score = (baseline + count * multiplier).coerceIn(18, 100)
     val signal = when {
@@ -749,7 +868,8 @@ private fun buildWellbeingMetric(
         description = description,
         breakdown = "",
         signal = signal,
-        tone = tone,
+        accentTone = accentTone,
+        signalTone = tone,
     )
 }
 

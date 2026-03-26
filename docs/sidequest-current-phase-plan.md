@@ -4,7 +4,7 @@ Date: 2026-03-26
 
 ## Current State
 - provider selection is single-active with persisted stored keys
-- OpenAI is currently the only provider wired for multimodal capture analysis
+- OpenAI, Anthropic, NIM, and OpenRouter are wired for multimodal capture analysis
 - shopping lists are real and local-first across write, dictate, and photo flows
 - shopping lists now have a real lifecycle: rename, archive, reactivate
 - top-level swipe navigation is implemented for the main app shell
@@ -15,6 +15,10 @@ Date: 2026-03-26
 - capture detail images are now full-view and zoomable instead of center-cropped
 - routine reminders now fire from active plans using weekday/time schedules
 - shopping lists, notes, and routine plans can now spawn editable quests directly from their detail screens
+- inventory now has search and section-specific entrypoints for shopping and routine assets
+- profile now supports a persistent local avatar image
+- capture now supports an ai-first mode that analyzes the image before OCR
+- settings now expose stitched color theme switching
 
 ## Estimated Completion
 - app overall: ~99%
@@ -85,7 +89,7 @@ Key outcomes:
 - markdown notes added as persistent inventory assets
 
 ### Phase 9
-Routine and planning quality
+Routine, utility, and personalization quality
 
 Status:
 - shipped
@@ -95,6 +99,11 @@ Key outcomes:
 - stronger next-run summaries in the routine ui
 - routine reminder deep-link path into the plan detail screen
 - profile cleanup so pseudo-stats now live in the stats surface instead of the profile surface
+- inventory search plus section cleanup
+- profile avatar picker with round local rendering
+- stats hierarchy cleanup so wellbeing sits above raw counters
+- ai-first capture mode before OCR
+- settings theme switcher using stitch-derived palettes
 
 ### Phase 10
 Archive, QA, release
@@ -109,5 +118,5 @@ Must ship:
 
 ## Immediate Next Order
 1. Phase 10 QA and release pass
-2. stronger provider coverage beyond OpenAI
-3. broader semantic memory tuning on real user archives
+2. broader semantic memory tuning on real user archives
+3. provider quality benchmarking on the same captures across all four providers

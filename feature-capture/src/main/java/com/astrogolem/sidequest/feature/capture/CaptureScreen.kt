@@ -2,7 +2,9 @@ package com.astrogolem.sidequest.feature.capture
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -53,6 +55,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +91,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -201,6 +205,7 @@ fun CaptureRoute(
                 cameraError = null
             }
         },
+        onSetAiFirstEnabled = viewModel::setAiFirstEnabled,
         onConsumeActionFeedback = viewModel::clearActionFeedback,
         onDismissReview = viewModel::dismissReviewDrawer,
         onPromoteCandidate = viewModel::promoteCandidate,
@@ -223,6 +228,7 @@ private fun CaptureScreen(
     onCapture: () -> Unit,
     onRetake: () -> Unit,
     onSave: () -> Unit,
+    onSetAiFirstEnabled: (Boolean) -> Unit,
     onConsumeActionFeedback: () -> Unit,
     onDismissReview: () -> Unit,
     onPromoteCandidate: (String) -> Unit,
@@ -268,6 +274,14 @@ private fun CaptureScreen(
         )
 
         LensScanlineOverlay(modifier = Modifier.fillMaxSize())
+
+        AiFirstToggle(
+            enabled = state.aiFirstEnabled,
+            onCheckedChange = onSetAiFirstEnabled,
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.BottomEnd)
+                .padding(end = 24.dp, bottom = 156.dp),
+        )
 
         if (!hasCameraPermission) {
             Column(
@@ -350,6 +364,29 @@ private fun CaptureScreen(
                     .padding(horizontal = 16.dp, vertical = 108.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun AiFirstToggle(
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "AI",
+            style = MaterialTheme.typography.titleSmall,
+            color = AccentSecondary,
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = onCheckedChange,
+        )
     }
 }
 
@@ -776,7 +813,7 @@ private fun ZoomableCaptureImage(
     imagePath: String,
     modifier: Modifier = Modifier,
 ) {
-    val bitmap = remember(imagePath) { BitmapFactory.decodeFile(imagePath) }
+    val bitmap = remember(imagePath) { loadBitmapWithOrientation(imagePath) }
     var scale by remember(imagePath) { mutableStateOf(1f) }
     var offset by remember(imagePath) { mutableStateOf(Offset.Zero) }
     var containerSize by remember(imagePath) { mutableStateOf(IntSize.Zero) }
@@ -847,6 +884,32 @@ private fun ZoomableCaptureImage(
             style = MaterialTheme.typography.bodySmall,
         )
     }
+}
+
+private fun loadBitmapWithOrientation(imagePath: String): Bitmap? {
+    val source = BitmapFactory.decodeFile(imagePath) ?: return null
+    val exif = runCatching { ExifInterface(imagePath) }.getOrNull() ?: return source
+    val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    if (orientation == ExifInterface.ORIENTATION_NORMAL || orientation == ExifInterface.ORIENTATION_UNDEFINED) {
+        return source
+    }
+    val matrix = Matrix()
+    when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+        ExifInterface.ORIENTATION_TRANSPOSE -> {
+            matrix.preScale(-1f, 1f)
+            matrix.postRotate(270f)
+        }
+        ExifInterface.ORIENTATION_TRANSVERSE -> {
+            matrix.preScale(-1f, 1f)
+            matrix.postRotate(90f)
+        }
+    }
+    return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
 }
 
 @Composable

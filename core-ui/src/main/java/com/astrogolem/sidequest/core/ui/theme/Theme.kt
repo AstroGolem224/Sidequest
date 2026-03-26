@@ -4,25 +4,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val SidequestColors = darkColorScheme(
-    primary = AccentPrimary,
-    secondary = AccentSecondary,
-    tertiary = AccentBronze,
-    background = BgPrimary,
-    surface = BgElevated,
-    error = Danger,
-    onPrimary = BgPrimary,
-    onSecondary = BgPrimary,
-    onTertiary = BgPrimary,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary,
-    onError = TextPrimary,
-)
-
 @Composable
-fun SidequestTheme(content: @Composable () -> Unit) {
+fun SidequestTheme(
+    themePreset: ThemePreset = ThemePreset.SOLAR,
+    content: @Composable () -> Unit,
+) {
+    val palette = paletteFor(themePreset)
+    SidequestPaletteRegistry.current = palette
+    val sidequestColors = darkColorScheme(
+        primary = palette.accentPrimary,
+        secondary = palette.accentSecondary,
+        tertiary = palette.accentBronze,
+        background = palette.bgPrimary,
+        surface = palette.bgElevated,
+        error = palette.danger,
+        onPrimary = palette.bgPrimary,
+        onSecondary = palette.bgPrimary,
+        onTertiary = palette.bgPrimary,
+        onBackground = palette.textPrimary,
+        onSurface = palette.textPrimary,
+        onError = palette.textPrimary,
+    )
     MaterialTheme(
-        colorScheme = SidequestColors,
+        colorScheme = sidequestColors,
         typography = SidequestTypography,
         content = content,
     )
