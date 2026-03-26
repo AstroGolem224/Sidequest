@@ -280,7 +280,7 @@ class SettingsViewModel @Inject constructor(
     val storedProviderKeys: StateFlow<Map<ProviderKind, String>> = _storedProviderKeys.asStateFlow()
     private val _editingProviders = MutableStateFlow<Set<ProviderKind>>(emptySet())
     val editingProviders: StateFlow<Set<ProviderKind>> = _editingProviders.asStateFlow()
-    private val _themePreset = MutableStateFlow(ThemePreset.SOLAR)
+    private val _themePreset = MutableStateFlow(ThemePreset.CYBER)
     val themePreset: StateFlow<ThemePreset> = _themePreset.asStateFlow()
 
     init {
@@ -288,7 +288,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             securityService.observeUserPreferences().collect { preferences ->
                 _biometricEnabled.value = preferences.biometricLockEnabled
-                _themePreset.value = ThemePreset.entries.firstOrNull { it.name == preferences.themePresetName } ?: ThemePreset.SOLAR
+                _themePreset.value = ThemePreset.entries.firstOrNull { it.name == preferences.themePresetName } ?: ThemePreset.CYBER
             }
         }
     }

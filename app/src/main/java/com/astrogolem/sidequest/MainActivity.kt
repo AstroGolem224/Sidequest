@@ -18,6 +18,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.Image
@@ -42,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -49,6 +58,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -113,7 +123,7 @@ class MainActivity : AppCompatActivity() {
         }
         setContent {
             val userPreferences by securityService.observeUserPreferences().collectAsState(initial = UserPreferences())
-            val themePreset = ThemePreset.entries.firstOrNull { it.name == userPreferences.themePresetName } ?: ThemePreset.SOLAR
+            val themePreset = ThemePreset.entries.firstOrNull { it.name == userPreferences.themePresetName } ?: ThemePreset.CYBER
             SidequestTheme(themePreset = themePreset) {
                 SidequestApp(
                     activity = this,
@@ -219,6 +229,7 @@ private fun SidequestApp(
     }
 
     Scaffold(
+        containerColor = if (userPreferences.themePresetName == ThemePreset.CYBER.name) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             if (showTopBar) {
                 SidequestTopBar(
@@ -277,10 +288,31 @@ private fun SidequestApp(
             }
         },
     ) { innerPadding ->
-        NavHost(
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (userPreferences.themePresetName == ThemePreset.CYBER.name) {
+                Image(
+                    painter = painterResource(id = R.drawable.cyber_hud_background),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            NavHost(
             navController = navController,
             startDestination = "missions",
             modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(animationSpec = tween(380)) + scaleIn(initialScale = 0.94f, animationSpec = tween(380))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(340)) + scaleOut(targetScale = 0.94f, animationSpec = tween(340))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(380)) + scaleIn(initialScale = 0.94f, animationSpec = tween(380))
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(340)) + scaleOut(targetScale = 0.94f, animationSpec = tween(340))
+            },
         ) {
             composable("missions") {
                 TopLevelScreenContainer(
@@ -478,6 +510,7 @@ private fun SidequestApp(
             }
         }
     }
+}
 }
 
 @Composable

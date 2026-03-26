@@ -48,7 +48,7 @@ import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.components.HudTone
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
@@ -136,7 +136,7 @@ fun InboxRoute(
 
             item {
                 if (state.candidates.isEmpty()) {
-                    ScaffoldCard(
+                    GlassCard(
                         title = "No staged quests",
                         subtitle = state.emptyStateMessage,
                     ) {
@@ -157,7 +157,7 @@ fun InboxRoute(
 
             if (state.recentCaptures.isEmpty()) {
                 item {
-                    ScaffoldCard(
+                    GlassCard(
                         title = "No scan history yet",
                         subtitle = "Run a capture or import to start filling the intel archive.",
                     ) {}
@@ -391,81 +391,69 @@ private fun QuestCandidateCard(
     onDismiss: () -> Unit,
     onOpenCapture: () -> Unit,
 ) {
-    Surface(
-        color = CardSurface,
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, CardStroke),
+    GlassCard(
+        title = candidate.title,
+        subtitle = candidate.qualityLabel.uppercase(),
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.Top,
+            Surface(
+                color = AccentPrimary.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(44.dp),
             ) {
-                Surface(
-                    color = AccentPrimary.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                        Icon(
-                            imageVector = if (candidate.needsReview) SidequestIcons.Intel else SidequestIcons.QuestLog,
-                            contentDescription = candidate.title,
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StatusPill(
-                        text = questTierLabel(candidate),
-                        tone = if (candidate.needsReview) HudTone.Neutral else HudTone.Amber,
-                    )
-                    Text(
-                        text = candidate.qualityLabel,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = if (candidate.needsReview) TextSecondary else AccentSecondary,
+                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Icon(
+                        imageVector = if (candidate.needsReview) SidequestIcons.Intel else SidequestIcons.QuestLog,
+                        contentDescription = candidate.title,
+                        tint = AccentPrimary,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
-            Text(candidate.title, style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-            Text(candidate.body, color = TextSecondary)
-            Text(
-                text = candidate.reasoning,
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                color = AccentPrimary,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
-                AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                StatusPill(
+                    text = questTierLabel(candidate),
+                    tone = if (candidate.needsReview) HudTone.Neutral else HudTone.Amber,
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                RewardLine(label = "${rewardXp(candidate)} XP")
-                RewardLine(label = "${rewardGp(candidate)} GP")
+        }
+        Text(candidate.body, color = TextSecondary)
+        Text(
+            text = candidate.reasoning,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            color = AccentPrimary,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
+            AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            RewardLine(label = "${rewardXp(candidate)} XP")
+            RewardLine(label = "${rewardGp(candidate)} GP")
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
+                Text("Deploy")
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
-                    Text("Deploy")
-                }
-                OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
-                    Text("Open Details")
-                }
+            OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
+                Text("Open Details")
             }
-            TextButton(onClick = onDismiss) {
-                Text("Dismiss")
-            }
+        }
+        TextButton(onClick = onDismiss, modifier = Modifier.padding(top = 8.dp)) {
+            Text("Dismiss")
         }
     }
 }
@@ -490,66 +478,51 @@ private fun RecentCaptureCard(
     onRetry: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Surface(
-        color = BgGlow,
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
+    GlassCard(
+        title = intelLabel(capture),
+        subtitle = capture.status.name.lowercase(),
         modifier = Modifier.clickable(onClick = onOpenCapture),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Text(
-                text = intelLabel(capture),
-                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(capture.status.name.lowercase(), color = TextSecondary)
+            Surface(
+                color = AccentPrimary.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Icon(
+                        imageVector = SidequestIcons.Intel,
+                        contentDescription = intelLabel(capture),
+                        tint = AccentPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Surface(
-                    color = AccentPrimary.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                        Icon(
-                            imageVector = SidequestIcons.Intel,
-                            contentDescription = intelLabel(capture),
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    if (capture.status == CaptureProcessingStatus.FAILED) {
-                        CaptureActionIcon(
-                            icon = SidequestIcons.Retake,
-                            contentDescription = "Retry scan",
-                            onClick = onRetry,
-                        )
-                    }
+                if (capture.status == CaptureProcessingStatus.FAILED) {
                     CaptureActionIcon(
-                        icon = SidequestIcons.Delete,
-                        contentDescription = "Delete scan",
-                        onClick = onDelete,
-                    )
-                    CaptureActionIcon(
-                        icon = SidequestIcons.Intel,
-                        contentDescription = "Open scan details",
-                        onClick = onOpenCapture,
+                        icon = SidequestIcons.Retake,
+                        contentDescription = "Retry scan",
+                        onClick = onRetry,
                     )
                 }
+                CaptureActionIcon(
+                    icon = SidequestIcons.Delete,
+                    contentDescription = "Delete scan",
+                    onClick = onDelete,
+                )
+                CaptureActionIcon(
+                    icon = SidequestIcons.Intel,
+                    contentDescription = "Open scan details",
+                    onClick = onOpenCapture,
+                )
             }
         }
     }

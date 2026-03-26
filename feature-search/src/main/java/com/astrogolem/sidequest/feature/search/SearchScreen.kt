@@ -28,7 +28,7 @@ import com.astrogolem.sidequest.core.data.model.SearchFilter
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
 import com.astrogolem.sidequest.core.data.model.SearchResultType
 import com.astrogolem.sidequest.core.data.repo.SearchRepository
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +52,7 @@ fun SearchRoute(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            ScaffoldCard(title = "Memory Search", subtitle = "Local semantic search across scans, notes, quests, dates, references, and facts.") {
+            GlassCard(title = "Memory Search", subtitle = "Local semantic search across scans, notes, quests, dates, references, and facts.") {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -83,7 +83,7 @@ fun SearchRoute(
         }
         if (state.results.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = if (state.hasSearched) "No matches found" else "Search is idle",
                     subtitle = if (state.hasSearched) {
                         "Try a synonym, switch the filter, or search by date, reference, note heading, or quest title."
@@ -102,7 +102,7 @@ fun SearchRoute(
             }
         } else {
             items(state.results, key = { it.id }) { result ->
-                ScaffoldCard(
+                GlassCard(
                     title = result.title,
                     subtitle = "${result.matchLabel} | ${result.resultType.label()} | ${result.sourceLabel}",
                 ) {

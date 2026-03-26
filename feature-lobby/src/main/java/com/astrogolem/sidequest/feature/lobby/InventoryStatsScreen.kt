@@ -48,8 +48,8 @@ import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.NotesRepository
 import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
 import com.astrogolem.sidequest.core.data.repo.ShoppingListRepository
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.HudTone
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
@@ -102,7 +102,7 @@ fun InventoryRoute(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            ScaffoldCard(
+            GlassCard(
                 title = "Inventory",
                 subtitle = "Reusable assets that stay editable, searchable, and re-openable instead of disappearing into the quest feed.",
             ) {
@@ -140,7 +140,7 @@ fun InventoryRoute(
         }
         if (state.notes.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "No notes yet",
                     subtitle = "Create a markdown note or import an existing .md file and it will stay in inventory.",
                 ) {}
@@ -163,7 +163,7 @@ fun InventoryRoute(
         }
         if (state.shoppingLists.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "No shopping assets",
                     subtitle = "Create a shopping list here and it will stay reusable inside inventory.",
                 ) {}
@@ -191,7 +191,7 @@ fun InventoryRoute(
         }
         if (state.routinePlans.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "No routine plans yet",
                     subtitle = "Use the routine planner here to create repeatable body, mind, home, and life-admin systems.",
                 ) {}
@@ -205,7 +205,7 @@ fun InventoryRoute(
         item { InventorySectionTitle("Archived Quests", "Dormant commitments that can be reactivated.") }
         if (state.archivedMissions.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "No archived quests",
                     subtitle = "Abandoned or archived quests will accumulate here instead of vanishing.",
                 ) {}
@@ -223,7 +223,7 @@ fun InventoryRoute(
         item { InventorySectionTitle("Saved Scans", "Recent capture intel you may want to inspect or prune.") }
         if (state.captures.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "No saved scans",
                     subtitle = "Camera imports and scans land here once Sidequest stores them locally.",
                 ) {}
@@ -250,7 +250,7 @@ fun StatsRoute(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            ScaffoldCard(
+            GlassCard(
                 title = "Core Signals",
                 subtitle = "The top bars are your real wellbeing readout, derived from finished work instead of self-report.",
             ) {}
@@ -292,7 +292,7 @@ private fun NotesCreateCard(
     onCreateBlank: () -> Unit,
     onImport: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = "Markdown Notes",
         subtitle = "Notes belong in inventory because they should persist, evolve, and stay searchable.",
     ) {
@@ -334,7 +334,7 @@ private fun SectionActionCard(
     contentDescription: String,
     onPrimary: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = title,
         subtitle = subtitle,
     ) {
@@ -386,7 +386,7 @@ private fun NoteInventoryCard(
     note: NoteSummary,
     onOpen: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = note.title,
         subtitle = "${if (note.imported) "imported" else "local"} • updated ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(note.updatedAt))}",
     ) {
@@ -410,7 +410,7 @@ private fun ShoppingInventoryCard(
 ) {
     var draftTitle by rememberSaveable(summary.id, summary.title) { mutableStateOf(summary.title) }
 
-    ScaffoldCard(
+    GlassCard(
         title = draftTitle,
         subtitle = "${summary.source.name.lowercase()} | ${summary.checkedCount}/${summary.itemCount} checked",
     ) {
@@ -450,7 +450,7 @@ private fun RoutineInventoryCard(
     plan: RoutinePlanSummary,
     onOpen: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = plan.title,
         subtitle = "${plan.category.name.lowercase()} | ${plan.durationMinutes} min | ${plan.completionCount} completions",
     ) {
@@ -487,7 +487,7 @@ private fun QuestInventoryCard(
     onOpen: () -> Unit,
     onReactivate: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = mission.title,
         subtitle = mission.description.ifBlank { "Archived quest" },
     ) {
@@ -510,7 +510,7 @@ private fun CaptureInventoryCard(
     capture: CaptureSummary,
     onOpen: () -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = when (capture.sourceLabel.lowercase()) {
             "camera" -> "Camera scan"
             "import" -> "Imported scan"
@@ -530,7 +530,7 @@ private fun StatsMetricCard(
     value: String,
     modifier: Modifier = Modifier,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = value,
         subtitle = label,
         modifier = modifier,
@@ -542,7 +542,7 @@ private fun StatsMetricCard(
 private fun WellbeingCard(
     metric: WellbeingMetricUi,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = metric.label,
         subtitle = metric.description,
     ) {
@@ -570,7 +570,7 @@ private fun WellbeingCard(
 private fun BreakdownCard(
     slice: StatsBreakdownUi,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = slice.label,
         subtitle = slice.value,
     ) {

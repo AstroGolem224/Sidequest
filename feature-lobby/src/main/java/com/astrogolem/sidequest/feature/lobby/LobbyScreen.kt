@@ -55,9 +55,9 @@ import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.HudRing
 import com.astrogolem.sidequest.core.ui.components.HudTone
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
@@ -132,7 +132,7 @@ fun LobbyRoute(
 
         if (state.recentArchives.isEmpty()) {
             item {
-                ScaffoldCard(
+                GlassCard(
                     title = "Archive quiet",
                     subtitle = "Deploy and complete a few quests to build visible history.",
                 ) {}
@@ -178,101 +178,85 @@ private fun ProfileHero(
         animationSpec = tween(durationMillis = 520),
         label = "profile-xp-progress",
     )
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = BgPanel.copy(alpha = 0.94f),
-        border = BorderStroke(1.dp, CardStroke),
+    GlassCard(
+        title = "Profile",
+        subtitle = state.rankTitle.uppercase(),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(BgGlow.copy(alpha = 0.8f), Color.Transparent),
-                    ),
-                )
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            Box(
+                modifier = Modifier.size(104.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier.size(104.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                HudRing(
+                    progress = animatedXpProgress.value,
+                    tone = HudTone.Amber,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Surface(
+                    color = BgGlow,
+                    shape = CircleShape,
+                    modifier = Modifier.size(80.dp),
                 ) {
-                    HudRing(
-                        progress = animatedXpProgress.value,
-                        tone = HudTone.Amber,
-                        modifier = Modifier.fillMaxSize(),
+                    AvatarCore(
+                        avatarImagePath = state.avatarImagePath,
+                        level = state.level,
                     )
-                    Surface(
-                        color = BgGlow,
-                        shape = CircleShape,
-                        modifier = Modifier.size(80.dp),
-                    ) {
-                        AvatarCore(
-                            avatarImagePath = state.avatarImagePath,
-                            level = state.level,
-                        )
-                    }
                 }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatusPill(
+                    text = if (state.systemOverload) "system overload" else "systems stable",
+                    tone = if (state.systemOverload) HudTone.Amber else HudTone.Violet,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
-                    Text(
-                        state.rankTitle.uppercase(),
-                        style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                        color = AccentPrimary,
+                    AvatarActionButton(
+                        icon = SidequestIcons.Gallery,
+                        contentDescription = if (state.avatarImagePath == null) "Choose avatar" else "Change avatar",
+                        onClick = onPickAvatar,
                     )
-                    StatusPill(
-                        text = if (state.systemOverload) "system overload" else "systems stable",
-                        tone = if (state.systemOverload) HudTone.Amber else HudTone.Violet,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
+                    if (state.avatarImagePath != null) {
                         AvatarActionButton(
-                            icon = SidequestIcons.Gallery,
-                            contentDescription = if (state.avatarImagePath == null) "Choose avatar" else "Change avatar",
-                            onClick = onPickAvatar,
+                            icon = SidequestIcons.Delete,
+                            contentDescription = "Delete avatar",
+                            onClick = onClearAvatar,
                         )
-                        if (state.avatarImagePath != null) {
-                            AvatarActionButton(
-                                icon = SidequestIcons.Delete,
-                                contentDescription = "Delete avatar",
-                                onClick = onClearAvatar,
-                            )
-                        }
                     }
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                MetricStack("Saved Quests", state.totalCount.toString(), Modifier.weight(1f))
-                MetricStack("Completed", state.doneCount.toString(), Modifier.weight(1f))
-                MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
-            }
-
-            SegmentedMeter(
-                progress = animatedXpProgress.value,
-                tone = HudTone.Amber,
-            )
-
-            Text(
-                "${state.xpCurrent}/180 xp synced to next level",
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
-            )
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            MetricStack("Saved Quests", state.totalCount.toString(), Modifier.weight(1f))
+            MetricStack("Completed", state.doneCount.toString(), Modifier.weight(1f))
+            MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        SegmentedMeter(
+            progress = animatedXpProgress.value,
+            tone = HudTone.Amber,
+        )
+
+        Text(
+            "${state.xpCurrent}/180 xp synced to next level",
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 
@@ -362,7 +346,7 @@ private fun MetricStack(
 
 @Composable
 private fun ProtocolCard(state: LobbyUiState) {
-    ScaffoldCard(
+    GlassCard(
         title = if (state.systemOverload) "Warning: System Overload" else "Protocol Active",
         subtitle = if (state.systemOverload) {
             "Too many active quests increase paralysis. Consolidate or archive before adding more."
@@ -396,51 +380,31 @@ private fun LootCard(
     loot: LootCardModel,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        color = if (loot.unlocked) BgGlow else BgPanel.copy(alpha = 0.55f),
-        shape = RoundedCornerShape(18.dp),
+    GlassCard(
+        title = loot.title,
+        subtitle = loot.subtitle,
         modifier = modifier.heightIn(min = 220.dp),
-        border = BorderStroke(
-            1.dp,
-            if (loot.unlocked) CardStroke.copy(alpha = 0.9f) else CardStroke.copy(alpha = 0.35f),
-        ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        Surface(
+            color = AccentPrimary.copy(alpha = if (loot.unlocked) 0.14f else 0.08f),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.size(40.dp),
         ) {
-            Surface(
-                color = AccentPrimary.copy(alpha = if (loot.unlocked) 0.14f else 0.08f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.size(40.dp),
-            ) {
-                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Icon(
-                        imageVector = loot.icon,
-                        contentDescription = loot.title,
-                        tint = if (loot.unlocked) AccentPrimary else TextSecondary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
+            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Icon(
+                    imageVector = loot.icon,
+                    contentDescription = loot.title,
+                    tint = if (loot.unlocked) AccentPrimary else TextSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
             }
-            Text(
-                loot.title.uppercase(),
-                style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                color = if (loot.unlocked) AccentSecondary else TextSecondary,
-            )
-            Text(
-                loot.subtitle,
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
-            )
-            Spacer(modifier = Modifier.weight(1f, fill = true))
-            StatusPill(
-                text = if (loot.unlocked) loot.rarity else "locked",
-                tone = if (loot.unlocked) HudTone.Amber else HudTone.Neutral,
-            )
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.weight(1f, fill = true))
+        StatusPill(
+            text = if (loot.unlocked) loot.rarity else "locked",
+            tone = if (loot.unlocked) HudTone.Amber else HudTone.Neutral,
+        )
     }
 }
 

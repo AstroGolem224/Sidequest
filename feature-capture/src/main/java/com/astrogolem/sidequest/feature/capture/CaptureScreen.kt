@@ -98,6 +98,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.data.model.CaptureDetailModel
 import com.astrogolem.sidequest.core.data.model.ExtractionCandidate
@@ -483,7 +484,7 @@ private fun PostScanReviewDrawer(
 
                 CaptureProcessingStatus.DONE -> {
                     if (reviewCandidates.isEmpty()) {
-                        ScaffoldCard(
+                        GlassCard(
                             title = "No quests deployed",
                             subtitle = "The scan stayed in memory mode. Dates, facts, and references are still preserved inside the intel view.",
                         ) {
@@ -513,7 +514,7 @@ private fun PostScanReviewDrawer(
                 }
 
                 CaptureProcessingStatus.FAILED -> {
-                    ScaffoldCard(
+                    GlassCard(
                         title = "Manual recovery",
                         subtitle = "Use the intel detail to inspect what was saved and decide whether to retake or re-import the source.",
                     ) {
@@ -565,50 +566,31 @@ private fun FreshQuestCandidateCard(
     onPromote: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Surface(
-        color = CardSurface,
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.45f)),
+    GlassCard(
+        title = candidate.title,
+        subtitle = "${(candidate.confidence * 100).toInt()}% CONFIDENCE",
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Text(candidate.body, color = TextSecondary)
+        Text(
+            text = candidate.reasoning,
+            style = MaterialTheme.typography.bodySmall,
+            color = AccentPrimary,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
             ) {
-                Text(candidate.title, style = MaterialTheme.typography.titleMedium)
-                AssistChip(
-                    onClick = {},
-                    label = {
-                        Text("${(candidate.confidence * 100).toInt()}%")
-                    },
-                )
+                Text("Dismiss")
             }
-            Text(candidate.body, color = TextSecondary)
-            Text(
-                text = candidate.reasoning,
-                style = MaterialTheme.typography.bodySmall,
-                color = AccentPrimary,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Button(
+                onClick = onPromote,
+                modifier = Modifier.weight(1f),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Dismiss")
-                }
-                Button(
-                    onClick = onPromote,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Deploy Quest")
-                }
+                Text("Deploy Quest")
             }
         }
     }

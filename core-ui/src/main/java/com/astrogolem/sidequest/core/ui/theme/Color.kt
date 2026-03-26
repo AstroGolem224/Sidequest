@@ -2,7 +2,7 @@ package com.astrogolem.sidequest.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-enum class ThemePreset { SOLAR, AETHER, FROST, HEARTH }
+enum class ThemePreset { SOLAR, AETHER, FROST, HEARTH, CYBER }
 
 data class SidequestPalette(
     val bgPrimary: Color,
@@ -114,8 +114,30 @@ private val HearthPalette = SidequestPalette(
     danger = Color(0xFFFF6E61),
 )
 
+private val CyberPalette = SidequestPalette(
+    bgPrimary = Color(0xFF07070F),
+    bgElevated = Color(0xFF0F0F23),
+    bgGlow = Color(0xFF1E153A),
+    bgPanel = Color(0xE6121226),
+    cardSurface = Color(0xFF15152F),
+    cardSurfaceStrong = Color(0xFF1E1E45),
+    cardStroke = Color(0x33BB86FC), // Neon Violet
+    cardStrokeStrong = Color(0x66BB86FC),
+    textPrimary = Color(0xFFE6E6FA), // Lavender
+    textSecondary = Color(0xFF9494B8),
+    accentPrimary = Color(0xFFBB86FC), // Neon Violet
+    accentSecondary = Color(0xFF03DAC6), // Cyan
+    accentBronze = Color(0xFFFFA000), // Amber
+    accentCoral = Color(0xFFFF8A80),
+    hudInfo = Color(0xFF03DAC6),
+    hudWarn = Color(0xFFFFA000),
+    hudAlt = Color(0xFF9D4EDD),
+    hudNeutral = Color(0xFF6272A4),
+    danger = Color(0xFFFF5555),
+)
+
 internal object SidequestPaletteRegistry {
-    var current: SidequestPalette = SolarPalette
+    var current: SidequestPalette = CyberPalette
 }
 
 fun paletteFor(themePreset: ThemePreset): SidequestPalette {
@@ -124,6 +146,7 @@ fun paletteFor(themePreset: ThemePreset): SidequestPalette {
         ThemePreset.AETHER -> AetherPalette
         ThemePreset.FROST -> FrostPalette
         ThemePreset.HEARTH -> HearthPalette
+        ThemePreset.CYBER -> CyberPalette
     }
 }
 

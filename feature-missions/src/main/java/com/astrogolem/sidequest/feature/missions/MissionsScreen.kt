@@ -55,7 +55,7 @@ import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionDetailModel
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.HudTone
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
@@ -171,7 +171,7 @@ fun MissionsRoute(
 
             if (missions.isEmpty()) {
                 item {
-                    ScaffoldCard(
+                    GlassCard(
                         title = "No quests deployed",
                         subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
                     ) {
@@ -182,7 +182,7 @@ fun MissionsRoute(
                 }
             } else {
                 items(missions, key = { it.id }) { mission ->
-                    ScaffoldCard(
+                    GlassCard(
                         title = mission.title,
                         subtitle = mission.description,
                     ) {
@@ -335,7 +335,7 @@ fun MissionDetailRoute(
             }
 
             item {
-                ScaffoldCard(title = "Briefing", subtitle = "Refine the quest text before execution.") {
+                GlassCard(title = "Briefing", subtitle = "Refine the quest text before execution.") {
                     OutlinedTextField(
                         value = draftDescription,
                         onValueChange = { draftDescription = it },
@@ -485,7 +485,7 @@ private fun MissionSourceImage(
 
 @Composable
 private fun SpoilsCard(detail: MissionDetailModel) {
-    ScaffoldCard(
+    GlassCard(
         title = "Potential Spoils",
         subtitle = "Rewards are deterministic so the game wrapper stays honest.",
     ) {
@@ -556,7 +556,7 @@ private fun VitalStatsCard(
     onClearReminder: () -> Unit,
     onSelectPriority: (Int) -> Unit,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = "Vital Stats",
         subtitle = "Timing, difficulty, and mission cost.",
     ) {
@@ -672,7 +672,7 @@ private fun CommandActionsCard(
     onSnoozeOneDay: () -> Unit,
     onOpenCapture: (() -> Unit)?,
 ) {
-    ScaffoldCard(
+    GlassCard(
         title = "Command Actions",
         subtitle = "Deploy, pause, or drop the quest without losing control over source intel.",
     ) {
