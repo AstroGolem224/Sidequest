@@ -10,6 +10,8 @@ enum class ProviderKind { OPENAI, ANTHROPIC, NIM, OPENROUTER }
 enum class ShoppingListSource { MANUAL, VOICE, PHOTO }
 enum class RoutineCategory { MIND, BODY, HOME, OUTDOOR, LIFE }
 enum class RoutineTriggerMode { MANUAL, CAPTURE, FITNESS }
+enum class SearchFilter { ALL, TASKS, DATES, REFERENCES, FACTS, NOTES, SCANS }
+enum class SearchResultType { TASK, DATE, REFERENCE, FACT, NOTE, SCAN }
 
 data class CaptureSummary(
     val id: String,
@@ -74,11 +76,14 @@ data class CaptureDetailModel(
 
 data class SearchResultModel(
     val id: String,
-    val captureId: String,
     val title: String,
     val snippet: String,
+    val resultType: SearchResultType,
     val sourceLabel: String,
     val matchLabel: String,
+    val captureId: String? = null,
+    val missionId: String? = null,
+    val noteId: String? = null,
 )
 
 data class ShoppingListSummary(

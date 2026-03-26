@@ -276,8 +276,6 @@ private fun SidequestApp(
                     MissionsRoute(
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
                         onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
-                        onOpenShopping = { navController.navigate("shopping") },
-                        onOpenRoutines = { navController.navigate("routines") },
                     )
                 }
             }
@@ -353,6 +351,8 @@ private fun SidequestApp(
                     },
                 ) {
                     InventoryRoute(
+                        onOpenShoppingHub = { navController.navigate("shopping") },
+                        onOpenRoutineHub = { navController.navigate("routines") },
                         onOpenShopping = { listId -> navController.navigate("shopping/$listId") },
                         onOpenRoutine = { planId -> navController.navigate("routine/$planId") },
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
@@ -413,7 +413,11 @@ private fun SidequestApp(
                         }
                     },
                 ) {
-                    SearchRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
+                    SearchRoute(
+                        onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onOpenNote = { noteId -> navController.navigate("note/$noteId") },
+                    )
                 }
             }
             composable("settings") {

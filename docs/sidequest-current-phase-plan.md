@@ -61,12 +61,13 @@ Key outcomes:
 Search and memory quality
 
 Status:
-- open
+- shipped
 
-Must ship:
-- stronger local semantic retrieval
-- better result ranking
-- clearer memory/task/date/reference filtering
+Key outcomes:
+- local semantic retrieval across scans, extracted intel, quests, and notes
+- better result ranking with exact, title, semantic, and related labels
+- filterable search for tasks, dates, references, facts, notes, and scans
+- direct recovery paths into capture detail, quest detail, and note detail
 
 ### Phase 8C
 Inventory, stats, and utility management
@@ -106,6 +107,6 @@ Must ship:
 - cleanup of remaining rough UX edges
 
 ## Immediate Next Order
-1. Phase 8B
-2. Phase 10 QA and release pass
-3. stronger provider coverage beyond OpenAI
+1. Phase 10 QA and release pass
+2. stronger provider coverage beyond OpenAI
+3. broader semantic memory tuning on real user archives

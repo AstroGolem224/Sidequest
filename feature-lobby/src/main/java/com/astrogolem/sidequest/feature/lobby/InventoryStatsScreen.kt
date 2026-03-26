@@ -64,6 +64,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InventoryRoute(
+    onOpenShoppingHub: () -> Unit,
+    onOpenRoutineHub: () -> Unit,
     onOpenShopping: (String) -> Unit,
     onOpenRoutine: (String) -> Unit,
     onOpenMission: (String) -> Unit,
@@ -97,6 +99,19 @@ fun InventoryRoute(
                 subtitle = "Reusable assets that stay editable instead of disappearing into the quest feed.",
             ) {
                 Text("Shopping lists, notes, routine plans, archived quests, and saved scans live here.")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Button(onClick = onOpenShoppingHub, modifier = Modifier.weight(1f)) {
+                        Text("Shopping Lists")
+                    }
+                    OutlinedButton(onClick = onOpenRoutineHub, modifier = Modifier.weight(1f)) {
+                        Text("Routine Tasks")
+                    }
+                }
                 if (state.feedback.isNotBlank()) {
                     Text(
                         text = state.feedback,
@@ -132,7 +147,7 @@ fun InventoryRoute(
             item {
                 ScaffoldCard(
                     title = "No shopping assets",
-                    subtitle = "Create a shopping list from the Dashboard and it will appear here.",
+                    subtitle = "Create a shopping list here and it will stay reusable inside inventory.",
                 ) {}
             }
         } else {
@@ -151,7 +166,7 @@ fun InventoryRoute(
             item {
                 ScaffoldCard(
                     title = "No routine plans yet",
-                    subtitle = "Use the routine planner to create repeatable body, mind, home, and life-admin systems.",
+                    subtitle = "Use the routine planner here to create repeatable body, mind, home, and life-admin systems.",
                 ) {}
             }
         } else {

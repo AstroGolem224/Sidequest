@@ -220,6 +220,9 @@ Exit criteria:
 - non-exact phrasing still retrieves the right capture
 - result lists distinguish action items from archived memory
 
+Status:
+- shipped in the current working tree
+
 ### Phase 9 — Provider & Settings Completion
 Goal:
 - finish the optional cloud-enhancement boundary

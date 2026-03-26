@@ -63,7 +63,9 @@ import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.ReminderState
 import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
+import com.astrogolem.sidequest.core.data.model.SearchFilter
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
+import com.astrogolem.sidequest.core.data.model.SearchResultType
 import com.astrogolem.sidequest.core.data.model.ShoppingListDetailModel
 import com.astrogolem.sidequest.core.data.model.ShoppingListItemModel
 import com.astrogolem.sidequest.core.data.model.ShoppingListSource
@@ -88,6 +90,7 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
+import kotlin.math.min
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -530,54 +533,123 @@ class DefaultMissionRepository @Inject constructor(
 @Singleton
 class DefaultSearchRepository @Inject constructor(
     private val searchDao: SearchDao,
+    private val captureDao: CaptureDao,
+    private val missionDao: MissionDao,
+    private val noteDao: NoteDao,
 ) : SearchRepository {
-    override suspend fun search(query: String): List<SearchResultModel> {
-        val normalizedQuery = query.trim()
+    override suspend fun search(query: String, filter: SearchFilter): List<SearchResultModel> {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return emptyList()
+
+        val normalizedQuery = trimmedQuery
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
             .joinToString(" ") { "\"${it.replace("\"", "")}\"*" }
-        val exact = searchDao.search(normalizedQuery).map {
-            SearchResultModel(
-                id = it.id,
-                captureId = it.captureId,
-                title = it.title,
-                snippet = it.body.take(160),
-                sourceLabel = "capture",
-                matchLabel = "Exact",
+        val exactIds = searchDao.search(normalizedQuery).mapTo(mutableSetOf()) { it.id }
+        val captures = captureDao.listCaptures().associateBy { it.id }
+        val missions = missionDao.listMissions()
+        val notes = noteDao.listNotes()
+        val extractedItems = captureDao.listExtractedItems()
+            .filterNot { it.status == ExtractionStatus.DISMISSED }
+        val missionCandidatesByCapture = missions
+            .filter { it.sourceCaptureId != null }
+            .groupBy { it.sourceCaptureId!! }
+
+        val documents = buildList {
+            addAll(
+                searchDao.listNodes().map { node ->
+                    val capture = captures[node.captureId]
+                    SemanticMemoryDocument(
+                        id = node.id,
+                        title = node.title,
+                        body = node.body,
+                        resultType = SearchResultType.SCAN,
+                        sourceLabel = "scan",
+                        captureId = node.captureId,
+                        createdAt = capture?.createdAt ?: 0L,
+                        qualityWeight = 0.03f,
+                    )
+                },
+            )
+
+            addAll(
+                extractedItems.mapNotNull { item ->
+                    val resultType = item.kind.toSearchResultType()
+                    val relatedMissionId = when (resultType) {
+                        SearchResultType.TASK -> missionCandidatesByCapture[item.captureId]
+                            ?.firstOrNull { mission ->
+                                normalizedTitleOverlap(mission.title, item.title) >= 0.45f
+                            }
+                            ?.id
+                        else -> null
+                    }
+                    if (resultType == SearchResultType.TASK && relatedMissionId != null) {
+                        null
+                    } else {
+                        val capture = captures[item.captureId]
+                        SemanticMemoryDocument(
+                            id = item.id,
+                            title = item.title,
+                            body = listOfNotNull(item.body.takeIf(String::isNotBlank), item.reasoning.takeIf(String::isNotBlank))
+                                .joinToString(" • "),
+                            resultType = resultType,
+                            sourceLabel = if (resultType == SearchResultType.TASK) "candidate" else "intel",
+                            captureId = item.captureId,
+                            createdAt = capture?.createdAt ?: 0L,
+                            qualityWeight = when (resultType) {
+                                SearchResultType.DATE, SearchResultType.REFERENCE -> 0.08f
+                                SearchResultType.FACT -> 0.05f
+                                SearchResultType.TASK -> 0.09f
+                                else -> 0f
+                            },
+                        )
+                    }
+                },
+            )
+
+            addAll(
+                missions.map { mission ->
+                    SemanticMemoryDocument(
+                        id = "mission:${mission.id}",
+                        title = mission.title,
+                        body = mission.description,
+                        resultType = SearchResultType.TASK,
+                        sourceLabel = "quest",
+                        captureId = mission.sourceCaptureId,
+                        missionId = mission.id,
+                        createdAt = mission.createdAt,
+                        qualityWeight = when (mission.status) {
+                            MissionStatus.OPEN, MissionStatus.ACTIVE -> 0.12f
+                            MissionStatus.DONE -> 0.05f
+                            MissionStatus.ARCHIVED -> 0.02f
+                            MissionStatus.SNOOZED -> 0.06f
+                        },
+                    )
+                },
+            )
+
+            addAll(
+                notes.map { note ->
+                    SemanticMemoryDocument(
+                        id = "note:${note.id}",
+                        title = note.title,
+                        body = note.markdown,
+                        resultType = SearchResultType.NOTE,
+                        sourceLabel = if (note.imported) "note import" else "note",
+                        noteId = note.id,
+                        createdAt = note.updatedAt,
+                        qualityWeight = 0.07f,
+                    )
+                },
             )
         }
-        if (exact.size >= 8) return exact
 
-        val queryTokens = query.lowercase()
-            .split(Regex("\\W+"))
-            .filter { it.length > 2 }
-            .toSet()
-        if (queryTokens.isEmpty()) return exact
-
-        val exactIds = exact.mapTo(mutableSetOf()) { it.id }
-        val related = searchDao.listNodes()
-            .asSequence()
-            .filterNot { it.id in exactIds }
-            .mapNotNull { node ->
-                val haystack = "${node.title} ${node.body}".lowercase()
-                val score = semanticScore(queryTokens, haystack)
-                if (score < 0.34f) null else node to score
-            }
-            .sortedByDescending { it.second }
-            .take(5)
-            .map { (node, _) ->
-                SearchResultModel(
-                    id = node.id,
-                    captureId = node.captureId,
-                    title = node.title,
-                    snippet = node.body.take(160),
-                    sourceLabel = "capture",
-                    matchLabel = "Related",
-                )
-            }
-            .toList()
-
-        return exact + related
+        return semanticSearch(
+            query = trimmedQuery,
+            filter = filter,
+            documents = documents,
+            exactIds = exactIds,
+        )
     }
 }
 
@@ -1420,12 +1492,21 @@ private fun deriveCandidateTitle(cleaned: String): String {
     }.ifBlank { compact.take(64) }
 }
 
-private fun semanticScore(queryTokens: Set<String>, haystack: String): Float {
-    val haystackTokens = haystack.split(Regex("\\W+")).filter { it.length > 2 }.toSet()
-    if (haystackTokens.isEmpty()) return 0f
-    val overlap = queryTokens.intersect(haystackTokens).size.toFloat() / queryTokens.size
-    val substringBoost = queryTokens.count { it in haystack }.toFloat() / queryTokens.size
-    return (overlap * 0.7f) + (substringBoost * 0.3f)
+private fun ExtractionKind.toSearchResultType(): SearchResultType {
+    return when (this) {
+        ExtractionKind.TASK -> SearchResultType.TASK
+        ExtractionKind.DATE -> SearchResultType.DATE
+        ExtractionKind.REFERENCE -> SearchResultType.REFERENCE
+        ExtractionKind.FACT -> SearchResultType.FACT
+    }
+}
+
+private fun normalizedTitleOverlap(left: String, right: String): Float {
+    val leftTokens = tokenizeSearchText(normalizeSearchText(left))
+    val rightTokens = tokenizeSearchText(normalizeSearchText(right))
+    if (leftTokens.isEmpty() || rightTokens.isEmpty()) return 0f
+    val overlap = leftTokens.intersect(rightTokens).size.toFloat()
+    return overlap / max(1, min(leftTokens.size, rightTokens.size)).toFloat()
 }
 
 private fun looksLikeMetaOrCodeLine(cleaned: String, normalized: String): Boolean {

@@ -13,6 +13,7 @@ import com.astrogolem.sidequest.core.data.model.ProviderAvailability
 import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.model.NoteDetail
 import com.astrogolem.sidequest.core.data.model.NoteSummary
+import com.astrogolem.sidequest.core.data.model.SearchFilter
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
 import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
@@ -45,7 +46,7 @@ interface MissionRepository {
 }
 
 interface SearchRepository {
-    suspend fun search(query: String): List<SearchResultModel>
+    suspend fun search(query: String, filter: SearchFilter = SearchFilter.ALL): List<SearchResultModel>
 }
 
 interface ShoppingListRepository {
