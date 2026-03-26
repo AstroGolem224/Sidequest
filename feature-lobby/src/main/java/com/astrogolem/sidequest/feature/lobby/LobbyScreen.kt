@@ -65,7 +65,7 @@ fun LobbyRoute(viewModel: LobbyViewModel = hiltViewModel()) {
     ) {
         item { ProfileHero(state) }
 
-        item { SectionTitle("Character Attributes", "Live traits derived from actual mission history.") }
+        item { SectionTitle("Activity Metrics", "Live signals derived from actual mission history.") }
 
         items(state.attributes, key = { it.label }) { attribute ->
             AttributeCard(attribute)
@@ -73,7 +73,7 @@ fun LobbyRoute(viewModel: LobbyViewModel = hiltViewModel()) {
 
         item { ProtocolCard(state) }
 
-        item { SectionTitle("Collected Loot", "Milestones tied to real usage, not fake RPG grind.") }
+        item { SectionTitle("Milestones", "Unlocks tied to real usage and completion history.") }
 
         items(state.loot.chunked(2)) { row ->
             Row(
@@ -172,7 +172,7 @@ private fun ProfileHero(state: LobbyUiState) {
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("ASTRAEA_VOID", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+                    Text("Profile", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
                     Text(
                         state.rankTitle.uppercase(),
                         style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
@@ -190,8 +190,8 @@ private fun ProfileHero(state: LobbyUiState) {
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 MetricStack("Current GP", state.totalGp.toString(), Modifier.weight(1f))
-                MetricStack("Global Rank", state.rankLabel, Modifier.weight(1f))
-                MetricStack("Streak", "${state.streakDays} days", Modifier.weight(1f))
+                MetricStack("Completed", state.doneCount.toString(), Modifier.weight(1f))
+                MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
             }
 
             SegmentedMeter(
@@ -426,8 +426,8 @@ data class LobbyUiState(
     val level: Int = 1,
     val xpCurrent: Int = 0,
     val xpProgress: Float = 0.1f,
-    val rankLabel: String = "#402",
-    val rankTitle: String = "Field Operative",
+    val rankLabel: String = "",
+    val rankTitle: String = "Ready",
     val systemOverload: Boolean = false,
     val attributes: List<AttributeMetric> = emptyList(),
     val loot: List<LootCardModel> = emptyList(),
@@ -456,7 +456,7 @@ class LobbyViewModel @Inject constructor(
                     level = (totalGp / 180) + 1,
                     xpCurrent = xpCurrent,
                     xpProgress = (xpCurrent / 180f).coerceIn(0.1f, 1f),
-                    rankLabel = "#${(402 - doneCount.coerceAtMost(180)).coerceAtLeast(17)}",
+                    rankLabel = doneCount.toString(),
                     rankTitle = rankTitle(doneCount),
                     systemOverload = openCount > 10,
                     attributes = buildAttributes(openCount, doneCount, totalCount),
@@ -510,29 +510,29 @@ private fun buildLoot(
 ): List<LootCardModel> {
     return listOf(
         LootCardModel(
-            title = "Field Lens",
-            subtitle = if (totalCount > 0) "First scan archived" else "Run your first capture",
+            title = "First Capture",
+            subtitle = if (totalCount > 0) "At least one scan stored locally" else "Run your first capture",
             rarity = "Rare",
             unlocked = totalCount > 0,
             icon = SidequestIcons.Camera,
         ),
         LootCardModel(
-            title = "Quest Spark",
-            subtitle = if (doneCount > 0) "First mission resolved" else "Complete one mission",
+            title = "First Completion",
+            subtitle = if (doneCount > 0) "At least one mission completed" else "Complete one mission",
             rarity = "Epic",
             unlocked = doneCount > 0,
             icon = SidequestIcons.Spark,
         ),
         LootCardModel(
-            title = "Deep Archive",
-            subtitle = if (totalCount >= 10) "Intel backlog established" else "Reach 10 archived scans",
+            title = "Archive Depth",
+            subtitle = if (totalCount >= 10) "Ten or more scans retained" else "Reach 10 saved scans",
             rarity = "Rare",
             unlocked = totalCount >= 10,
             icon = SidequestIcons.Intel,
         ),
         LootCardModel(
-            title = "Calm Bridge",
-            subtitle = if (openCount in 1..5) "Healthy active load maintained" else "Keep 1-5 live quests",
+            title = "Healthy Queue",
+            subtitle = if (openCount in 1..5) "Healthy active load maintained" else "Keep 1-5 active missions",
             rarity = "Legendary",
             unlocked = openCount in 1..5,
             icon = SidequestIcons.Dashboard,
@@ -542,10 +542,10 @@ private fun buildLoot(
 
 private fun rankTitle(doneCount: Int): String {
     return when {
-        doneCount >= 40 -> "Grand Explorer - Seasoned"
-        doneCount >= 20 -> "Stellar Navigator - Seasoned"
-        doneCount >= 8 -> "Quest Pilot - Rising"
-        else -> "Field Operative - Initiated"
+        doneCount >= 40 -> "Established"
+        doneCount >= 20 -> "Consistent"
+        doneCount >= 8 -> "In Motion"
+        else -> "Starting Out"
     }
 }
 

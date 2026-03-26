@@ -48,6 +48,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val archiveMessage by viewModel.archiveMessage.collectAsStateWithLifecycle()
     val biometricEnabled by viewModel.biometricEnabled.collectAsStateWithLifecycle()
+    val providerMessage by viewModel.providerMessage.collectAsStateWithLifecycle()
     val drafts = remember { mutableStateMapOf<ProviderKind, String>() }
     var notificationsGranted by remember {
         mutableStateOf(
@@ -113,6 +114,14 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
         }
+        if (providers.isEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = "No providers available",
+                    subtitle = "Enhanced extraction is optional. The local OCR pipeline still works without any key.",
+                ) {}
+            }
+        }
         item {
             ScaffoldCard(
                 title = "Device Readiness",
@@ -127,7 +136,7 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
         items(providers, key = { it.kind.name }) { provider ->
             ScaffoldCard(
                 title = provider.kind.name,
-                subtitle = if (provider.configured) "Configured" else "Not configured",
+                subtitle = if (provider.configured) "Ready for optional enhancement" else "Not configured",
             ) {
                 OutlinedTextField(
                     value = drafts[provider.kind].orEmpty(),
@@ -135,11 +144,25 @@ fun SettingsRoute(viewModel: SettingsViewModel = hiltViewModel()) {
                     label = { Text("${provider.kind.name} API key") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Text(
+                    text = if (provider.configured) {
+                        "A key is already stored securely on this device."
+                    } else {
+                        "Leave this empty if you want to stay fully local-only."
+                    },
+                    modifier = Modifier.padding(top = 8.dp),
+                )
                 Button(
                     onClick = { viewModel.save(provider.kind, drafts[provider.kind].orEmpty()) },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
                     Text("Save key")
+                }
+                if (providerMessage.isNotBlank()) {
+                    Text(
+                        text = providerMessage,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
             }
         }
@@ -159,6 +182,8 @@ class SettingsViewModel @Inject constructor(
     val providers: StateFlow<List<ProviderAvailability>> = _providers
     private val _archiveMessage = MutableStateFlow("No archive action yet.")
     val archiveMessage: StateFlow<String> = _archiveMessage.asStateFlow()
+    private val _providerMessage = MutableStateFlow("")
+    val providerMessage: StateFlow<String> = _providerMessage.asStateFlow()
     private val _biometricEnabled = MutableStateFlow(false)
     val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
 
@@ -168,8 +193,11 @@ class SettingsViewModel @Inject constructor(
 
     fun save(kind: ProviderKind, key: String) {
         viewModelScope.launch {
-            if (key.isNotBlank()) {
+            if (key.isBlank()) {
+                _providerMessage.value = "Enter an API key first or leave providers unused."
+            } else {
                 securityService.saveProviderKey(kind, key)
+                _providerMessage.value = "${kind.name} key saved securely."
             }
             refresh()
         }

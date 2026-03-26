@@ -34,7 +34,7 @@ fun SearchRoute(
     onOpenCapture: (String) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
-    val results by viewModel.results.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     LazyColumn(
         modifier = Modifier
@@ -53,29 +53,81 @@ fun SearchRoute(
                 Button(onClick = { viewModel.search(query) }, modifier = Modifier.padding(top = 12.dp)) {
                     Text("Search")
                 }
+                Text(
+                    text = state.statusMessage,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
             }
         }
-        items(results, key = { it.id }) { result ->
-            ScaffoldCard(title = result.title, subtitle = "${result.matchLabel} | ${result.sourceLabel} | ${result.captureId.take(6)}") {
-                Text(result.snippet)
-                Button(onClick = { onOpenCapture(result.captureId) }, modifier = Modifier.padding(top = 12.dp)) {
-                    Text("Open capture")
+        if (state.results.isEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = if (state.hasSearched) "No matches found" else "Search is idle",
+                    subtitle = if (state.hasSearched) {
+                        "Try a shorter phrase, a date, or a reference value from the source document."
+                    } else {
+                        "Search scans, OCR text, facts, dates, and references once they have been processed."
+                    },
+                ) {
+                    Text(
+                        if (state.hasSearched) {
+                            "Nothing matched `${state.lastQuery}` in the local archive."
+                        } else {
+                            "Examples: invoice number, due date, receipt total, passport reference, whiteboard topic."
+                        },
+                    )
+                }
+            }
+        } else {
+            items(state.results, key = { it.id }) { result ->
+                ScaffoldCard(title = result.title, subtitle = "${result.matchLabel} | ${result.sourceLabel} | ${result.captureId.take(6)}") {
+                    Text(result.snippet)
+                    Button(onClick = { onOpenCapture(result.captureId) }, modifier = Modifier.padding(top = 12.dp)) {
+                        Text("Open capture")
+                    }
                 }
             }
         }
     }
 }
 
+data class SearchUiState(
+    val results: List<SearchResultModel> = emptyList(),
+    val lastQuery: String = "",
+    val hasSearched: Boolean = false,
+    val statusMessage: String = "Search the local archive.",
+)
+
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
 ) : ViewModel() {
-    private val _results = MutableStateFlow<List<SearchResultModel>>(emptyList())
-    val results: StateFlow<List<SearchResultModel>> = _results
+    private val _state = MutableStateFlow(SearchUiState())
+    val state: StateFlow<SearchUiState> = _state
 
     fun search(query: String) {
         viewModelScope.launch {
-            _results.value = if (query.isBlank()) emptyList() else searchRepository.search(query)
+            val trimmed = query.trim()
+            if (trimmed.isBlank()) {
+                _state.value = SearchUiState(
+                    results = emptyList(),
+                    lastQuery = "",
+                    hasSearched = false,
+                    statusMessage = "Enter a query to search scans, dates, references, and facts.",
+                )
+            } else {
+                val results = searchRepository.search(trimmed)
+                _state.value = SearchUiState(
+                    results = results,
+                    lastQuery = trimmed,
+                    hasSearched = true,
+                    statusMessage = if (results.isEmpty()) {
+                        "No local matches for `$trimmed`."
+                    } else {
+                        "${results.size} matches found for `$trimmed`."
+                    },
+                )
+            }
         }
     }
 }

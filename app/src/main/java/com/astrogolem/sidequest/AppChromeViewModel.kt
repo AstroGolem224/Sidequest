@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 data class AppChromeUiState(
     val totalGp: Int = 0,
     val level: Int = 1,
-    val title: String = "Astral Navigator",
+    val title: String = "ready",
 )
 
 @HiltViewModel
@@ -29,16 +29,17 @@ class AppChromeViewModel @Inject constructor(
 
 private fun toChromeState(missions: List<MissionCardModel>): AppChromeUiState {
     val completed = missions.count { it.status.name == "DONE" }
+    val active = missions.count { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
     val totalGp = missions.sumOf { mission ->
         val base = (mission.priorityScore / 5).coerceAtLeast(4)
         if (mission.status.name == "DONE") base + 12 else base / 2
     }.coerceAtLeast(0)
     val level = (totalGp / 180).coerceAtLeast(0) + 1
     val title = when {
-        completed >= 40 -> "Grand Explorer"
-        completed >= 20 -> "Stellar Navigator"
-        completed >= 8 -> "Quest Pilot"
-        else -> "Field Operative"
+        active > 10 -> "high load"
+        completed >= 20 -> "steady throughput"
+        completed >= 5 -> "active cadence"
+        else -> "ready"
     }
     return AppChromeUiState(
         totalGp = totalGp,

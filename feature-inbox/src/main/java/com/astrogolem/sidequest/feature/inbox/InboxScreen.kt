@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
@@ -44,6 +46,7 @@ import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.components.HudTone
@@ -77,6 +80,7 @@ fun InboxRoute(
     val totalCandidates = state.bestBetCount + state.reviewCount
     val bestBets = state.candidates.filterNot { it.needsReview }
     val reviewQueue = state.candidates.filter { it.needsReview }
+    var pendingDeleteCaptureId by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     LaunchedEffect(state.feedbackMessage) {
         if (state.feedbackMessage != null) {
             delay(1800)
@@ -162,6 +166,8 @@ fun InboxRoute(
                     RecentCaptureCard(
                         capture = capture,
                         onOpenCapture = { onOpenCapture(capture.id) },
+                        onRetry = { viewModel.retryCapture(capture.id) },
+                        onDelete = { pendingDeleteCaptureId = capture.id },
                     )
                 }
             }
@@ -178,6 +184,32 @@ fun InboxRoute(
             state.feedbackMessage?.let { message ->
                 ActionFeedbackBanner(message)
             }
+        }
+
+        if (pendingDeleteCaptureId != null) {
+            AlertDialog(
+                onDismissRequest = { pendingDeleteCaptureId = null },
+                title = { Text("Delete scan?") },
+                text = {
+                    Text("This removes the scan, OCR, extracted items, and search entries. Missions keep running but lose their source attachment.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val captureId = pendingDeleteCaptureId
+                            pendingDeleteCaptureId = null
+                            if (captureId != null) viewModel.deleteCapture(captureId)
+                        },
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteCaptureId = null }) {
+                        Text("Cancel")
+                    }
+                },
+            )
         }
     }
 }
@@ -228,7 +260,7 @@ private fun QuestIntakeHero(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Quest Intake", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
                 Text(
-                    "Level $intakeLevel intake officer",
+                    "Level $intakeLevel review flow",
                     style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                     color = AccentPrimary,
                 )
@@ -448,6 +480,8 @@ private fun RewardLine(label: String) {
 private fun RecentCaptureCard(
     capture: CaptureSummary,
     onOpenCapture: () -> Unit,
+    onRetry: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Surface(
         color = BgGlow,
@@ -486,8 +520,18 @@ private fun RecentCaptureCard(
                     Text(capture.status.name.lowercase(), color = TextSecondary)
                 }
             }
-            OutlinedButton(onClick = onOpenCapture) {
-                Text("Open Details")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (capture.status == CaptureProcessingStatus.FAILED) {
+                    OutlinedButton(onClick = onRetry) {
+                        Text("Retry")
+                    }
+                }
+                OutlinedButton(onClick = onDelete) {
+                    Text("Delete")
+                }
+                OutlinedButton(onClick = onOpenCapture) {
+                    Text("Open Details")
+                }
             }
         }
     }
@@ -512,8 +556,8 @@ private fun rewardGp(candidate: InboxCandidateItem): Int {
 
 private fun intelLabel(capture: CaptureSummary): String {
     return when (capture.sourceLabel.lowercase()) {
-        "camera" -> "Field Scan"
-        "import" -> "Recovered Intel"
+        "camera" -> "Camera Capture"
+        "import" -> "Imported Capture"
         else -> capture.sourceLabel.replaceFirstChar { it.uppercase() }
     }
 }
@@ -522,6 +566,7 @@ private fun intelLabel(capture: CaptureSummary): String {
 class InboxViewModel @Inject constructor(
     private val captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
+    private val processingOrchestrator: ProcessingOrchestrator,
 ) : ViewModel() {
     private val feedbackMessage = MutableStateFlow<String?>(null)
 
@@ -571,6 +616,23 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             captureRepository.dismissCandidate(candidateId)
             feedbackMessage.value = "dismissed: $candidateTitle"
+        }
+    }
+
+    fun retryCapture(captureId: String) {
+        viewModelScope.launch {
+            processingOrchestrator.enqueue(captureId)
+            feedbackMessage.value = "requeued scan"
+        }
+    }
+
+    fun deleteCapture(captureId: String) {
+        viewModelScope.launch {
+            if (captureRepository.deleteCapture(captureId)) {
+                feedbackMessage.value = "scan deleted"
+            } else {
+                feedbackMessage.value = "scan could not be deleted"
+            }
         }
     }
 

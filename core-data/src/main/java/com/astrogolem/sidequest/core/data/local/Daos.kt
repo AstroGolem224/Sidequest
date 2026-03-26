@@ -87,6 +87,9 @@ interface CaptureDao {
 
     @Query("DELETE FROM captures")
     suspend fun clearCaptures()
+
+    @Query("DELETE FROM captures WHERE id = :captureId")
+    suspend fun deleteCapture(captureId: String)
 }
 
 @Dao
@@ -126,6 +129,9 @@ interface MissionDao {
 
     @Query("DELETE FROM missions")
     suspend fun clearMissions()
+
+    @Query("UPDATE missions SET sourceCaptureId = NULL WHERE sourceCaptureId = :captureId")
+    suspend fun detachSourceCapture(captureId: String)
 }
 
 @Dao
@@ -149,6 +155,9 @@ interface SearchDao {
 
     @Query("DELETE FROM knowledge_nodes")
     suspend fun clearNodes()
+
+    @Query("DELETE FROM knowledge_nodes WHERE captureId = :captureId")
+    suspend fun deleteNodesForCapture(captureId: String)
 }
 
 @Dao

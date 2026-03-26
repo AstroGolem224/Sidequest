@@ -86,6 +86,8 @@ class DefaultCaptureRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val captureDao: CaptureDao,
     private val missionDao: MissionDao,
+    private val searchDao: SearchDao,
+    private val workManager: WorkManager,
 ) : CaptureRepository {
     override fun observeCaptures(): Flow<List<CaptureSummary>> {
         return captureDao.observeCaptures().map { captures ->
@@ -178,6 +180,21 @@ class DefaultCaptureRepository @Inject constructor(
 
     override suspend fun dismissCandidate(candidateId: String) {
         captureDao.updateExtractedStatus(candidateId, ExtractionStatus.DISMISSED.name)
+    }
+
+    override suspend fun deleteCapture(captureId: String): Boolean {
+        val capture = captureDao.getCapture(captureId) ?: return false
+        missionDao.detachSourceCapture(captureId)
+        searchDao.deleteNodesForCapture(captureId)
+        captureDao.clearExtractedItemsForCapture(captureId)
+        captureDao.clearAnalysisForCapture(captureId)
+        captureDao.deleteCapture(captureId)
+        workManager.cancelUniqueWork("capture-processing-$captureId")
+        runCatching { File(capture.filePath).takeIf(File::exists)?.delete() }
+        if (capture.thumbnailPath != capture.filePath) {
+            runCatching { File(capture.thumbnailPath).takeIf(File::exists)?.delete() }
+        }
+        return true
     }
 
     private fun openInputStream(uri: Uri) = when (uri.scheme) {

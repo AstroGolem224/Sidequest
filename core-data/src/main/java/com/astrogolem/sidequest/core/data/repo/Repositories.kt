@@ -21,6 +21,7 @@ interface CaptureRepository {
     suspend fun saveCapture(uri: Uri, sourceType: String = "import"): String
     suspend fun importCapture(uri: Uri): String
     suspend fun dismissCandidate(candidateId: String)
+    suspend fun deleteCapture(captureId: String): Boolean
 }
 
 interface ProcessingOrchestrator {

@@ -116,7 +116,7 @@ fun MissionsRoute(
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Level $level", style = MaterialTheme.typography.headlineLarge)
                             Text(
-                                text = if (completedCount >= 20) "STELLAR NAVIGATOR" else "QUEST PILOT",
+                                text = if (completedCount >= 20) "STEADY THROUGHPUT" else "ACTIVE WORKBOARD",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = AccentPrimary,
                             )
@@ -233,6 +233,14 @@ fun MissionsRoute(
                             Button(onClick = { viewModel.complete(mission.id) }, modifier = Modifier.weight(1f)) {
                                 Text("Complete")
                             }
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.abandon(mission.id) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                        ) {
+                            Text("Abandon Quest")
                         }
                         mission.sourceCaptureId?.let { captureId ->
                             OutlinedButton(
@@ -376,7 +384,7 @@ fun MissionDetailRoute(
                     detail = detail,
                     onComplete = viewModel::complete,
                     onActivate = viewModel::activate,
-                    onArchive = viewModel::archive,
+                    onAbandon = viewModel::abandon,
                     onSnoozeThirty = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) },
                     onSnoozeTwoHours = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) },
                     onSnoozeOneDay = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) },
@@ -658,7 +666,7 @@ private fun CommandActionsCard(
     detail: MissionDetailModel,
     onComplete: () -> Unit,
     onActivate: () -> Unit,
-    onArchive: () -> Unit,
+    onAbandon: () -> Unit,
     onSnoozeThirty: () -> Unit,
     onSnoozeTwoHours: () -> Unit,
     onSnoozeOneDay: () -> Unit,
@@ -670,9 +678,17 @@ private fun CommandActionsCard(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onComplete, modifier = Modifier.weight(1f)) { Text("Complete Quest") }
-            OutlinedButton(onClick = if (detail.status == MissionStatus.ACTIVE) onArchive else onActivate, modifier = Modifier.weight(1f)) {
-                Text(if (detail.status == MissionStatus.ACTIVE) "Forfeit Quest" else "Activate")
+            OutlinedButton(onClick = onActivate, modifier = Modifier.weight(1f)) {
+                Text("Activate")
             }
+        }
+        OutlinedButton(
+            onClick = onAbandon,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+        ) {
+            Text("Abandon Quest")
         }
         Row(
             modifier = Modifier.padding(top = 12.dp),
@@ -926,6 +942,12 @@ class MissionsViewModel @Inject constructor(
         }
     }
 
+    fun abandon(missionId: String) {
+        viewModelScope.launch {
+            missionRepository.applyAction(MissionAction.Archive(missionId))
+        }
+    }
+
     fun clearCompletionReward() {
         _completionReward.value = null
     }
@@ -1001,6 +1023,10 @@ class MissionDetailViewModel @Inject constructor(
         viewModelScope.launch {
             missionRepository.applyAction(MissionAction.Archive(missionId))
         }
+    }
+
+    fun abandon() {
+        archive()
     }
 
     fun snooze(delayMillis: Long) {

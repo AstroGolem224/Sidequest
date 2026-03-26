@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +50,7 @@ import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -91,6 +93,7 @@ import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -785,11 +788,13 @@ private data class CameraPermissionState(
 @Composable
 fun CaptureDetailRoute(
     onOpenMission: (String) -> Unit,
+    onDeleted: () -> Unit,
     viewModel: CaptureDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val feedback by viewModel.feedback.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(feedback) {
         if (feedback != null) {
             delay(1800)
@@ -818,6 +823,24 @@ fun CaptureDetailRoute(
                         }
                         if (capture.linkedMissions.isNotEmpty()) {
                             Text("Linked missions", modifier = Modifier.padding(top = 12.dp))
+                        }
+                        if (capture.status == CaptureProcessingStatus.FAILED) {
+                            Button(
+                                onClick = { viewModel.retryCapture() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                            ) {
+                                Text("Retry Analysis")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                        ) {
+                            Text("Delete Scan")
                         }
                     }
                 }
@@ -871,6 +894,31 @@ fun CaptureDetailRoute(
                 }
             }
         }
+
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete scan?") },
+                text = {
+                    Text("The source image, OCR text, extracted items, and search index entries for this scan will be removed. Linked missions stay intact but lose the source attachment.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteDialog = false
+                            viewModel.deleteCapture(onDeleted)
+                        },
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -879,8 +927,10 @@ class CaptureDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
+    private val processingOrchestrator: ProcessingOrchestrator,
 ) : ViewModel() {
     private val captureId: String = checkNotNull(savedStateHandle["captureId"])
+    private val captureRepositoryRef = captureRepository
     private val _feedback = MutableStateFlow<String?>(null)
 
     val detail: StateFlow<CaptureDetailModel?> =
@@ -908,6 +958,23 @@ class CaptureDetailViewModel @Inject constructor(
 
     fun clearFeedback() {
         _feedback.value = null
+    }
+
+    fun deleteCapture(onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            if (captureRepositoryRef.deleteCapture(captureId)) {
+                onDeleted()
+            } else {
+                _feedback.value = "scan could not be deleted"
+            }
+        }
+    }
+
+    fun retryCapture() {
+        viewModelScope.launch {
+            processingOrchestrator.enqueue(captureId)
+            _feedback.value = "analysis queued again"
+        }
     }
 }
 
@@ -1016,8 +1083,8 @@ private fun formatTimestamp(timestamp: Long): String {
 
 private fun intelTitle(capture: CaptureSummary): String {
     return when (capture.sourceLabel.lowercase()) {
-        "camera" -> "Field Scan"
-        "import" -> "Recovered Intel"
+        "camera" -> "Camera Capture"
+        "import" -> "Imported Capture"
         else -> capture.sourceLabel.replaceFirstChar { it.uppercase() }
     }
 }

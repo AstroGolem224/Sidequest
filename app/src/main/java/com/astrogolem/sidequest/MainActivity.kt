@@ -259,7 +259,10 @@ private fun SidequestApp(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    CaptureDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                    CaptureDetailRoute(
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onDeleted = { navController.popBackStack() },
+                    )
                 }
             }
             composable("inbox") {
