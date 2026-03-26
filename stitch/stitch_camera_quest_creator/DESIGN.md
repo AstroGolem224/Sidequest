@@ -129,6 +129,29 @@ The stitched Quests screen needs one direct trust path:
 - Add stronger motion design, shimmer, and subtle reward animation
 - Tighten device-level spacing and gesture feel
 
+## Implementation Status
+
+- `Phase 1`: complete
+  - amber shell, 4-tab nav, top-bar utilities, and stitched dashboard/create/profile baseline are now landed
+- `Phase 2`: complete
+  - quests intake, mission brief, post-scan review drawer, direct intel access, and visible completion/review feedback are landed
+- `Phase 3`: complete
+  - custom pictograms, reward banners, subtle progress motion, and tighter device-level spacing/affordances are now in the app
+
+## Next Delivery Phases
+
+### Phase 4
+- Upgrade `Profile` into a stronger stats + inventory surface derived from live mission state
+- Add visible reward banners / completion feedback on the mission board
+- Surface overload guidance when too many quests are active
+  - status: shipped in the current working tree
+
+### Phase 5
+- Add richer motion to capture review, quest completion, and profile unlocks
+- Tighten iconography, chip styling, and spacing on real devices
+- Improve capture-detail discoverability from more surfaces
+  - status: shipped in the current working tree
+
 ## Guardrails
 
 - No hard white-on-black dashboard look.

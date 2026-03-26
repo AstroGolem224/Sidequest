@@ -13,6 +13,11 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,6 +105,8 @@ import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -181,6 +188,7 @@ fun CaptureRoute(
                 cameraError = null
             }
         },
+        onConsumeActionFeedback = viewModel::clearActionFeedback,
         onDismissReview = viewModel::dismissReviewDrawer,
         onPromoteCandidate = viewModel::promoteCandidate,
         onDismissCandidate = viewModel::dismissCandidate,
@@ -202,6 +210,7 @@ private fun CaptureScreen(
     onCapture: () -> Unit,
     onRetake: () -> Unit,
     onSave: () -> Unit,
+    onConsumeActionFeedback: () -> Unit,
     onDismissReview: () -> Unit,
     onPromoteCandidate: (String) -> Unit,
     onDismissCandidate: (String) -> Unit,
@@ -209,6 +218,12 @@ private fun CaptureScreen(
 ) {
     val latestCapture = state.captures.firstOrNull()
     val latestCaptureDone = latestCapture?.status?.name == "DONE"
+    LaunchedEffect(state.actionFeedback) {
+        if (state.actionFeedback != null) {
+            delay(1800)
+            onConsumeActionFeedback()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
@@ -256,6 +271,24 @@ private fun CaptureScreen(
             }
         }
 
+        AnimatedVisibility(
+            visible = latestCaptureDone && pendingCaptureUri == null,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.TopEnd)
+                .padding(top = 18.dp, end = 16.dp),
+        ) {
+            OutlinedButton(onClick = { latestCapture?.id?.let(onOpenCapture) }) {
+                Icon(
+                    imageVector = SidequestIcons.Intel,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text("Open Details", modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+
         Box(
             modifier = Modifier
                 .align(androidx.compose.ui.Alignment.BottomCenter)
@@ -296,9 +329,9 @@ private fun CaptureScreen(
                     onOpenCapture = { onOpenCapture(reviewCapture.id) },
                 )
             }
-        } else if (cameraError != null || state.isSaving || state.lastMessage != DefaultCaptureMessage) {
+        } else if (cameraError != null || state.actionFeedback != null || state.isSaving || state.lastMessage != DefaultCaptureMessage) {
             CaptureStatusBanner(
-                message = cameraError ?: state.lastMessage,
+                message = cameraError ?: state.actionFeedback ?: state.lastMessage,
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomCenter)
                     .padding(horizontal = 16.dp, vertical = 108.dp),
@@ -410,12 +443,21 @@ private fun PostScanReviewDrawer(
                             )
                         }
                     } else {
-                        reviewCandidates.take(3).forEach { candidate ->
-                            FreshQuestCandidateCard(
-                                candidate = candidate,
-                                onPromote = { onPromoteCandidate(candidate.id) },
-                                onDismiss = { onDismissCandidate(candidate.id) },
-                            )
+                        reviewCandidates.take(3).forEachIndexed { index, candidate ->
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = index * 70)) +
+                                    slideInVertically(
+                                        initialOffsetY = { it / 3 },
+                                        animationSpec = tween(durationMillis = 220, delayMillis = index * 70),
+                                    ),
+                            ) {
+                                FreshQuestCandidateCard(
+                                    candidate = candidate,
+                                    onPromote = { onPromoteCandidate(candidate.id) },
+                                    onDismiss = { onDismissCandidate(candidate.id) },
+                                )
+                            }
                         }
                     }
                 }
@@ -449,7 +491,7 @@ private fun PostScanReviewDrawer(
                     onClick = onOpenCapture,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Intel" else "Open Source")
+                    Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Details" else "Open Source")
                 }
             }
         }
@@ -620,20 +662,45 @@ private fun LensActionBar(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            FilledIconButton(
-                onClick = if (pendingCapture) onSave else onCapture,
-                modifier = Modifier.size(76.dp),
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = AccentCyan,
-                    contentColor = Color.Black,
+            val transition = rememberInfiniteTransition(label = "lens-trigger")
+            val pulseRadius by transition.animateFloat(
+                initialValue = 0.96f,
+                targetValue = 1.28f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1400),
                 ),
+                label = "lens-trigger-radius",
+            )
+            val pulseAlpha by transition.animateFloat(
+                initialValue = 0.26f,
+                targetValue = 0.04f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1400),
+                ),
+                label = "lens-trigger-alpha",
+            )
+            Box(
+                modifier = Modifier.size(88.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
-                Icon(
-                    imageVector = if (pendingCapture) SidequestIcons.Save else SidequestIcons.Camera,
-                    contentDescription = if (pendingCapture) "Save capture" else "Capture image",
-                    modifier = Modifier.size(28.dp),
-                )
+                Canvas(modifier = Modifier.size(88.dp * pulseRadius)) {
+                    drawCircle(color = AccentCyan.copy(alpha = pulseAlpha))
+                }
+                FilledIconButton(
+                    onClick = if (pendingCapture) onSave else onCapture,
+                    modifier = Modifier.size(76.dp),
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = AccentCyan,
+                        contentColor = Color.Black,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = if (pendingCapture) SidequestIcons.Save else SidequestIcons.Camera,
+                        contentDescription = if (pendingCapture) "Save capture" else "Capture image",
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
             }
             OutlinedIconButton(
                 onClick = onOpenCapture,
@@ -721,61 +788,86 @@ fun CaptureDetailRoute(
     viewModel: CaptureDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val feedback by viewModel.feedback.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
+    LaunchedEffect(feedback) {
+        if (feedback != null) {
+            delay(1800)
+            viewModel.clearFeedback()
+        }
+    }
     detail?.let { capture ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 32.dp),
-        ) {
-            item {
-                ScaffoldCard(
-                    title = capture.sourceLabel.replaceFirstChar { it.uppercase() },
-                    subtitle = "Status: ${capture.status.name.lowercase()}",
-                ) {
-                    PreviewImage(uri = Uri.fromFile(File(capture.imagePath)))
-                    if (capture.summary.isNotBlank()) {
-                        Text("Summary: ${capture.summary}", modifier = Modifier.padding(top = 12.dp))
-                    }
-                    if (capture.ocrText.isNotBlank()) {
-                        Text("OCR", modifier = Modifier.padding(top = 12.dp))
-                        Text(capture.ocrText)
-                    }
-                    if (capture.linkedMissions.isNotEmpty()) {
-                        Text("Linked missions", modifier = Modifier.padding(top = 12.dp))
-                    }
-                }
-            }
-
-            extractionSections(capture).forEach { (kind, candidates) ->
-                item(key = "section-$kind") {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
+            ) {
+                item {
                     ScaffoldCard(
-                        title = sectionTitle(kind, candidates.size),
-                        subtitle = sectionSubtitle(kind),
+                        title = capture.sourceLabel.replaceFirstChar { it.uppercase() },
+                        subtitle = "Status: ${capture.status.name.lowercase()}",
                     ) {
-                        Text("These items stay attached to the capture unless you act on them.")
+                        PreviewImage(uri = Uri.fromFile(File(capture.imagePath)))
+                        if (capture.summary.isNotBlank()) {
+                            Text("Summary: ${capture.summary}", modifier = Modifier.padding(top = 12.dp))
+                        }
+                        if (capture.ocrText.isNotBlank()) {
+                            Text("OCR", modifier = Modifier.padding(top = 12.dp))
+                            Text(capture.ocrText)
+                        }
+                        if (capture.linkedMissions.isNotEmpty()) {
+                            Text("Linked missions", modifier = Modifier.padding(top = 12.dp))
+                        }
                     }
                 }
-                items(candidates, key = { it.id }) { candidate ->
-                    CaptureDetailCandidateCard(
-                        candidate = candidate,
-                        onPrimaryAction = { viewModel.promoteCandidate(candidate.id) },
-                        onCopy = { clipboardManager.setText(AnnotatedString(candidate.body)) },
-                    )
+
+                extractionSections(capture).forEach { (kind, candidates) ->
+                    item(key = "section-$kind") {
+                        ScaffoldCard(
+                            title = sectionTitle(kind, candidates.size),
+                            subtitle = sectionSubtitle(kind),
+                        ) {
+                            Text("These items stay attached to the capture unless you act on them.")
+                        }
+                    }
+                    items(candidates, key = { it.id }) { candidate ->
+                        CaptureDetailCandidateCard(
+                            candidate = candidate,
+                            onPrimaryAction = { viewModel.promoteCandidate(candidate.id, candidate.kind) },
+                            onCopy = {
+                                clipboardManager.setText(AnnotatedString(candidate.body))
+                                viewModel.showFeedback("copied intel to clipboard")
+                            },
+                        )
+                    }
+                }
+
+                items(capture.linkedMissions, key = { it.id }) { mission ->
+                    ScaffoldCard(
+                        title = mission.title,
+                        subtitle = "Mission | ${mission.status.name.lowercase()}",
+                    ) {
+                        Button(
+                            onClick = { onOpenMission(mission.id) },
+                            modifier = Modifier.padding(top = 12.dp),
+                        ) {
+                            Text("Open mission")
+                        }
+                    }
                 }
             }
 
-            items(capture.linkedMissions, key = { it.id }) { mission ->
-                ScaffoldCard(
-                    title = mission.title,
-                    subtitle = "Mission | ${mission.status.name.lowercase()}",
-                ) {
-                    Button(
-                        onClick = { onOpenMission(mission.id) },
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Text("Open mission")
-                    }
+            AnimatedVisibility(
+                visible = feedback != null,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
+            ) {
+                feedback?.let { message ->
+                    CaptureStatusBanner(message = message)
                 }
             }
         }
@@ -789,15 +881,33 @@ class CaptureDetailViewModel @Inject constructor(
     private val missionRepository: MissionRepository,
 ) : ViewModel() {
     private val captureId: String = checkNotNull(savedStateHandle["captureId"])
+    private val _feedback = MutableStateFlow<String?>(null)
 
     val detail: StateFlow<CaptureDetailModel?> =
         captureRepository.observeCaptureDetail(captureId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun promoteCandidate(candidateId: String) {
+    val feedback: StateFlow<String?> = _feedback
+
+    fun promoteCandidate(candidateId: String, kind: ExtractionKind) {
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)
+            _feedback.value = when (kind) {
+                ExtractionKind.TASK -> "mission created from source intel"
+                ExtractionKind.DATE -> "reminder mission created"
+                ExtractionKind.REFERENCE,
+                ExtractionKind.FACT,
+                -> "intel promoted"
+            }
         }
+    }
+
+    fun showFeedback(message: String) {
+        _feedback.value = message
+    }
+
+    fun clearFeedback() {
+        _feedback.value = null
     }
 }
 

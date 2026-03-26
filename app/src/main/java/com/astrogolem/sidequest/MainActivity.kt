@@ -237,7 +237,10 @@ private fun SidequestApp(
         ) {
             composable("missions") {
                 TopLevelScreenContainer {
-                    MissionsRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                    MissionsRoute(
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                    )
                 }
             }
             composable("mission/{missionId}") {

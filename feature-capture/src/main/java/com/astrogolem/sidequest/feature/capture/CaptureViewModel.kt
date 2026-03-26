@@ -30,6 +30,7 @@ data class CaptureUiState(
     val captures: List<CaptureSummary> = emptyList(),
     val isSaving: Boolean = false,
     val lastMessage: String = DefaultCaptureMessage,
+    val actionFeedback: String? = null,
     val reviewCapture: CaptureDetailModel? = null,
     val reviewCandidates: List<ExtractionCandidate> = emptyList(),
     val showReviewDrawer: Boolean = false,
@@ -44,6 +45,7 @@ class CaptureViewModel @Inject constructor(
 ) : ViewModel() {
     private val isSaving = MutableStateFlow(false)
     private val lastMessage = MutableStateFlow(DefaultCaptureMessage)
+    private val actionFeedback = MutableStateFlow<String?>(null)
     private val reviewCaptureId = MutableStateFlow<String?>(null)
     private val dismissedReviewCaptureId = MutableStateFlow<String?>(null)
 
@@ -57,28 +59,34 @@ class CaptureViewModel @Inject constructor(
         }
 
     private data class CaptureChromeInputs(
-        val captures: List<CaptureSummary>,
         val saving: Boolean,
         val message: String,
+        val feedback: String?,
         val activeReviewId: String?,
         val dismissedId: String?,
     )
 
-    val state: StateFlow<CaptureUiState> = combine(
-        captureRepository.observeCaptures(),
+    private val chromeInputs = combine(
         isSaving,
         lastMessage,
+        actionFeedback,
         reviewCaptureId,
         dismissedReviewCaptureId,
-    ) { captures, saving, message, activeReviewId, dismissedId ->
+    ) { saving, message, feedback, activeReviewId, dismissedId ->
         CaptureChromeInputs(
-            captures = captures,
             saving = saving,
             message = message,
+            feedback = feedback,
             activeReviewId = activeReviewId,
             dismissedId = dismissedId,
         )
-    }.combine(reviewCaptureDetail) { chromeInputs, reviewDetail ->
+    }
+
+    val state: StateFlow<CaptureUiState> = combine(
+        captureRepository.observeCaptures(),
+        chromeInputs,
+        reviewCaptureDetail,
+    ) { captures, chromeInputs, reviewDetail ->
         val reviewCandidates = reviewDetail
             ?.candidates
             ?.filter { candidate ->
@@ -86,13 +94,14 @@ class CaptureViewModel @Inject constructor(
             }
             .orEmpty()
         CaptureUiState(
-            captures = chromeInputs.captures,
+            captures = captures,
             isSaving = chromeInputs.saving,
             lastMessage = if (chromeInputs.saving) {
                 "Saving capture locally..."
             } else {
-                deriveCaptureMessage(chromeInputs.captures, chromeInputs.message)
+                deriveCaptureMessage(captures, chromeInputs.message)
             },
+            actionFeedback = chromeInputs.feedback,
             reviewCapture = reviewDetail,
             reviewCandidates = reviewCandidates,
             showReviewDrawer = chromeInputs.activeReviewId != null &&
@@ -118,24 +127,32 @@ class CaptureViewModel @Inject constructor(
             dismissedReviewCaptureId.value = null
             processingOrchestrator.enqueue(captureId)
             lastMessage.value = "Capture queued for background extraction."
+            actionFeedback.value = "scan archived - analysis queued"
             isSaving.value = false
         }
     }
 
     fun dismissReviewDrawer() {
         dismissedReviewCaptureId.value = reviewCaptureId.value
+        actionFeedback.value = "review parked for later"
     }
 
     fun promoteCandidate(candidateId: String) {
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)
+            actionFeedback.value = "quest deployed to mission board"
         }
     }
 
     fun dismissCandidate(candidateId: String) {
         viewModelScope.launch {
             captureRepository.dismissCandidate(candidateId)
+            actionFeedback.value = "candidate dismissed from intake"
         }
+    }
+
+    fun clearActionFeedback() {
+        actionFeedback.value = null
     }
 
     private fun deriveCaptureMessage(captures: List<CaptureSummary>, fallback: String): String {

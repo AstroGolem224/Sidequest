@@ -1,7 +1,15 @@
 package com.astrogolem.sidequest.feature.inbox
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +24,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,8 +45,12 @@ import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.StatusPill
+import com.astrogolem.sidequest.core.ui.components.HudTone
+import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
+import com.astrogolem.sidequest.core.ui.theme.BgPanel
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
 import com.astrogolem.sidequest.core.ui.theme.CardStroke
 import com.astrogolem.sidequest.core.ui.theme.CardSurface
@@ -45,8 +59,11 @@ import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlin.math.max
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -60,85 +77,106 @@ fun InboxRoute(
     val totalCandidates = state.bestBetCount + state.reviewCount
     val bestBets = state.candidates.filterNot { it.needsReview }
     val reviewQueue = state.candidates.filter { it.needsReview }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        item {
-            QuestIntakeHero(state = state, totalCandidates = totalCandidates)
+    LaunchedEffect(state.feedbackMessage) {
+        if (state.feedbackMessage != null) {
+            delay(1800)
+            viewModel.clearFeedback()
         }
+    }
 
-        if (bestBets.isNotEmpty()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            item {
+                QuestIntakeHero(state = state, totalCandidates = totalCandidates)
+            }
+
+            if (bestBets.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Ready To Deploy",
+                        badge = "${bestBets.size} ready",
+                    )
+                }
+                items(bestBets, key = { it.id }) { candidate ->
+                    QuestCandidateCard(
+                        candidate = candidate,
+                        onPromote = { viewModel.promote(candidate.id) },
+                        onDismiss = { viewModel.dismiss(candidate.id) },
+                        onOpenCapture = { onOpenCapture(candidate.captureId) },
+                    )
+                }
+            }
+
+            if (reviewQueue.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "Needs Review",
+                        badge = "${reviewQueue.size} flagged",
+                    )
+                }
+                items(reviewQueue, key = { it.id }) { candidate ->
+                    QuestCandidateCard(
+                        candidate = candidate,
+                        onPromote = { viewModel.promote(candidate.id) },
+                        onDismiss = { viewModel.dismiss(candidate.id) },
+                        onOpenCapture = { onOpenCapture(candidate.captureId) },
+                    )
+                }
+            }
+
+            item {
+                if (state.candidates.isEmpty()) {
+                    ScaffoldCard(
+                        title = "No staged quests",
+                        subtitle = state.emptyStateMessage,
+                    ) {
+                        Text(
+                            text = "Completed scans can still hold facts, dates, and references inside intel. This queue only surfaces task-like candidates.",
+                            color = TextSecondary,
+                        )
+                    }
+                }
+            }
+
             item {
                 SectionHeader(
-                    title = "Ready To Deploy",
-                    badge = "${bestBets.size} ready",
+                    title = "Recent Scan Activity",
+                    badge = "${state.recentCaptures.size} scans",
                 )
             }
-            items(bestBets, key = { it.id }) { candidate ->
-                QuestCandidateCard(
-                    candidate = candidate,
-                    onPromote = { viewModel.promote(candidate.id) },
-                    onDismiss = { viewModel.dismiss(candidate.id) },
-                    onOpenCapture = { onOpenCapture(candidate.captureId) },
-                )
-            }
-        }
 
-        if (reviewQueue.isNotEmpty()) {
-            item {
-                SectionHeader(
-                    title = "Needs Review",
-                    badge = "${reviewQueue.size} flagged",
-                )
-            }
-            items(reviewQueue, key = { it.id }) { candidate ->
-                QuestCandidateCard(
-                    candidate = candidate,
-                    onPromote = { viewModel.promote(candidate.id) },
-                    onDismiss = { viewModel.dismiss(candidate.id) },
-                    onOpenCapture = { onOpenCapture(candidate.captureId) },
-                )
-            }
-        }
-
-        if (state.candidates.isEmpty()) {
-            item {
-                ScaffoldCard(
-                    title = "No staged quests",
-                    subtitle = state.emptyStateMessage,
-                ) {
-                    Text(
-                        text = "Completed scans can still hold facts, dates, and references inside intel. This queue only surfaces task-like candidates.",
-                        color = TextSecondary,
+            if (state.recentCaptures.isEmpty()) {
+                item {
+                    ScaffoldCard(
+                        title = "No scan history yet",
+                        subtitle = "Run a capture or import to start filling the intel archive.",
+                    ) {}
+                }
+            } else {
+                items(state.recentCaptures, key = { it.id }) { capture ->
+                    RecentCaptureCard(
+                        capture = capture,
+                        onOpenCapture = { onOpenCapture(capture.id) },
                     )
                 }
             }
         }
 
-        item {
-            SectionHeader(
-                title = "Recent Scan Activity",
-                badge = "${state.recentCaptures.size} scans",
-            )
-        }
-
-        if (state.recentCaptures.isEmpty()) {
-            item {
-                ScaffoldCard(
-                    title = "No scan history yet",
-                    subtitle = "Run a capture or import to start filling the intel archive.",
-                ) {}
-            }
-        } else {
-            items(state.recentCaptures, key = { it.id }) { capture ->
-                RecentCaptureCard(
-                    capture = capture,
-                    onOpenCapture = { onOpenCapture(capture.id) },
-                )
+        AnimatedVisibility(
+            visible = state.feedbackMessage != null,
+            enter = fadeIn(animationSpec = tween(160)) + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut(animationSpec = tween(140)) + slideOutVertically(targetOffsetY = { -it / 2 }),
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.TopCenter)
+                .padding(top = 8.dp),
+        ) {
+            state.feedbackMessage?.let { message ->
+                ActionFeedbackBanner(message)
             }
         }
     }
@@ -154,6 +192,7 @@ data class InboxUiState(
     val bestBetCount: Int = 0,
     val recentCaptures: List<CaptureSummary> = emptyList(),
     val emptyStateMessage: String = "Capture something to start the extraction pipeline.",
+    val feedbackMessage: String? = null,
 )
 
 data class InboxCandidateItem(
@@ -176,6 +215,11 @@ private fun QuestIntakeHero(
 ) {
     val intakeLevel = max(1, state.doneCount / 3 + state.bestBetCount + 1)
     val progress = if (totalCandidates == 0) 0.16f else (state.bestBetCount / totalCandidates.toFloat()).coerceIn(0.12f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 420),
+        label = "quest-intake-progress",
+    )
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -203,7 +247,7 @@ private fun QuestIntakeHero(
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(progress)
+                    .fillMaxWidth(animatedProgress)
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(AccentPrimary),
@@ -233,6 +277,29 @@ private fun QuestIntakeHero(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionFeedbackBanner(message: String) {
+    Surface(
+        color = BgPanel.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.75f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = SidequestIcons.Spark,
+                contentDescription = null,
+                tint = AccentPrimary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(message, color = AccentSecondary, style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
         }
     }
 }
@@ -310,22 +377,23 @@ private fun QuestCandidateCard(
                     modifier = Modifier.size(44.dp),
                 ) {
                     Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                        Text(
-                            text = if (candidate.needsReview) "?" else "Q",
-                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                            color = AccentPrimary,
+                        Icon(
+                            imageVector = if (candidate.needsReview) SidequestIcons.Intel else SidequestIcons.QuestLog,
+                            contentDescription = candidate.title,
+                            tint = AccentPrimary,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
-                Surface(
-                    color = if (candidate.needsReview) BgGlow else AccentPrimary.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text(
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    StatusPill(
                         text = questTierLabel(candidate),
-                        color = if (candidate.needsReview) TextSecondary else AccentPrimary,
-                        style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        tone = if (candidate.needsReview) HudTone.Neutral else HudTone.Amber,
+                    )
+                    Text(
+                        text = candidate.qualityLabel,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = if (candidate.needsReview) TextSecondary else AccentSecondary,
                     )
                 }
             }
@@ -338,11 +406,6 @@ private fun QuestCandidateCard(
                 AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
                 AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
             }
-            Text(
-                text = candidate.qualityLabel,
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = if (candidate.needsReview) TextSecondary else AccentSecondary,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -358,7 +421,7 @@ private fun QuestCandidateCard(
                     Text("Deploy")
                 }
                 OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
-                    Text("Intel")
+                    Text("Open Details")
                 }
             }
             TextButton(onClick = onDismiss) {
@@ -390,6 +453,7 @@ private fun RecentCaptureCard(
         color = BgGlow,
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
+        modifier = Modifier.clickable(onClick = onOpenCapture),
     ) {
         Row(
             modifier = Modifier
@@ -398,12 +462,32 @@ private fun RecentCaptureCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(intelLabel(capture), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                Text(capture.status.name.lowercase(), color = TextSecondary)
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Surface(
+                    color = AccentPrimary.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        Icon(
+                            imageVector = SidequestIcons.Intel,
+                            contentDescription = intelLabel(capture),
+                            tint = AccentPrimary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(intelLabel(capture), style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    Text(capture.status.name.lowercase(), color = TextSecondary)
+                }
             }
             OutlinedButton(onClick = onOpenCapture) {
-                Text("Open Intel")
+                Text("Open Details")
             }
         }
     }
@@ -439,10 +523,13 @@ class InboxViewModel @Inject constructor(
     private val captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
 ) : ViewModel() {
+    private val feedbackMessage = MutableStateFlow<String?>(null)
+
     val state: StateFlow<InboxUiState> = combine(
         captureRepository.observeCandidates(),
         captureRepository.observeCaptures(),
-    ) { candidates, captures ->
+        feedbackMessage,
+    ) { candidates, captures, feedback ->
         val statusByCapture = captures.associateBy { it.id }
         InboxUiState(
             candidates = candidates.map { candidate ->
@@ -467,19 +554,28 @@ class InboxViewModel @Inject constructor(
             bestBetCount = candidates.count { it.confidence >= 0.55f },
             recentCaptures = captures.take(5),
             emptyStateMessage = deriveEmptyMessage(captures),
+            feedbackMessage = feedback,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InboxUiState())
 
     fun promote(candidateId: String) {
+        val candidateTitle = state.value.candidates.firstOrNull { it.id == candidateId }?.title ?: "quest"
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)
+            feedbackMessage.value = "deployed: $candidateTitle"
         }
     }
 
     fun dismiss(candidateId: String) {
+        val candidateTitle = state.value.candidates.firstOrNull { it.id == candidateId }?.title ?: "candidate"
         viewModelScope.launch {
             captureRepository.dismissCandidate(candidateId)
+            feedbackMessage.value = "dismissed: $candidateTitle"
         }
+    }
+
+    fun clearFeedback() {
+        feedbackMessage.value = null
     }
 
     private fun statusLabel(status: CaptureProcessingStatus?): String = when (status) {

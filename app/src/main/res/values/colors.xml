@@ -1,0 +1,6 @@
+<resources>
+    <color name="ic_launcher_background">#120B07</color>
+    <color name="ic_launcher_ring">#F6B14A</color>
+    <color name="ic_launcher_core">#FFE3B1</color>
+    <color name="ic_launcher_shadow">#5B2A08</color>
+</resources>

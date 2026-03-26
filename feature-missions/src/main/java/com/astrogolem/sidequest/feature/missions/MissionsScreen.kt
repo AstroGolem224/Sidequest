@@ -4,6 +4,11 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.net.Uri
 import android.widget.ImageView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -28,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -65,157 +71,199 @@ import java.util.Calendar
 import java.util.Date
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @Composable
 fun MissionsRoute(
     onOpenMission: (String) -> Unit,
+    onOpenCapture: (String) -> Unit,
     viewModel: MissionsViewModel = hiltViewModel(),
 ) {
     val missions by viewModel.missions.collectAsStateWithLifecycle()
+    val completionReward by viewModel.completionReward.collectAsStateWithLifecycle()
     val activeMissions = missions.filter { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
     val completedCount = missions.count { it.status.name == "DONE" }
     val totalGp = missions.sumOf(::rewardGp).coerceAtLeast(125)
     val level = (totalGp / 180) + 1
     val xpCurrent = totalGp % 180
     val activeCount = activeMissions.size
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Level $level", style = MaterialTheme.typography.headlineLarge)
-                        Text(
-                            text = if (completedCount >= 20) "STELLAR NAVIGATOR" else "QUEST PILOT",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AccentPrimary,
-                        )
-                    }
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                        Text("$xpCurrent/180 XP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
-                        Text(
-                            "$activeCount active | v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                        .background(CardSurfaceStrong),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth((xpCurrent / 180f).coerceIn(0.08f, 1f))
-                            .height(6.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                            .background(AccentPrimary),
-                    )
-                }
-            }
+    LaunchedEffect(completionReward?.nonce) {
+        if (completionReward != null) {
+            delay(2200)
+            viewModel.clearCompletionReward()
         }
+    }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Text("ACTIVE SIDEQUESTS", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
-                Surface(
-                    color = AccentPrimary.copy(alpha = 0.12f),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                ) {
-                    Text(
-                        text = "${activeCount.coerceAtLeast(missions.size)} ACTIVE",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = AccentSecondary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                }
-            }
-        }
-
-        if (missions.isEmpty()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
             item {
-                ScaffoldCard(
-                    title = "No quests deployed",
-                    subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
-                ) {
-                    Text("1. Capture a note, receipt or whiteboard.")
-                    Text("2. Wait for background extraction to finish.")
-                    Text("3. Promote a candidate from Inbox.")
-                }
-            }
-        } else {
-            items(missions, key = { it.id }) { mission ->
-                ScaffoldCard(
-                    title = mission.title,
-                    subtitle = mission.description,
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.Top,
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Surface(
-                                color = AccentPrimary.copy(alpha = 0.12f),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                                modifier = Modifier.size(44.dp),
-                            ) {
-                                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                                    Icon(
-                                        imageVector = missionIconRes(mission),
-                                        contentDescription = mission.title,
-                                        tint = AccentPrimary,
-                                    )
-                                }
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                StatusPill(text = missionTierLabel(mission), tone = HudTone.Amber)
-                                StatusPill(text = urgencyLabel(mission), tone = urgencyTone(mission))
-                            }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Level $level", style = MaterialTheme.typography.headlineLarge)
+                            Text(
+                                text = if (completedCount >= 20) "STELLAR NAVIGATOR" else "QUEST PILOT",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = AccentPrimary,
+                            )
                         }
-                        Text(
-                            text = "${rewardXp(mission)} XP",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AccentSecondary,
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                            Text("$xpCurrent/180 XP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+                            Text(
+                                "$activeCount active | v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                            .background(CardSurfaceStrong),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((xpCurrent / 180f).coerceIn(0.08f, 1f))
+                                .height(6.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                                .background(AccentPrimary),
                         )
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(top = 18.dp),
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text("ACTIVE SIDEQUESTS", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+                    Surface(
+                        color = AccentPrimary.copy(alpha = 0.12f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                     ) {
-                        RewardChip(SidequestIcons.Spark, "${rewardXp(mission)} XP")
-                        RewardChip(SidequestIcons.Coin, "${rewardGp(mission)} GP")
+                        Text(
+                            text = "${activeCount.coerceAtLeast(missions.size)} ACTIVE",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AccentSecondary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(top = 18.dp),
+                }
+            }
+
+            if (missions.isEmpty()) {
+                item {
+                    ScaffoldCard(
+                        title = "No quests deployed",
+                        subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
                     ) {
-                        Button(onClick = { onOpenMission(mission.id) }, modifier = Modifier.weight(1f)) {
-                            Text("Open")
+                        Text("1. Capture a note, receipt or whiteboard.")
+                        Text("2. Wait for background extraction to finish.")
+                        Text("3. Promote a candidate from Inbox.")
+                    }
+                }
+            } else {
+                items(missions, key = { it.id }) { mission ->
+                    ScaffoldCard(
+                        title = mission.title,
+                        subtitle = mission.description,
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.Top,
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(
+                                    color = AccentPrimary.copy(alpha = 0.12f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                    modifier = Modifier.size(44.dp),
+                                ) {
+                                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                        Icon(
+                                            imageVector = missionIconRes(mission),
+                                            contentDescription = mission.title,
+                                            tint = AccentPrimary,
+                                        )
+                                    }
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    StatusPill(text = missionTierLabel(mission), tone = HudTone.Amber)
+                                    StatusPill(text = urgencyLabel(mission), tone = urgencyTone(mission))
+                                }
+                            }
+                            Text(
+                                text = "${rewardXp(mission)} XP",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = AccentSecondary,
+                            )
                         }
-                        Button(onClick = { viewModel.complete(mission.id) }, modifier = Modifier.weight(1f)) {
-                            Text("Complete")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(top = 18.dp),
+                        ) {
+                            RewardChip(SidequestIcons.Spark, "${rewardXp(mission)} XP")
+                            RewardChip(SidequestIcons.Coin, "${rewardGp(mission)} GP")
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(top = 18.dp),
+                        ) {
+                            Button(onClick = { onOpenMission(mission.id) }, modifier = Modifier.weight(1f)) {
+                                Text("Open")
+                            }
+                            Button(onClick = { viewModel.complete(mission.id) }, modifier = Modifier.weight(1f)) {
+                                Text("Complete")
+                            }
+                        }
+                        mission.sourceCaptureId?.let { captureId ->
+                            OutlinedButton(
+                                onClick = { onOpenCapture(captureId) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = SidequestIcons.Intel,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text("Open Source Intel", modifier = Modifier.padding(start = 8.dp))
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = completionReward != null,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.TopCenter)
+                .padding(top = 12.dp),
+        ) {
+            completionReward?.let { reward ->
+                CompletionRewardBanner(reward = reward)
             }
         }
     }
@@ -704,6 +752,63 @@ private fun RewardChip(
 }
 
 @Composable
+private fun CompletionRewardBanner(
+    reward: CompletionRewardUi,
+) {
+    Surface(
+        color = BgGlow,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.28f)),
+        shadowElevation = 8.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Surface(
+                color = AccentPrimary.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Icon(
+                        imageVector = SidequestIcons.Spark,
+                        contentDescription = "Quest completed",
+                        tint = AccentPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "quest synced: ${reward.title}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = AccentSecondary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RewardSummaryLine(label = "+${reward.xp} XP")
+                    RewardSummaryLine(label = "+${reward.gp} GP")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RewardSummaryLine(label: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(AccentPrimary),
+        )
+        Text(label, style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+    }
+}
+
+@Composable
 private fun PrioritySelector(
     selected: Int,
     onSelect: (Int) -> Unit,
@@ -795,7 +900,18 @@ class MissionsViewModel @Inject constructor(
         missionRepository.observeMissions()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _completionReward = MutableStateFlow<CompletionRewardUi?>(null)
+    val completionReward: StateFlow<CompletionRewardUi?> = _completionReward.asStateFlow()
+
     fun complete(missionId: String) {
+        missions.value.firstOrNull { it.id == missionId }?.let { mission ->
+            _completionReward.value = CompletionRewardUi(
+                title = mission.title,
+                xp = rewardXp(mission),
+                gp = rewardGp(mission),
+                nonce = System.currentTimeMillis(),
+            )
+        }
         viewModelScope.launch { missionRepository.applyAction(MissionAction.Complete(missionId)) }
     }
 
@@ -809,7 +925,18 @@ class MissionsViewModel @Inject constructor(
             )
         }
     }
+
+    fun clearCompletionReward() {
+        _completionReward.value = null
+    }
 }
+
+data class CompletionRewardUi(
+    val title: String,
+    val xp: Int,
+    val gp: Int,
+    val nonce: Long,
+)
 
 @HiltViewModel
 class MissionDetailViewModel @Inject constructor(
