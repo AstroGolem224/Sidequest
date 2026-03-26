@@ -300,3 +300,24 @@ interface RoutinePlanDao {
     @Query("DELETE FROM routine_plans")
     suspend fun clearPlans()
 }
+
+@Dao
+interface NoteDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertNote(entity: NoteEntity)
+
+    @Query("SELECT * FROM notes ORDER BY updatedAt DESC, createdAt DESC")
+    fun observeNotes(): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE id = :noteId LIMIT 1")
+    fun observeNote(noteId: String): Flow<NoteEntity?>
+
+    @Query("SELECT * FROM notes ORDER BY updatedAt DESC, createdAt DESC")
+    suspend fun listNotes(): List<NoteEntity>
+
+    @Query("DELETE FROM notes WHERE id = :noteId")
+    suspend fun deleteNote(noteId: String)
+
+    @Query("DELETE FROM notes")
+    suspend fun clearNotes()
+}

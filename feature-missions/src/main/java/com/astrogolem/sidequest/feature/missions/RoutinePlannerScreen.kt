@@ -186,6 +186,15 @@ fun RoutinePlanDetailRoute(
                 subtitle = "Created ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(plan.createdAt))}",
             ) {
                 Text("Completions: ${plan.completionCount} • Earned XP: ${plan.completionCount * plan.xpReward}")
+                Text(
+                    text = if (plan.active) {
+                        "Routine reminders are active and will fire on the next matching schedule."
+                    } else {
+                        "Routine reminders are paused until you reactivate this plan."
+                    },
+                    color = AccentPrimary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
                 plan.lastCompletedAt?.let {
                     Text(
                         text = "Last completed ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}",
@@ -378,6 +387,11 @@ private fun RoutinePlanSummaryCard(
             text = "Trigger: ${plan.triggerMode.name.lowercase()} • completions: ${plan.completionCount}",
             color = TextSecondary,
             modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            text = if (plan.active) "Reminder armed for next schedule." else "Reminder paused.",
+            color = AccentPrimary,
+            modifier = Modifier.padding(top = 6.dp),
         )
         Row(
             modifier = Modifier.padding(top = 12.dp),

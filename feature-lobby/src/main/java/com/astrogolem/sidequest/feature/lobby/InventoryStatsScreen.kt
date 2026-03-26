@@ -1,7 +1,12 @@
 package com.astrogolem.sidequest.feature.lobby
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,13 +18,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -29,22 +33,27 @@ import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.model.MissionAction
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionStatus
+import com.astrogolem.sidequest.core.data.model.NoteSummary
 import com.astrogolem.sidequest.core.data.model.RoutineCategory
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
 import com.astrogolem.sidequest.core.data.model.ShoppingListSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.data.repo.NotesRepository
 import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
 import com.astrogolem.sidequest.core.data.repo.ShoppingListRepository
-import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
-import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.components.HudTone
-import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
+import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
+import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.text.DateFormat
+import java.util.Date
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -52,15 +61,29 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InventoryRoute(
     onOpenShopping: (String) -> Unit,
     onOpenRoutine: (String) -> Unit,
     onOpenMission: (String) -> Unit,
     onOpenCapture: (String) -> Unit,
+    onOpenNote: (String) -> Unit,
     viewModel: InventoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.importNote(uri)
+        }
+    }
+
+    LaunchedEffect(state.openNoteId) {
+        state.openNoteId?.let { noteId ->
+            onOpenNote(noteId)
+            viewModel.consumeOpenNote()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -71,9 +94,36 @@ fun InventoryRoute(
         item {
             ScaffoldCard(
                 title = "Inventory",
-                subtitle = "Persistent assets that should stay editable and reusable instead of disappearing into the quest feed.",
+                subtitle = "Reusable assets that stay editable instead of disappearing into the quest feed.",
             ) {
-                Text("Shopping lists can be renamed, archived, and reactivated. Routine plans stay editable. Archived quests and stored scans stay one tap away.")
+                Text("Shopping lists, notes, routine plans, archived quests, and saved scans live here.")
+                if (state.feedback.isNotBlank()) {
+                    Text(
+                        text = state.feedback,
+                        color = AccentSecondary,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+            }
+        }
+
+        item { InventorySectionTitle("Notes", "Markdown notes you can write, import, edit, and reopen.") }
+        item {
+            NotesCreateCard(
+                onCreateBlank = viewModel::createBlankNote,
+                onImport = { importLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) },
+            )
+        }
+        if (state.notes.isEmpty()) {
+            item {
+                ScaffoldCard(
+                    title = "No notes yet",
+                    subtitle = "Create a markdown note or import an existing .md file and it will stay in inventory.",
+                ) {}
+            }
+        } else {
+            items(state.notes, key = { it.id }) { note ->
+                NoteInventoryCard(note = note, onOpen = { onOpenNote(note.id) })
             }
         }
 
@@ -96,7 +146,7 @@ fun InventoryRoute(
             }
         }
 
-        item { InventorySectionTitle("Routine Plans", "Repeatable systems with editable schedules.") }
+        item { InventorySectionTitle("Routine Plans", "Repeatable systems with editable schedules and reminders.") }
         if (state.routinePlans.isEmpty()) {
             item {
                 ScaffoldCard(
@@ -144,6 +194,7 @@ fun InventoryRoute(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StatsRoute(
     viewModel: StatsViewModel = hiltViewModel(),
@@ -159,7 +210,7 @@ fun StatsRoute(
         item {
             ScaffoldCard(
                 title = "Stats",
-                subtitle = "Real completion history plus derived health indicators. The formulas are documented so the game layer stays honest.",
+                subtitle = "Real completion history plus derived health indicators. The formulas stay tied to actual completed work.",
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -177,10 +228,22 @@ fun StatsRoute(
                     StatsMetricCard("Checked Items", state.checkedShoppingItems.toString(), Modifier.weight(1f))
                     StatsMetricCard("Saved Scans", state.savedScans.toString(), Modifier.weight(1f))
                 }
+                FlowRow(
+                    modifier = Modifier.padding(top = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.wellbeing.forEach { metric ->
+                        StatusPill(
+                            text = "${metric.label} ${metric.score}%",
+                            tone = metric.tone,
+                        )
+                    }
+                }
             }
         }
 
-        item { InventorySectionTitle("Wellbeing Signals", "Derived from real completions across routines and quests.") }
+        item { InventorySectionTitle("Wellbeing Signals", "Pill-bars plus breakdowns derived from real completions.") }
         items(state.wellbeing, key = { it.label }) { metric ->
             WellbeingCard(metric)
         }
@@ -193,6 +256,29 @@ fun StatsRoute(
 }
 
 @Composable
+private fun NotesCreateCard(
+    onCreateBlank: () -> Unit,
+    onImport: () -> Unit,
+) {
+    ScaffoldCard(
+        title = "Markdown Notes",
+        subtitle = "Notes belong in inventory because they should persist, evolve, and stay searchable.",
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(onClick = onCreateBlank, modifier = Modifier.weight(1f)) {
+                Text("New Note")
+            }
+            OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
+                Text("Import Markdown")
+            }
+        }
+    }
+}
+
+@Composable
 private fun InventorySectionTitle(
     title: String,
     subtitle: String,
@@ -200,6 +286,21 @@ private fun InventorySectionTitle(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title.uppercase(), color = TextSecondary)
         Text(subtitle, color = TextSecondary)
+    }
+}
+
+@Composable
+private fun NoteInventoryCard(
+    note: NoteSummary,
+    onOpen: () -> Unit,
+) {
+    ScaffoldCard(
+        title = note.title,
+        subtitle = "${if (note.imported) "imported" else "local"} • updated ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(note.updatedAt))}",
+    ) {
+        OutlinedButton(onClick = onOpen) {
+            Text("Open Note")
+        }
     }
 }
 
@@ -246,6 +347,7 @@ private fun ShoppingInventoryCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RoutineInventoryCard(
     plan: RoutinePlanSummary,
@@ -255,12 +357,21 @@ private fun RoutineInventoryCard(
         title = plan.title,
         subtitle = "${plan.category.name.lowercase()} | ${plan.durationMinutes} min | ${plan.completionCount} completions",
     ) {
-        StatusPill(
-            text = if (plan.active) "active" else "paused",
-            tone = if (plan.active) HudTone.Cyan else HudTone.Neutral,
-        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusPill(
+                text = if (plan.active) "active" else "paused",
+                tone = if (plan.active) HudTone.Cyan else HudTone.Neutral,
+            )
+            StatusPill(
+                text = "${plan.hour.toString().padStart(2, '0')}:${plan.minute.toString().padStart(2, '0')}",
+                tone = HudTone.Violet,
+            )
+        }
         Text(
-            text = "Schedule: ${plan.weekdays.ifBlank { "manual" }} @ ${plan.hour.toString().padStart(2, '0')}:${plan.minute.toString().padStart(2, '0')}",
+            text = "Schedule: ${plan.weekdays.ifBlank { "manual" }}",
             color = TextSecondary,
             modifier = Modifier.padding(top = 10.dp),
         )
@@ -329,15 +440,27 @@ private fun StatsMetricCard(
     ) {}
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WellbeingCard(
     metric: WellbeingMetricUi,
 ) {
     ScaffoldCard(
-        title = "${metric.label} ${metric.score}%",
+        title = metric.label,
         subtitle = metric.description,
     ) {
-        StatusPill(text = metric.signal, tone = metric.tone)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusPill(text = "${metric.score}%", tone = metric.tone)
+            StatusPill(text = metric.signal, tone = metric.tone)
+        }
+        SegmentedMeter(
+            progress = (metric.score / 100f).coerceIn(0.08f, 1f),
+            tone = metric.tone,
+            modifier = Modifier.padding(top = 12.dp),
+        )
         Text(
             text = metric.breakdown,
             color = TextSecondary,
@@ -359,10 +482,13 @@ private fun BreakdownCard(
 }
 
 data class InventoryUiState(
+    val notes: List<NoteSummary> = emptyList(),
     val shoppingLists: List<ShoppingListSummary> = emptyList(),
     val routinePlans: List<RoutinePlanSummary> = emptyList(),
     val archivedMissions: List<MissionCardModel> = emptyList(),
     val captures: List<CaptureSummary> = emptyList(),
+    val feedback: String = "",
+    val openNoteId: String? = null,
 )
 
 data class WellbeingMetricUi(
@@ -391,25 +517,74 @@ data class StatsUiState(
 
 @HiltViewModel
 class InventoryViewModel @Inject constructor(
+    private val notesRepository: NotesRepository,
     private val shoppingListRepository: ShoppingListRepository,
     private val routinePlanRepository: RoutinePlanRepository,
     private val missionRepository: MissionRepository,
     private val captureRepository: CaptureRepository,
 ) : ViewModel() {
+    private val feedback = MutableStateFlow("")
+    private val openNoteId = MutableStateFlow<String?>(null)
+
     val state: StateFlow<InventoryUiState> =
         combine(
+            notesRepository.observeNotes(),
             shoppingListRepository.observeLists(),
             routinePlanRepository.observePlans(),
             missionRepository.observeMissions(),
             captureRepository.observeCaptures(),
-        ) { shoppingLists, routinePlans, missions, captures ->
+            feedback,
+            openNoteId,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val notes = values[0] as List<NoteSummary>
+            @Suppress("UNCHECKED_CAST")
+            val shoppingLists = values[1] as List<ShoppingListSummary>
+            @Suppress("UNCHECKED_CAST")
+            val routinePlans = values[2] as List<RoutinePlanSummary>
+            @Suppress("UNCHECKED_CAST")
+            val missions = values[3] as List<MissionCardModel>
+            @Suppress("UNCHECKED_CAST")
+            val captures = values[4] as List<CaptureSummary>
+            val currentFeedback = values[5] as String
+            val currentOpenNoteId = values[6] as String?
             InventoryUiState(
+                notes = notes,
                 shoppingLists = shoppingLists,
                 routinePlans = routinePlans,
                 archivedMissions = missions.filter { it.status == MissionStatus.ARCHIVED },
                 captures = captures.take(10),
+                feedback = currentFeedback,
+                openNoteId = currentOpenNoteId,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InventoryUiState())
+
+    fun createBlankNote() {
+        viewModelScope.launch {
+            val noteId = notesRepository.createNote(title = "New Note")
+            feedback.value = "note created"
+            openNoteId.value = noteId
+        }
+    }
+
+    fun importNote(uri: Uri) {
+        viewModelScope.launch {
+            notesRepository.importMarkdown(uri)
+                .fold(
+                    onSuccess = { noteId ->
+                        feedback.value = "markdown imported"
+                        openNoteId.value = noteId
+                    },
+                    onFailure = { error ->
+                        feedback.value = error.message ?: "markdown import failed"
+                    },
+                )
+        }
+    }
+
+    fun consumeOpenNote() {
+        openNoteId.value = null
+    }
 
     fun renameList(listId: String, title: String) {
         viewModelScope.launch {

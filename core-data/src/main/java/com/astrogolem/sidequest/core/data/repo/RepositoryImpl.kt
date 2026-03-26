@@ -30,6 +30,8 @@ import com.astrogolem.sidequest.core.data.local.ExtractedItemEntity
 import com.astrogolem.sidequest.core.data.local.KnowledgeNodeEntity
 import com.astrogolem.sidequest.core.data.local.MissionDao
 import com.astrogolem.sidequest.core.data.local.MissionEntity
+import com.astrogolem.sidequest.core.data.local.NoteDao
+import com.astrogolem.sidequest.core.data.local.NoteEntity
 import com.astrogolem.sidequest.core.data.local.ReminderDao
 import com.astrogolem.sidequest.core.data.local.ReminderEntity
 import com.astrogolem.sidequest.core.data.local.RoutinePlanDao
@@ -52,6 +54,8 @@ import com.astrogolem.sidequest.core.data.model.ExtractionStatus
 import com.astrogolem.sidequest.core.data.model.MissionAction
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionDetailModel
+import com.astrogolem.sidequest.core.data.model.NoteDetail
+import com.astrogolem.sidequest.core.data.model.NoteSummary
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.model.ProcessingResult
 import com.astrogolem.sidequest.core.data.model.ProviderAvailability
@@ -76,6 +80,7 @@ import java.io.File
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.io.InputStream
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.UUID
 import java.util.Calendar
@@ -704,6 +709,7 @@ class DefaultShoppingListRepository @Inject constructor(
 @Singleton
 class DefaultRoutinePlanRepository @Inject constructor(
     private val routinePlanDao: RoutinePlanDao,
+    private val workManager: WorkManager,
 ) : RoutinePlanRepository {
     override fun observePlans(): Flow<List<RoutinePlanSummary>> {
         return routinePlanDao.observePlans().map { plans ->
@@ -719,14 +725,135 @@ class DefaultRoutinePlanRepository @Inject constructor(
 
     override suspend fun upsertPlan(detail: RoutinePlanDetail) {
         routinePlanDao.upsertPlan(detail.toEntity())
+        scheduleReminder(detail)
     }
 
     override suspend fun completePlan(planId: String) {
         routinePlanDao.markCompleted(planId, System.currentTimeMillis())
+        routinePlanDao.observePlan(planId).first()?.toDetail()?.let { scheduleReminder(it) }
     }
 
     override suspend fun deletePlan(planId: String) {
         routinePlanDao.deletePlan(planId)
+        workManager.cancelUniqueWork(routineReminderWorkName(planId))
+    }
+
+    private suspend fun scheduleReminder(detail: RoutinePlanDetail) {
+        workManager.cancelUniqueWork(routineReminderWorkName(detail.id))
+        if (!detail.active) return
+
+        val triggerAt = nextRoutineTriggerAt(detail) ?: return
+        workManager.enqueueUniqueWork(
+            routineReminderWorkName(detail.id),
+            REPLACE,
+            OneTimeWorkRequestBuilder<RoutineReminderWorker>()
+                .setInitialDelay(max(triggerAt - System.currentTimeMillis(), 0L), TimeUnit.MILLISECONDS)
+                .setInputData(
+                    workDataOf(
+                        RoutineReminderWorker.PLAN_ID_KEY to detail.id,
+                        RoutineReminderWorker.TITLE_KEY to detail.title,
+                        RoutineReminderWorker.TARGET_KEY to detail.targetLabel,
+                    ),
+                )
+                .build(),
+        )
+    }
+}
+
+@Singleton
+class DefaultNotesRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val noteDao: NoteDao,
+) : NotesRepository {
+    override fun observeNotes(): Flow<List<NoteSummary>> {
+        return noteDao.observeNotes().map { notes ->
+            notes.map {
+                NoteSummary(
+                    id = it.id,
+                    title = it.title,
+                    createdAt = it.createdAt,
+                    updatedAt = it.updatedAt,
+                    imported = it.imported,
+                )
+            }
+        }
+    }
+
+    override fun observeNote(noteId: String): Flow<NoteDetail?> {
+        return noteDao.observeNote(noteId).map { entity ->
+            entity?.toNoteDetail()
+        }
+    }
+
+    override suspend fun createNote(title: String, markdown: String): String {
+        val noteId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        noteDao.upsertNote(
+            NoteEntity(
+                id = noteId,
+                title = title.trim().ifBlank { "Untitled Note" },
+                markdown = markdown,
+                createdAt = now,
+                updatedAt = now,
+                imported = false,
+                sourceLabel = null,
+            ),
+        )
+        return noteId
+    }
+
+    override suspend fun importMarkdown(uri: Uri): Result<String> {
+        return runCatching {
+            val text = context.contentResolver.openInputStream(uri)
+                ?.bufferedReader(StandardCharsets.UTF_8)
+                ?.use { it.readText() }
+                ?.trim()
+                .orEmpty()
+            require(text.isNotBlank()) { "The selected markdown file is empty." }
+
+            val title = uri.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+                ?.replace('_', ' ')
+                ?.replace('-', ' ')
+                ?.trim()
+                .takeUnless { it.isNullOrBlank() }
+                ?: firstMarkdownHeading(text)
+                ?: "Imported Note"
+
+            val noteId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            noteDao.upsertNote(
+                NoteEntity(
+                    id = noteId,
+                    title = title,
+                    markdown = text,
+                    createdAt = now,
+                    updatedAt = now,
+                    imported = true,
+                    sourceLabel = uri.lastPathSegment,
+                ),
+            )
+            noteId
+        }
+    }
+
+    override suspend fun saveNote(detail: NoteDetail) {
+        noteDao.upsertNote(
+            NoteEntity(
+                id = detail.id,
+                title = detail.title.trim().ifBlank { "Untitled Note" },
+                markdown = detail.markdown,
+                createdAt = detail.createdAt,
+                updatedAt = System.currentTimeMillis(),
+                imported = detail.imported,
+                sourceLabel = detail.sourceLabel,
+            ),
+        )
+    }
+
+    override suspend fun deleteNote(noteId: String) {
+        noteDao.deleteNote(noteId)
     }
 }
 
@@ -740,6 +867,7 @@ class DefaultArchiveService @Inject constructor(
     private val searchDao: SearchDao,
     private val shoppingListDao: ShoppingListDao,
     private val routinePlanDao: RoutinePlanDao,
+    private val noteDao: NoteDao,
 ) : ArchiveService {
     override suspend fun exportSnapshot(target: Uri): Result<Unit> {
         return runCatching {
@@ -754,8 +882,9 @@ class DefaultArchiveService @Inject constructor(
                 shoppingListDao.observeList(snapshot.id).first()
             }
             val routinePlans = routinePlanDao.listPlans()
+            val notes = noteDao.listNotes()
             val manifest = JSONObject().apply {
-                put("version", 6)
+                put("version", 7)
                 put("exportedAt", System.currentTimeMillis())
                 put("counts", JSONObject().apply {
                     put("captures", captures.size)
@@ -767,6 +896,7 @@ class DefaultArchiveService @Inject constructor(
                     put("shoppingLists", shoppingListSnapshots.size)
                     put("shoppingItems", shoppingItems.size)
                     put("routinePlans", routinePlans.size)
+                    put("notes", notes.size)
                 })
             }
 
@@ -812,6 +942,10 @@ class DefaultArchiveService @Inject constructor(
                     zip.write(JSONArray(routinePlans.map { it.toJson() }).toString().toByteArray())
                     zip.closeEntry()
 
+                    zip.putNextEntry(ZipEntry("data/notes.json"))
+                    zip.write(JSONArray(notes.map { it.toJson() }).toString().toByteArray())
+                    zip.closeEntry()
+
                     captures.forEach { capture ->
                         val file = File(capture.filePath)
                         if (file.exists()) {
@@ -827,8 +961,8 @@ class DefaultArchiveService @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     createdAt = System.currentTimeMillis(),
                     fileUri = target.toString(),
-                    checksum = "zip-v5",
-                    itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size + shoppingListSnapshots.size + shoppingItems.size + routinePlans.size,
+                    checksum = "zip-v7",
+                    itemCount = captures.size + analyses.size + extractedItems.size + missions.size + reminders.size + nodes.size + shoppingListSnapshots.size + shoppingItems.size + routinePlans.size + notes.size,
                 ),
             )
         }
@@ -839,7 +973,7 @@ class DefaultArchiveService @Inject constructor(
             val entries = readArchiveEntries(source)
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: return ArchiveValidationResult.Invalid("Missing manifest.json")
-            if (manifest.optInt("version") !in setOf(2, 3, 4, 5, 6)) {
+            if (manifest.optInt("version") !in setOf(2, 3, 4, 5, 6, 7)) {
                 ArchiveValidationResult.Invalid("Unsupported archive version")
             } else if (!entries.containsKey("data/captures.json") || !entries.containsKey("data/missions.json")) {
                 ArchiveValidationResult.Invalid("Archive data is incomplete")
@@ -855,7 +989,7 @@ class DefaultArchiveService @Inject constructor(
             val manifest = entries["manifest.json"]?.decodeToString()?.let(::JSONObject)
                 ?: error("Missing manifest")
             val archiveVersion = manifest.optInt("version")
-            require(archiveVersion in setOf(2, 3, 4, 5)) { "Unsupported archive version" }
+            require(archiveVersion in setOf(2, 3, 4, 5, 6, 7)) { "Unsupported archive version" }
 
             val captures = entries.requireJsonArray("data/captures.json")
             val analyses = entries.requireJsonArray("data/analyses.json")
@@ -866,6 +1000,7 @@ class DefaultArchiveService @Inject constructor(
             val shoppingLists = entries.optionalJsonArray("data/shopping_lists.json")
             val shoppingItems = entries.optionalJsonArray("data/shopping_items.json")
             val routinePlans = entries.optionalJsonArray("data/routine_plans.json")
+            val notes = entries.optionalJsonArray("data/notes.json")
 
             reminderDao.clearReminders()
             missionDao.clearMissions()
@@ -876,6 +1011,7 @@ class DefaultArchiveService @Inject constructor(
             shoppingListDao.clearItems()
             shoppingListDao.clearLists()
             routinePlanDao.clearPlans()
+            noteDao.clearNotes()
 
             for (index in 0 until captures.length()) {
                 val json = captures.getJSONObject(index)
@@ -1038,6 +1174,23 @@ class DefaultArchiveService @Inject constructor(
                             completionCount = json.optInt("completionCount", 0),
                             lastCompletedAt = json.optLongOrNull("lastCompletedAt"),
                             createdAt = json.optLongOrNull("createdAt") ?: System.currentTimeMillis(),
+                        ),
+                    )
+                }
+            }
+
+            if (archiveVersion >= 7) {
+                for (index in 0 until notes.length()) {
+                    val json = notes.getJSONObject(index)
+                    noteDao.upsertNote(
+                        NoteEntity(
+                            id = json.getString("id"),
+                            title = json.getString("title"),
+                            markdown = json.getString("markdown"),
+                            createdAt = json.getLong("createdAt"),
+                            updatedAt = json.getLong("updatedAt"),
+                            imported = json.optBoolean("imported", false),
+                            sourceLabel = json.optString("sourceLabel").takeIf { it.isNotBlank() },
                         ),
                     )
                 }
@@ -1420,6 +1573,53 @@ private fun deriveShoppingTitle(items: List<String>): String {
     return "$prefix • $stamp"
 }
 
+private fun firstMarkdownHeading(markdown: String): String? {
+    return markdown.lineSequence()
+        .map { it.trim() }
+        .firstOrNull { it.startsWith("#") }
+        ?.trimStart('#')
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+}
+
+private fun nextRoutineTriggerAt(detail: RoutinePlanDetail, nowMillis: Long = System.currentTimeMillis()): Long? {
+    val weekdays = detail.weekdays.split(',').map { it.trim() }.filter { it.isNotBlank() }
+    val allowedDays = weekdays.mapNotNull(::weekdayTokenToCalendarDay).toSet()
+
+    repeat(14) { offset ->
+        val candidate = Calendar.getInstance().apply {
+            timeInMillis = nowMillis
+            add(Calendar.DAY_OF_YEAR, offset)
+            set(Calendar.HOUR_OF_DAY, detail.hour.coerceIn(0, 23))
+            set(Calendar.MINUTE, detail.minute.coerceIn(0, 59))
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val weekdayMatches = allowedDays.isEmpty() || candidate.get(Calendar.DAY_OF_WEEK) in allowedDays
+        if (!weekdayMatches) return@repeat
+        if (candidate.timeInMillis <= nowMillis) return@repeat
+        if (!detail.recurring && offset > 0) return@repeat
+        return candidate.timeInMillis
+    }
+
+    return null
+}
+
+private fun weekdayTokenToCalendarDay(token: String): Int? {
+    return when (token.lowercase(Locale.ROOT)) {
+        "mon" -> Calendar.MONDAY
+        "tue" -> Calendar.TUESDAY
+        "wed" -> Calendar.WEDNESDAY
+        "thu" -> Calendar.THURSDAY
+        "fri" -> Calendar.FRIDAY
+        "sat" -> Calendar.SATURDAY
+        "sun" -> Calendar.SUNDAY
+        else -> null
+    }
+}
+
+private fun routineReminderWorkName(planId: String) = "routine-reminder-$planId"
+
 private val ActionHints = setOf(
     "add",
     "book",
@@ -1656,6 +1856,28 @@ private fun RoutinePlanEntity.toJson(): JSONObject = JSONObject().apply {
     put("createdAt", createdAt)
 }
 
+private fun NoteEntity.toJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("title", title)
+    put("markdown", markdown)
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+    put("imported", imported)
+    put("sourceLabel", sourceLabel)
+}
+
+private fun NoteEntity.toNoteDetail(): NoteDetail {
+    return NoteDetail(
+        id = id,
+        title = title,
+        markdown = markdown,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        imported = imported,
+        sourceLabel = sourceLabel,
+    )
+}
+
 @Singleton
 class DefaultSecurityService @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -1772,5 +1994,59 @@ class MissionReminderWorker @AssistedInject constructor(
         const val MISSION_ID_KEY = "mission_id"
         const val TITLE_KEY = "title"
         const val DESCRIPTION_KEY = "description"
+    }
+}
+
+@HiltWorker
+class RoutineReminderWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result {
+        val planId = inputData.getString(PLAN_ID_KEY) ?: return Result.failure()
+        val title = inputData.getString(TITLE_KEY) ?: "Routine reminder"
+        val target = inputData.getString(TARGET_KEY).orEmpty()
+
+        val channelId = "sidequest_routines"
+        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(
+            NotificationChannel(channelId, "Sidequest Routines", NotificationManager.IMPORTANCE_DEFAULT),
+        )
+
+        val intent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)?.apply {
+            putExtra("routine_plan_id", planId)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        } ?: return Result.failure()
+
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            planId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val body = if (target.isBlank()) {
+            "Your routine is due."
+        } else {
+            "Target: $target"
+        }
+
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(applicationContext).notify(planId.hashCode(), notification)
+        return Result.success()
+    }
+
+    companion object {
+        const val PLAN_ID_KEY = "routine_plan_id"
+        const val TITLE_KEY = "title"
+        const val TARGET_KEY = "target"
     }
 }

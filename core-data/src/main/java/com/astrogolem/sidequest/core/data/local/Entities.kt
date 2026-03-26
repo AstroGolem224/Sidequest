@@ -191,3 +191,14 @@ data class RoutinePlanEntity(
     val lastCompletedAt: Long?,
     val createdAt: Long,
 )
+
+@Entity(tableName = "notes")
+data class NoteEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val markdown: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val imported: Boolean,
+    val sourceLabel: String?,
+)

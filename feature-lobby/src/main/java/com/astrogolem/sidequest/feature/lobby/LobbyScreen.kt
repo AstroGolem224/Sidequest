@@ -57,7 +57,6 @@ import kotlinx.coroutines.flow.stateIn
 
 @Composable
 fun LobbyRoute(
-    onOpenInventory: () -> Unit,
     onOpenStats: () -> Unit,
     viewModel: LobbyViewModel = hiltViewModel(),
 ) {
@@ -71,23 +70,9 @@ fun LobbyRoute(
         item { ProfileHero(state) }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(onClick = onOpenInventory, modifier = Modifier.weight(1f)) {
-                    Text("Inventory")
-                }
-                OutlinedButton(onClick = onOpenStats, modifier = Modifier.weight(1f)) {
-                    Text("Stats")
-                }
+            OutlinedButton(onClick = onOpenStats, modifier = Modifier.fillMaxWidth()) {
+                Text("Open Stats")
             }
-        }
-
-        item { SectionTitle("Activity Metrics", "Live signals derived from actual mission history.") }
-
-        items(state.attributes, key = { it.label }) { attribute ->
-            AttributeCard(attribute)
         }
 
         item { ProtocolCard(state) }
@@ -251,45 +236,6 @@ private fun MetricStack(
 }
 
 @Composable
-private fun AttributeCard(attribute: AttributeMetric) {
-    val animatedProgress = animateFloatAsState(
-        targetValue = (attribute.percentage / 100f).coerceIn(0.08f, 1f),
-        animationSpec = tween(durationMillis = 460),
-        label = "${attribute.label}-progress",
-    )
-    ScaffoldCard(title = attribute.label, subtitle = attribute.subtitle) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Surface(
-                color = AccentPrimary.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = attribute.icon,
-                        contentDescription = attribute.label,
-                        tint = AccentPrimary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            Text("${attribute.percentage}%", style = androidx.compose.material3.MaterialTheme.typography.titleSmall, color = AccentSecondary)
-        }
-        SegmentedMeter(
-            progress = animatedProgress.value,
-            tone = HudTone.Amber,
-            modifier = Modifier.padding(top = 14.dp),
-        )
-    }
-}
-
-@Composable
 private fun ProtocolCard(state: LobbyUiState) {
     ScaffoldCard(
         title = if (state.systemOverload) "Warning: System Overload" else "Protocol Active",
@@ -421,13 +367,6 @@ private fun ArchiveCard(mission: MissionCardModel) {
     }
 }
 
-data class AttributeMetric(
-    val label: String,
-    val subtitle: String,
-    val percentage: Int,
-    val icon: ImageVector,
-)
-
 data class LootCardModel(
     val title: String,
     val subtitle: String,
@@ -448,7 +387,6 @@ data class LobbyUiState(
     val rankLabel: String = "",
     val rankTitle: String = "Ready",
     val systemOverload: Boolean = false,
-    val attributes: List<AttributeMetric> = emptyList(),
     val loot: List<LootCardModel> = emptyList(),
     val spotlight: List<MissionCardModel> = emptyList(),
     val recentArchives: List<MissionCardModel> = emptyList(),
@@ -478,7 +416,6 @@ class LobbyViewModel @Inject constructor(
                     rankLabel = doneCount.toString(),
                     rankTitle = rankTitle(doneCount),
                     systemOverload = openCount > 10,
-                    attributes = buildAttributes(openCount, doneCount, totalCount),
                     loot = buildLoot(doneCount, totalCount, openCount),
                     spotlight = missions.take(3),
                     recentArchives = missions
@@ -487,39 +424,6 @@ class LobbyViewModel @Inject constructor(
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LobbyUiState())
-}
-
-private fun buildAttributes(
-    openCount: Int,
-    doneCount: Int,
-    totalCount: Int,
-): List<AttributeMetric> {
-    return listOf(
-        AttributeMetric(
-            label = "Productivity",
-            subtitle = "Quest completion throughput",
-            percentage = (doneCount * 12 + 38).coerceAtMost(96),
-            icon = SidequestIcons.Spark,
-        ),
-        AttributeMetric(
-            label = "Wellness",
-            subtitle = "Load balance across the queue",
-            percentage = (88 - (openCount * 4)).coerceIn(24, 90),
-            icon = SidequestIcons.Sprint,
-        ),
-        AttributeMetric(
-            label = "Knowledge",
-            subtitle = "Intel captured and retained",
-            percentage = (totalCount * 9 + 32).coerceAtMost(97),
-            icon = SidequestIcons.Study,
-        ),
-        AttributeMetric(
-            label = "Discipline",
-            subtitle = "Consistency over time",
-            percentage = (doneCount * 8 + 26).coerceAtMost(94),
-            icon = SidequestIcons.Compass,
-        ),
-    )
 }
 
 private fun buildLoot(

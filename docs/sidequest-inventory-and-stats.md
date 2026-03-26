@@ -15,25 +15,41 @@ Without these screens, shopping lists, archived quests, routines, and scans beco
 
 ### What belongs in Inventory now
 
-1. Shopping lists
+1. Notes
+   - markdown writing
+   - markdown import
+   - editable title + body
+   - previewable and reopenable
+
+2. Shopping lists
    - renameable
    - archivable
    - reactivatable
    - openable
 
-2. Routine plans
+3. Routine plans
    - editable
    - schedulable
+   - reminder-backed
    - openable
 
-3. Archived quests
+4. Archived quests
    - visible after abandonment/archive
    - reactivatable
    - openable
 
-4. Saved scans
+5. Saved scans
    - quickly reopenable from a single place
    - still deletable from capture detail
+
+### Why notes belong here
+
+Notes are not quests and they are not disposable intake. They are durable user-owned assets. That makes `Inventory` the correct place for them because they need:
+
+- stable reopening
+- markdown editing
+- import from existing files
+- local-first persistence without pretending they are action items
 
 ### Why shopping lists belong here
 
@@ -87,6 +103,16 @@ The screen also shows four derived indicators:
 
 These are explicitly derived signals, not medical or psychological measurements.
 
+### Pill-bar presentation
+
+The old profile-only pseudo-stat cards are gone. Instead, `Stats` now owns the quick status layer using pill-style bars:
+
+- one pill per wellbeing domain
+- score embedded directly in the pill
+- tone communicates state without hiding the numeric score
+
+This keeps the profile lighter and puts the measurement system where it belongs.
+
 ### Derivation rules
 
 Routine plans are the cleanest source because they already carry a category:
@@ -139,6 +165,12 @@ The system should stay editable wherever the user still owns the asset:
 
 4. saved scans
    - deletable from capture detail
+
+5. notes
+   - title editable
+   - markdown editable
+   - deletable
+   - imported source retained when relevant
 
 ## Additional Routine Ideas
 

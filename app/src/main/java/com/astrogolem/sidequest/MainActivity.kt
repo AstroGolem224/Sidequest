@@ -62,6 +62,7 @@ import com.astrogolem.sidequest.feature.capture.CaptureRoute
 import com.astrogolem.sidequest.feature.inbox.InboxRoute
 import com.astrogolem.sidequest.feature.lobby.InventoryRoute
 import com.astrogolem.sidequest.feature.lobby.LobbyRoute
+import com.astrogolem.sidequest.feature.lobby.NoteDetailRoute
 import com.astrogolem.sidequest.feature.lobby.StatsRoute
 import com.astrogolem.sidequest.feature.missions.MissionDetailRoute
 import com.astrogolem.sidequest.feature.missions.MissionsRoute
@@ -76,6 +77,7 @@ import javax.inject.Inject
 
 private const val MissionIdExtra = "mission_id"
 private const val CaptureIdExtra = "capture_id"
+private const val RoutinePlanIdExtra = "routine_plan_id"
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -119,6 +121,7 @@ private data class TopLevelDestination(
 private sealed interface DeepLinkTarget {
     data class Mission(val missionId: String) : DeepLinkTarget
     data class Capture(val captureId: String) : DeepLinkTarget
+    data class Routine(val planId: String) : DeepLinkTarget
 }
 
 @Composable
@@ -146,6 +149,7 @@ private fun SidequestApp(
         TopLevelDestination("missions", "Dashboard", SidequestIcons.Dashboard),
         TopLevelDestination("inbox", "Quests", SidequestIcons.QuestLog),
         TopLevelDestination("capture", "Create", SidequestIcons.Camera),
+        TopLevelDestination("inventory", "Inventory", SidequestIcons.Intel),
         TopLevelDestination("lobby", "Profile", SidequestIcons.Profile),
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -158,8 +162,8 @@ private fun SidequestApp(
         "shopping/{listId}",
         "routines",
         "routine/{planId}",
-        "inventory",
         "stats",
+        "note/{noteId}",
     )
     val showBottomBar = destinations.any { it.route == currentRoute }
     val showTopBar = showBottomBar || currentRoute in utilityRoutes
@@ -167,13 +171,14 @@ private fun SidequestApp(
         "missions" -> "Quest Log"
         "inbox" -> "Quest Intake"
         "capture" -> "Create"
+        "inventory" -> "Inventory"
         "lobby" -> "Profile"
         "shopping" -> "Shopping Lists"
         "shopping/{listId}" -> "Shopping List"
         "routines" -> "Routine Tasks"
         "routine/{planId}" -> "Routine Plan"
-        "inventory" -> "Inventory"
         "stats" -> "Stats"
+        "note/{noteId}" -> "Note"
         "search" -> "Search"
         "settings" -> "Settings"
         else -> "Sidequest"
@@ -183,6 +188,7 @@ private fun SidequestApp(
         when (val deepLink = pendingDeepLink) {
             is DeepLinkTarget.Mission -> navController.navigate("mission/${deepLink.missionId}")
             is DeepLinkTarget.Capture -> navController.navigate("captureDetail/${deepLink.captureId}")
+            is DeepLinkTarget.Routine -> navController.navigate("routine/${deepLink.planId}")
             null -> Unit
         }
         if (pendingDeepLink != null) {
@@ -332,7 +338,6 @@ private fun SidequestApp(
                     },
                 ) {
                     LobbyRoute(
-                        onOpenInventory = { navController.navigate("inventory") },
                         onOpenStats = { navController.navigate("stats") },
                     )
                 }
@@ -352,6 +357,7 @@ private fun SidequestApp(
                         onOpenRoutine = { planId -> navController.navigate("routine/$planId") },
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
                         onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                        onOpenNote = { noteId -> navController.navigate("note/$noteId") },
                     )
                 }
             }
@@ -366,6 +372,14 @@ private fun SidequestApp(
                     },
                 ) {
                     StatsRoute()
+                }
+            }
+            composable("note/{noteId}") {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    NoteDetailRoute()
                 }
             }
             composable("shopping") {
@@ -626,5 +640,6 @@ private fun Intent?.toDeepLinkTarget(): DeepLinkTarget? {
     val intent = this ?: return null
     intent.getStringExtra(MissionIdExtra)?.let { return DeepLinkTarget.Mission(it) }
     intent.getStringExtra(CaptureIdExtra)?.let { return DeepLinkTarget.Capture(it) }
+    intent.getStringExtra(RoutinePlanIdExtra)?.let { return DeepLinkTarget.Routine(it) }
     return null
 }

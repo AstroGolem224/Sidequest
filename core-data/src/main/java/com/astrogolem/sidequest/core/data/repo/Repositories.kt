@@ -11,6 +11,8 @@ import com.astrogolem.sidequest.core.data.model.MissionDetailModel
 import com.astrogolem.sidequest.core.data.model.ProcessingResult
 import com.astrogolem.sidequest.core.data.model.ProviderAvailability
 import com.astrogolem.sidequest.core.data.model.ProviderKind
+import com.astrogolem.sidequest.core.data.model.NoteDetail
+import com.astrogolem.sidequest.core.data.model.NoteSummary
 import com.astrogolem.sidequest.core.data.model.SearchResultModel
 import com.astrogolem.sidequest.core.data.model.RoutinePlanDetail
 import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
@@ -64,6 +66,15 @@ interface RoutinePlanRepository {
     suspend fun upsertPlan(detail: RoutinePlanDetail)
     suspend fun completePlan(planId: String)
     suspend fun deletePlan(planId: String)
+}
+
+interface NotesRepository {
+    fun observeNotes(): Flow<List<NoteSummary>>
+    fun observeNote(noteId: String): Flow<NoteDetail?>
+    suspend fun createNote(title: String, markdown: String = ""): String
+    suspend fun importMarkdown(uri: Uri): Result<String>
+    suspend fun saveNote(detail: NoteDetail)
+    suspend fun deleteNote(noteId: String)
 }
 
 interface ArchiveService {

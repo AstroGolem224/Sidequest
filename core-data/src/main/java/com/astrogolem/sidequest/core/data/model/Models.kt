@@ -146,6 +146,24 @@ data class RoutinePlanDetail(
     val lastCompletedAt: Long?,
 )
 
+data class NoteSummary(
+    val id: String,
+    val title: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val imported: Boolean,
+)
+
+data class NoteDetail(
+    val id: String,
+    val title: String,
+    val markdown: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val imported: Boolean,
+    val sourceLabel: String?,
+)
+
 data class ProviderAvailability(
     val kind: ProviderKind,
     val configured: Boolean,

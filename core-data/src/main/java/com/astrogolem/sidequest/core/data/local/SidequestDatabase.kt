@@ -20,8 +20,9 @@ import androidx.room.TypeConverters
         ShoppingListEntity::class,
         ShoppingListItemEntity::class,
         RoutinePlanEntity::class,
+        NoteEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -33,4 +34,5 @@ abstract class SidequestDatabase : RoomDatabase() {
     abstract fun exportBundleDao(): ExportBundleDao
     abstract fun shoppingListDao(): ShoppingListDao
     abstract fun routinePlanDao(): RoutinePlanDao
+    abstract fun noteDao(): NoteDao
 }

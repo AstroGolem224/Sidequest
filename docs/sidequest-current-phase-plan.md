@@ -9,13 +9,16 @@ Date: 2026-03-26
 - shopping lists now have a real lifecycle: rename, archive, reactivate
 - top-level swipe navigation is implemented for the main app shell
 - routine planning is now a real feature surface with editable scheduling and XP
+- inventory is now a real main-menu tab instead of a buried utility route
+- markdown notes are now local-first assets inside inventory with write, import, edit, and preview flows
 - inventory and stats now exist as dedicated utility surfaces
 - capture detail images are now full-view and zoomable instead of center-cropped
+- routine reminders now fire from active plans using weekday/time schedules
 
 ## Estimated Completion
 - app overall: ~99%
 - core functionality: ~99%
-- production-hardening / quality: ~96%
+- production-hardening / quality: ~97%
 
 ## Phase Status
 
@@ -76,18 +79,20 @@ Key outcomes:
 - stats screen for honest direct counters plus derived wellbeing signals
 - shopping list rename/archive/reactivate lifecycle
 - capture detail zoom and full-image inspection
+- inventory promoted to a real top-level tab
+- markdown notes added as persistent inventory assets
 
 ### Phase 9
 Routine and planning quality
 
 Status:
-- started
+- shipped
 
-Must ship:
-- routine reminders
-- stronger next-run summaries
-- archive confidence for routine data
-- future verification seams for capture and fitness routines
+Key outcomes:
+- routine reminders for active plans
+- stronger next-run summaries in the routine ui
+- routine reminder deep-link path into the plan detail screen
+- profile cleanup so pseudo-stats now live in the stats surface instead of the profile surface
 
 ### Phase 10
 Archive, QA, release
@@ -102,5 +107,5 @@ Must ship:
 
 ## Immediate Next Order
 1. Phase 8B
-2. Phase 9 reminders and verification seams
-3. Phase 10 QA and release pass
+2. Phase 10 QA and release pass
+3. stronger provider coverage beyond OpenAI
