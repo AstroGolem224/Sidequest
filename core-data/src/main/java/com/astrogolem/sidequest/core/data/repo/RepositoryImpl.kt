@@ -75,6 +75,7 @@ import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
 import com.astrogolem.sidequest.core.data.provider.AnthropicExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.NimExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.OpenAiExtractionProvider
+import com.astrogolem.sidequest.core.data.provider.OpenRouterExtractionProvider
 import com.astrogolem.sidequest.core.data.provider.ProviderExtractionRequest
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -246,6 +247,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
     private val openAiExtractionProvider: OpenAiExtractionProvider,
     private val anthropicExtractionProvider: AnthropicExtractionProvider,
     private val nimExtractionProvider: NimExtractionProvider,
+    private val openRouterExtractionProvider: OpenRouterExtractionProvider,
 ) : ProcessingOrchestrator {
     override suspend fun enqueue(captureId: String) {
         captureDao.updateStatus(captureId, CaptureProcessingStatus.PENDING.name)
@@ -313,6 +315,19 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 ProviderKind.NIM -> {
                     if (result.text.isNotBlank() || providerImageDataUrl != null) {
                         nimExtractionProvider.enhance(
+                            ProviderExtractionRequest(
+                                ocrText = result.text,
+                                documentHint = documentType.name,
+                                imageDataUrl = providerImageDataUrl,
+                            ),
+                        ).getOrNull()
+                    } else {
+                        null
+                    }
+                }
+                ProviderKind.OPENROUTER -> {
+                    if (result.text.isNotBlank() || providerImageDataUrl != null) {
+                        openRouterExtractionProvider.enhance(
                             ProviderExtractionRequest(
                                 ocrText = result.text,
                                 documentHint = documentType.name,
