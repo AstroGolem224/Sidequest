@@ -64,8 +64,11 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
@@ -327,19 +330,17 @@ class DefaultMissionRepository @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeMission(missionId: String): Flow<MissionDetailModel?> {
-        return missionDao.observeMission(missionId).map { mission ->
-            mission?.let {
-                MissionDetailModel(
-                    id = it.id,
-                    title = it.title,
-                    description = it.description,
-                    priorityScore = it.priorityScore,
-                    status = it.status,
-                    dueAt = it.dueAt,
-                    remindAt = it.remindAt,
-                    sourceCaptureId = it.sourceCaptureId,
-                )
+        return missionDao.observeMission(missionId).flatMapLatest { mission ->
+            if (mission == null) {
+                flowOf(null)
+            } else if (mission.sourceCaptureId == null) {
+                flowOf(mission.toMissionDetailModel(sourceImagePath = null))
+            } else {
+                captureDao.observeCapture(mission.sourceCaptureId).map { capture ->
+                    mission.toMissionDetailModel(sourceImagePath = capture?.filePath)
+                }
             }
         }
     }
@@ -416,6 +417,20 @@ class DefaultMissionRepository @Inject constructor(
             candidate.body.contains("urgent", ignoreCase = true) -> 90
             else -> (candidate.confidence * 100).toInt()
         }
+    }
+
+    private fun MissionEntity.toMissionDetailModel(sourceImagePath: String?): MissionDetailModel {
+        return MissionDetailModel(
+            id = id,
+            title = title,
+            description = description,
+            priorityScore = priorityScore,
+            status = status,
+            dueAt = dueAt,
+            remindAt = remindAt,
+            sourceCaptureId = sourceCaptureId,
+            sourceImagePath = sourceImagePath,
+        )
     }
 
     private suspend fun scheduleReminder(

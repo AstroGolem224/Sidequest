@@ -5,9 +5,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
 private val SidequestColors = darkColorScheme(
-    primary = AccentCyan,
-    secondary = AccentLime,
-    tertiary = AccentGold,
+    primary = AccentPrimary,
+    secondary = AccentSecondary,
+    tertiary = AccentBronze,
     background = BgPrimary,
     surface = BgElevated,
     error = Danger,

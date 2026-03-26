@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;family=Space_Grotesk:wght@300;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#ffb300",
+              "on-primary": "#452f00",
+              "primary-container": "#ffe082",
+              "on-primary-container": "#241a00",
+              "secondary": "#ffd79b",
+              "on-secondary": "#472a00",
+              "secondary-container": "#664000",
+              "on-secondary-container": "#ffddb3",
+              "tertiary": "#9e8e78",
+              "on-tertiary": "#ffffff",
+              "surface": "#131313",
+              "on-surface": "#eee1cf",
+              "surface-variant": "#201f1f",
+              "on-surface-variant": "#9e8e78",
+              "outline": "#4d4639",
+              "background": "#0c0c0c",
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans", "sans-serif"],
+              "body": ["Plus Jakarta Sans", "sans-serif"],
+              "label": ["Space Grotesk", "sans-serif"]
+            },
+            borderRadius: {
+              "DEFAULT": "0.25rem",
+              "lg": "0.5rem",
+              "xl": "1rem",
+              "full": "9999px"
+            },
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .scanner-line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ffb300, transparent);
+            box-shadow: 0 0 10px #ffb300;
+            position: absolute;
+            width: 100%;
+            top: 0;
+            animation: scan 4s ease-in-out infinite;
+        }
+        @keyframes scan {
+            0% { top: 20%; opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { top: 80%; opacity: 0; }
+        }
+        .hud-bracket {
+            border: 1px solid rgba(255, 179, 0, 0.4);
+            width: 32px;
+            height: 32px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body overflow-hidden">
+<!-- Top Navigation Shell (Component: TopAppBar) -->
+<nav class="flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 bg-[#131313] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-3">
+<span class="font-['Plus_Jakarta_Sans'] font-black tracking-tighter text-xl text-[#ffb300]">SIDEQUEST</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="bg-surface-variant/80 px-4 py-1.5 rounded-full flex items-center gap-2 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-sm font-bold text-secondary">1,250 GP</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center border border-outline/20 overflow-hidden active:scale-95 transition-transform duration-150">
+<img alt="User Pilot Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_z44VkHjwzRn7MrNjesrh-67NOhMTdZAiX2evd97S3U3AdNEN_r0H48xOuXOQwyIBosICn959jLX6NIE7cFFP0260lOKdmsFQO1n7lON7DeZymJCxlxELDJsPypT1e9takjGSQwQ7-2VmbyMasx0JBpkONJOb4_cvfAH0-zaqXCoKEATC5XAeiDgINJC_vB0z1rTsNNyiHrhxz19g6vtpaVNEyfV5k3ySZ0R_n9ZAIRDZy85kBnyryTx-EXSNcdkol5EYQGvSqXBu"/>
+</div>
+</div>
+</nav>
+<!-- Full Screen Viewfinder -->
+<main class="relative w-full h-screen bg-black overflow-hidden">
+<!-- Live Camera Simulation -->
+<div class="absolute inset-0 z-0">
+<img alt="Camera View" class="w-full h-screen object-cover opacity-70 grayscale-[0.2]" data-alt="First-person perspective of a modern kitchen counter with a stack of ceramic dishes and a messy environment, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbhsjsnxSbcU_73fz8njx2w9IkJXSPc_HRct1kLFxsmNij5PftAGWnTdbIOZ7sju1CUlykt8o78-p89VeOZ-C8QJMwVuM6guK2Y5-OcTYFydi6sV0SRTj-_xNi3drLVmemz2MUUb9KXBZabvOGU9VfcANnBMRHIatc_2jNgnfd_8eLUWZtXAKStuJb0rWDuB6H7taXDD2CpxlT8ozjwsWpwlFlrVHA2HzeL6OIsADqqA-gl5NixoFVXoUAR1UzIXr9WpTGLLzy4ySy"/>
+<div class="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background/80"></div>
+</div>
+<!-- Scanning HUD Elements -->
+<div class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+<!-- Scanning Line -->
+<div class="scanner-line"></div>
+<!-- Target Reticle -->
+<div class="relative w-72 h-72 flex items-center justify-center">
+<!-- Refined Minimal Brackets -->
+<div class="absolute top-0 left-0 hud-bracket border-r-0 border-b-0 rounded-tl-sm"></div>
+<div class="absolute top-0 right-0 hud-bracket border-l-0 border-b-0 rounded-tr-sm"></div>
+<div class="absolute bottom-0 left-0 hud-bracket border-r-0 border-t-0 rounded-bl-sm"></div>
+<div class="absolute bottom-0 right-0 hud-bracket border-l-0 border-t-0 rounded-br-sm"></div>
+<!-- Inner HUD Info (Shared Component Style Logic) -->
+<div class="text-center space-y-3">
+<div class="bg-primary/10 backdrop-blur-md px-4 py-1 rounded-sm border-l-2 border-primary inline-block">
+<p class="font-['Plus_Jakarta_Sans'] text-[10px] uppercase tracking-[0.3em] text-[#ffd79b] font-bold">Target Locked</p>
+</div>
+<h2 class="font-headline font-extrabold text-3xl text-white tracking-tight">Ceramic Horde</h2>
+<div class="flex items-center justify-center gap-2 opacity-80">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
+<p class="font-label text-[11px] text-primary uppercase tracking-widest">ID: OBJECT_DISHES_004</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating HUD Overlays (Top Left) -->
+<div class="absolute top-24 left-6 z-20 space-y-4 pointer-events-none">
+<div class="bg-[#131313]/40 backdrop-blur-md p-4 rounded-lg border-l border-primary/40 max-w-[200px]">
+<p class="font-label text-[10px] text-primary uppercase tracking-widest mb-1 font-bold">Status</p>
+<p class="font-body text-xs font-medium text-secondary">Active Scan in Sector 7G</p>
+<div class="mt-2 h-[1px] bg-white/10 w-full overflow-hidden">
+<div class="h-full bg-primary w-2/3 animate-[pulse_2s_infinite]"></div>
+</div>
+</div>
+</div>
+<!-- Quest Info Card (Bottom Canvas) -->
+<div class="absolute bottom-32 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-md">
+<div class="bg-[#201f1f]/90 backdrop-blur-2xl p-6 rounded-xl border border-[#9e8e78]/20 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="inline-block bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-label font-bold uppercase tracking-widest mb-2 border border-primary/20">Class: Cleaning Quest</span>
+<h3 class="font-headline font-extrabold text-xl text-on-surface">Vanquish the Dirty Dishes</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-[10px] text-tertiary uppercase mb-1">XP Reward</p>
+<p class="font-headline text-xl font-bold text-primary">+250</p>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex-1">
+<p class="font-label text-[10px] text-tertiary uppercase mb-2">Rewards</p>
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="font-label text-sm text-on-surface">15 GP</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings: 'FILL' 1;">favorite</span>
+<span class="font-label text-sm text-on-surface">+2 HP</span>
+</div>
+</div>
+</div>
+<div class="h-10 w-[1px] bg-outline/40"></div>
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-secondary text-2xl mb-1">schedule</span>
+<p class="font-label text-[10px] text-on-surface font-bold uppercase tracking-tighter">15m Est.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Controls -->
+<div class="absolute bottom-28 left-0 w-full z-40 px-10 flex items-center justify-between">
+<button class="w-12 h-12 rounded-full bg-surface-variant/40 backdrop-blur-md flex items-center justify-center text-tertiary hover:text-white transition-all active:scale-95 group">
+<span class="material-symbols-outlined text-xl">close</span>
+</button>
+<!-- Main Action Orb -->
+<div class="relative group">
+<div class="absolute inset-0 bg-primary/10 rounded-full blur-xl group-hover:bg-primary/20 transition-all"></div>
+<button class="relative w-20 h-20 rounded-full bg-primary flex items-center justify-center border-4 border-white/10 shadow-[0_0_24px_rgba(255,179,0,0.3)] active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-on-primary text-3xl" style="font-variation-settings: 'FILL' 1;">camera</span>
+</button>
+</div>
+<button class="w-12 h-12 rounded-full bg-surface-variant/40 backdrop-blur-md flex items-center justify-center text-tertiary hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined text-xl">settings_input_antenna</span>
+</button>
+</div>
+</main>
+<!-- Bottom Navigation Shell (Component: BottomNavBar) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#201f1f]/60 backdrop-blur-xl rounded-t-2xl border-t border-[#9e8e78]/20 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined text-2xl">dashboard</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined text-2xl">military_tech</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Quests</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#ffd79b] bg-[#ffb300]/10 rounded-xl px-4 py-1 shadow-[0_0_12px_rgba(255,215,155,0.2)]" href="#">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">add_a_photo</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Create</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined text-2xl">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Profile</span>
+</a>
+</nav>
+<!-- Toast Reward (Aurelian Theme Adjusted) -->
+<div class="fixed bottom-48 right-6 z-[60] bg-primary/90 backdrop-blur-md px-4 py-3 rounded-lg shadow-2xl border border-white/10 flex items-center gap-3 animate-bounce shadow-primary/20">
+<div class="w-8 h-8 rounded-full bg-on-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">radar</span>
+</div>
+<div>
+<p class="font-label text-[9px] text-on-primary font-bold uppercase tracking-widest leading-none">Signal</p>
+<p class="font-headline text-xs text-on-primary font-extrabold">Anomaly Detected</p>
+</div>
+</div>
+</body></html>

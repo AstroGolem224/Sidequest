@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;family=Space_Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-dim": "#efc900",
+                        "surface-container-low": "#12121c",
+                        "inverse-on-surface": "#55545f",
+                        "primary-fixed": "#c782ff",
+                        "surface-variant": "#252532",
+                        "error-container": "#a70138",
+                        "inverse-surface": "#fcf8ff",
+                        "on-secondary": "#004d57",
+                        "error": "#ff6e84",
+                        "on-error-container": "#ffb2b9",
+                        "surface-bright": "#2b2b39",
+                        "on-surface": "#e7e4f1",
+                        "on-secondary-container": "#e8fbff",
+                        "secondary": "#00e3fd",
+                        "secondary-container": "#006875",
+                        "on-error": "#490013",
+                        "surface": "#0d0d16",
+                        "on-background": "#e7e4f1",
+                        "secondary-fixed-dim": "#00d7f0",
+                        "on-primary-container": "#38005e",
+                        "on-surface-variant": "#aca9b6",
+                        "inverse-primary": "#8534c4",
+                        "tertiary-fixed": "#ffd709",
+                        "surface-container-high": "#1f1e2a",
+                        "primary-fixed-dim": "#bd6efe",
+                        "outline-variant": "#484751",
+                        "on-primary-fixed-variant": "#450073",
+                        "on-primary-fixed": "#000000",
+                        "error-dim": "#d73357",
+                        "on-tertiary-fixed": "#453900",
+                        "on-secondary-fixed": "#003a42",
+                        "outline": "#757480",
+                        "on-tertiary-fixed-variant": "#665500",
+                        "secondary-fixed": "#26e6ff",
+                        "secondary-dim": "#00d4ec",
+                        "primary-container": "#c782ff",
+                        "on-tertiary-container": "#5b4b00",
+                        "tertiary-fixed-dim": "#efc900",
+                        "tertiary-container": "#ffd709",
+                        "on-secondary-fixed-variant": "#005964",
+                        "on-primary": "#490078",
+                        "tertiary": "#ffe792",
+                        "primary-dim": "#c57eff",
+                        "surface-container": "#191923",
+                        "on-tertiary": "#655400",
+                        "surface-tint": "#d095ff",
+                        "primary": "#d095ff",
+                        "surface-container-highest": "#252532",
+                        "background": "#0d0d16",
+                        "surface-container-lowest": "#000000",
+                        "surface-dim": "#0d0d16"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Manrope"],
+                        "label": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(37, 37, 50, 0.6);
+            backdrop-filter: blur(20px);
+        }
+        .glow-primary {
+            box-shadow: 0 0 32px rgba(208, 149, 255, 0.08);
+        }
+        .text-glow-secondary {
+            text-shadow: 0 0 12px rgba(0, 227, 253, 0.4);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#0d0d16]/80 backdrop-blur-md shadow-[0_8px_32px_rgba(208,149,255,0.08)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/20">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="Stylized digital portrait of a heroic fantasy character with glowing ethereal purple eyes and dark obsidian armor" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHaqS1CLTabPKwcFYzLwYSJmRRG2mcm0QiFIp5fe_5rwmd1yCDrw6hWe-qIPnLWBPCF6VsxzBotG61HX8IDBaGWXfYCswp3Irbc2XSFmIUy8hfB9amWG_tq-t4FoRYtr1EdyGEkFeDAy4LK_n_rl7zkgHkziju-erE59E-Eq30QB1jZJkpVnJRYL6Xaf8b1EYDPs_rWcWj7FY_beraNO_F65p-aafzg8lPKvWo4uaGaW6eP1AJIRkYzSS7tSQ8OjfcT4QG1smCuaCL"/>
+</div>
+<span class="font-headline font-black text-xl text-[#d095ff] drop-shadow-[0_0_8px_rgba(208,149,255,0.4)] tracking-tight">Sidequest</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-surface-container px-3 py-1.5 rounded-full flex items-center gap-2 border border-outline-variant/10">
+<span class="material-symbols-outlined text-tertiary text-sm" data-icon="payments">payments</span>
+<span class="font-label text-sm font-bold text-[#d095ff]">1,250 GP</span>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-5xl mx-auto space-y-10">
+<!-- Profile Hero Section -->
+<section class="relative">
+<div class="flex flex-col md:flex-row items-center md:items-end gap-8">
+<!-- Large Avatar with Level Ring -->
+<div class="relative group">
+<div class="absolute -inset-4 bg-gradient-to-tr from-primary to-secondary opacity-20 blur-2xl rounded-full group-hover:opacity-40 transition-opacity"></div>
+<div class="relative w-40 h-40 md:w-48 md:h-48 rounded-full p-1 bg-gradient-to-tr from-primary via-surface-container to-secondary">
+<div class="w-full h-full rounded-full bg-surface overflow-hidden border-4 border-surface">
+<img alt="Character Portrait" class="w-full h-full object-cover" data-alt="High-detail digital art of a celestial warrior with translucent wings reflecting a nebula background, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6PqFE3_GqRdZJKtDMBkFZ9ublA0q2Nxvj_GWFjdozNbwzRLMI4al9QToALKhN-LjMXo0hKdQajSjJ_QezJrCwOgJS6lPvr2VDwkMNFUeLVHGNgpIu5eKD7hMWb6MNHPJjkKzeyNjYAjcixfA_OJj3NNLv5KkAmC2avRzaR-KIugnFA_JvoHXkFzOFkBU2vC3D1XJg-sigluzyaW2ife7FxI9EneuB9e2VXNFs7g3nnE-LNz_4kzzfFXignS-4VoNt4E5xX8QY_jLY"/>
+</div>
+</div>
+<div class="absolute -bottom-2 right-4 bg-tertiary text-on-tertiary font-label font-bold px-4 py-1.5 rounded-full shadow-lg border-2 border-surface">
+                        LVL 42
+                    </div>
+</div>
+<div class="flex-1 text-center md:text-left space-y-4">
+<div>
+<h1 class="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-on-surface">Astraea_Void</h1>
+<p class="font-label text-secondary tracking-widest uppercase mt-1 text-sm">Grand Explorer • Season 4</p>
+</div>
+<div class="flex flex-wrap justify-center md:justify-start gap-6">
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em]">Quests Completed</p>
+<p class="font-headline text-2xl font-bold text-on-surface">128</p>
+</div>
+<div class="w-px h-10 bg-outline-variant/20 self-center hidden md:block"></div>
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em]">Total XP</p>
+<p class="font-headline text-2xl font-bold text-primary">48,250</p>
+</div>
+<div class="w-px h-10 bg-outline-variant/20 self-center hidden md:block"></div>
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em]">Global Rank</p>
+<p class="font-headline text-2xl font-bold text-secondary">#402</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Stats & Attributes Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 space-y-6">
+<h3 class="font-headline text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" data-icon="equalizer">equalizer</span>
+                    Character Attributes
+                </h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Productivity -->
+<div class="bg-surface-container p-5 rounded-lg border border-outline-variant/5 hover:bg-surface-bright transition-colors group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="bolt">bolt</span>
+<span class="font-headline font-semibold">Productivity</span>
+</div>
+<span class="font-label text-sm text-primary">85/100</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-primary to-primary-container w-[85%] group-hover:shadow-[0_0_12px_rgba(208,149,255,0.4)] transition-all"></div>
+</div>
+</div>
+<!-- Wellness -->
+<div class="bg-surface-container p-5 rounded-lg border border-outline-variant/5 hover:bg-surface-bright transition-colors group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" data-icon="favorite">favorite</span>
+<span class="font-headline font-semibold">Wellness</span>
+</div>
+<span class="font-label text-sm text-secondary">62/100</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary to-secondary-container w-[62%] group-hover:shadow-[0_0_12px_rgba(0,227,253,0.4)] transition-all"></div>
+</div>
+</div>
+<!-- Knowledge -->
+<div class="bg-surface-container p-5 rounded-lg border border-outline-variant/5 hover:bg-surface-bright transition-colors group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="auto_stories">auto_stories</span>
+<span class="font-headline font-semibold">Knowledge</span>
+</div>
+<span class="font-label text-sm text-tertiary">94/100</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-tertiary to-tertiary-dim w-[94%] group-hover:shadow-[0_0_12px_rgba(255,231,146,0.4)] transition-all"></div>
+</div>
+</div>
+<!-- Discipline -->
+<div class="bg-surface-container p-5 rounded-lg border border-outline-variant/5 hover:bg-surface-bright transition-colors group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="shield">shield</span>
+<span class="font-headline font-semibold">Discipline</span>
+</div>
+<span class="font-label text-sm text-on-surface-variant">77/100</span>
+</div>
+<div class="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-on-surface-variant w-[77%] group-hover:shadow-[0_0_12px_rgba(172,169,182,0.4)] transition-all"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Bento: Current Quest -->
+<div class="bg-surface-container rounded-lg p-6 flex flex-col justify-between border border-outline-variant/5 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]">
+<div>
+<span class="font-label text-[10px] uppercase tracking-widest text-primary mb-2 block">Active Main Quest</span>
+<h4 class="font-headline text-2xl font-bold mb-4">The Digital Detox Abyss</h4>
+<p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Limit screen time to under 2 hours for 5 consecutive days to unlock the 'Zen Master' cloak.</p>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<span class="font-label text-xs">Progress</span>
+<span class="font-label text-xs font-bold">3/5 Days</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest rounded-full">
+<div class="h-full bg-primary w-[60%]"></div>
+</div>
+<button class="w-full py-3 rounded-full bg-primary text-on-primary font-headline font-bold text-sm hover:opacity-90 transition-opacity">
+                        View Details
+                    </button>
+</div>
+</div>
+</section>
+<!-- Inventory Grid -->
+<section class="space-y-6">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="inventory_2">inventory_2</span>
+                    Collected Loot
+                </h3>
+<button class="font-label text-xs text-secondary tracking-widest uppercase hover:underline">View All Bags</button>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+<!-- Item 1: Epic -->
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant/10 flex flex-col items-center justify-center p-4 relative group cursor-pointer overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-16 h-16 mb-3 relative">
+<div class="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10" data-alt="A glowing obsidian dagger with purple lightning crackling around the blade, realistic materials" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwKH2TjZFo82RUoQVMMXfUzncGUlpO2yar-3t7Cqetm4vHFss-igFVjWdABzf4Wuuj11jnR3s_GckrlhWHxa861fGZOQvrb-ZLc441DJkFUeQYyHj0kG-0wMa0l_nArd2DdhZ784Gq4hAEA4zU9ysG_jFH7tC9bBGaqIOA7Dzobl_2j_HUUja4hGLJyipum6eJ9Yb_PVoXJvqNmVTQJjBpQU0Uz2N3twF3gn-pj9hkFyo2ME1dgd9neRSB1dERP7EzUn0x0zPdKMuz"/>
+</div>
+<span class="font-label text-[10px] text-primary uppercase font-bold tracking-tighter">Epic</span>
+<p class="font-headline text-xs font-bold text-center mt-1 truncate w-full">Void-Slayer Blade</p>
+</div>
+<!-- Item 2: Rare -->
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant/10 flex flex-col items-center justify-center p-4 relative group cursor-pointer overflow-hidden">
+<div class="absolute inset-0 bg-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-16 h-16 mb-3 relative">
+<div class="absolute inset-0 bg-secondary/20 blur-xl rounded-full"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10" data-alt="A translucent blue crystal potion bottle filled with swirling neon liquid and glowing bubbles" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5mHzL1jt2NIhhBf_ew9kEDqIyWzH2Tf4N7P9wnC2cHAgWNBdgTG7c21UdyriZQ6zmDmREQIvJS4Z0LgaKZ22hJZ59XnnAhCpNtMjSzyYuuEzBWMjJz3VLXITNl4ytP0MHlJdpNP2L0FRl19EOX_7Zzx14FDntu5OSr-Z0VF79wb7UF1nA8aqykC1hmzjbexwnTKSUAk--SUQhVeZVd2ucTk7ckDVN12OkxUtp4tD677oRZRjZ3xn0HeBFuqIH6Z1kQjYndUN1Nsls"/>
+</div>
+<span class="font-label text-[10px] text-secondary uppercase font-bold tracking-tighter">Rare</span>
+<p class="font-headline text-xs font-bold text-center mt-1 truncate w-full">Liquid Focus Aura</p>
+</div>
+<!-- Item 3: Common -->
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant/10 flex flex-col items-center justify-center p-4 relative group cursor-pointer">
+<div class="w-16 h-16 mb-3 relative">
+<img alt="Item" class="w-full h-full object-contain relative z-10 grayscale group-hover:grayscale-0 transition-all" data-alt="Ancient tattered scroll with glowing golden runes etched into the parchment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOnq01oFyBcYvGDzgmnUSKG_CzbTrMv3SSY8fbEro7iPD_PJRl2277kB6ssfGSYz2EyOa1kf4IyS5YDkbTO2cRNt5iCpuyF2ILlLpFc253F-7riaYwREsULuNOPlFRvttbAnLgIDM_i7Z9VA_p3-T3Q4MOdP20KMQyPjJ75MHNYKSnHAHxT2OkLiri0lwMxrJbA58fOG4DV3oJ9iow5wUzcsRCFe59fT89CXc89Ffv3WG5A2-3N0pmhZahDjOD38T5H9czpHVdIxr1"/>
+</div>
+<span class="font-label text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">Common</span>
+<p class="font-headline text-xs font-bold text-center mt-1 truncate w-full">Basic Task Map</p>
+</div>
+<!-- Item 4: Epic -->
+<div class="aspect-square bg-surface-container rounded-lg border border-outline-variant/10 flex flex-col items-center justify-center p-4 relative group cursor-pointer overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-16 h-16 mb-3 relative">
+<div class="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10" data-alt="Intricate silver crown with a massive floating amethyst in the center, celestial aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfDlwPRI47J1XqO-mOaMPuTW4UWCgx84Q8Wi0MtXRIB42uNj2D5NCYKjjqF-ne9DpKu4nmMp4qBbTAoL5He9rsM1PkxlL9aAxoicBZ6e4vYLiSa66dK0Li1pbro8FXZlPosMRKvArvpY9Vc53pVzGA8gATNN2onYqOM892bOspeIMHC8txuzCck_b9ag3VjficHjNZvWWihorqfPPl2aIUFmdEoogzF0sikjVZdZvgANCqzQxoOmPyXHAQZbp-lAqywM2wZTlBeSCY"/>
+</div>
+<span class="font-label text-[10px] text-primary uppercase font-bold tracking-tighter">Epic</span>
+<p class="font-headline text-xs font-bold text-center mt-1 truncate w-full">Crown of Focus</p>
+</div>
+<!-- Empty Slots -->
+<div class="aspect-square bg-surface-container-low rounded-lg border border-outline-variant/5 border-dashed flex flex-col items-center justify-center p-4">
+<span class="material-symbols-outlined text-outline-variant/40" data-icon="add">add</span>
+</div>
+</div>
+</section>
+<!-- Achievements Section -->
+<section class="space-y-6">
+<h3 class="font-headline text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary-dim" data-icon="workspace_premium">workspace_premium</span>
+                Recent Achievements
+            </h3>
+<div class="space-y-4">
+<!-- Achievement 1 -->
+<div class="flex items-center gap-6 p-4 rounded-lg bg-surface-container-high border-l-4 border-tertiary">
+<div class="w-14 h-14 bg-tertiary/10 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-tertiary text-3xl" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h5 class="font-headline font-bold">Early Riser Elite</h5>
+<span class="font-label text-[10px] text-on-surface-variant">2 days ago</span>
+</div>
+<p class="text-sm text-on-surface-variant">Completed 10 tasks before 8:00 AM for 7 consecutive days.</p>
+</div>
+</div>
+<!-- Achievement 2 -->
+<div class="flex items-center gap-6 p-4 rounded-lg bg-surface-container border-l-4 border-secondary/40 opacity-70">
+<div class="w-14 h-14 bg-secondary/10 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-secondary text-3xl" data-icon="directions_run">directions_run</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h5 class="font-headline font-bold">Stamina Master</h5>
+<span class="font-label text-[10px] text-on-surface-variant">1 week ago</span>
+</div>
+<p class="text-sm text-on-surface-variant">Walked over 50,000 steps in a single week-long quest.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#191923]/90 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-8px_48px_rgba(0,227,253,0.15)] md:hidden">
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-label text-[10px] uppercase tracking-widest mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="map">map</span>
+<span class="font-label text-[10px] uppercase tracking-widest mt-1">Quests</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="photo_camera">photo_camera</span>
+<span class="font-label text-[10px] uppercase tracking-widest mt-1">Camera</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#00e3fd] bg-[#2b2b39] rounded-full p-3 shadow-[0_0_20px_rgba(0,227,253,0.3)] translate-y-[-4px] transition-transform duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label text-[10px] uppercase tracking-widest mt-1">Profile</span>
+</a>
+</nav>
+<!-- Desktop Sidebar/Nav Mockup (Hidden on mobile) -->
+<div class="hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 flex-col gap-8 z-50">
+<div class="flex flex-col gap-6 p-4 glass-panel rounded-full border border-outline-variant/10 glow-primary">
+<button class="p-4 rounded-full text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+</button>
+<button class="p-4 rounded-full text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="map">map</span>
+</button>
+<button class="p-4 rounded-full text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="photo_camera">photo_camera</span>
+</button>
+<button class="p-4 rounded-full bg-surface-bright text-secondary shadow-[0_0_15px_rgba(0,227,253,0.2)]">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+</div>
+</div>
+</body></html>

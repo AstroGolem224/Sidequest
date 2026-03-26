@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sidequest Dashboard - The Quest Log</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&amp;family=Manrope:wght@400;500;600&amp;family=Space_Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-dim": "#efc900",
+              "surface-container-low": "#12121c",
+              "inverse-on-surface": "#55545f",
+              "primary-fixed": "#c782ff",
+              "surface-variant": "#252532",
+              "error-container": "#a70138",
+              "inverse-surface": "#fcf8ff",
+              "on-secondary": "#004d57",
+              "error": "#ff6e84",
+              "on-error-container": "#ffb2b9",
+              "surface-bright": "#2b2b39",
+              "on-surface": "#e7e4f1",
+              "on-secondary-container": "#e8fbff",
+              "secondary": "#00e3fd",
+              "secondary-container": "#006875",
+              "on-error": "#490013",
+              "surface": "#0d0d16",
+              "on-background": "#e7e4f1",
+              "secondary-fixed-dim": "#00d7f0",
+              "on-primary-container": "#38005e",
+              "on-surface-variant": "#aca9b6",
+              "inverse-primary": "#8534c4",
+              "tertiary-fixed": "#ffd709",
+              "surface-container-high": "#1f1e2a",
+              "primary-fixed-dim": "#bd6efe",
+              "outline-variant": "#484751",
+              "on-primary-fixed-variant": "#450073",
+              "on-primary-fixed": "#000000",
+              "error-dim": "#d73357",
+              "on-tertiary-fixed": "#453900",
+              "on-secondary-fixed": "#003a42",
+              "outline": "#757480",
+              "on-tertiary-fixed-variant": "#665500",
+              "secondary-fixed": "#26e6ff",
+              "secondary-dim": "#00d4ec",
+              "primary-container": "#c782ff",
+              "on-tertiary-container": "#5b4b00",
+              "tertiary-fixed-dim": "#efc900",
+              "tertiary-container": "#ffd709",
+              "on-secondary-fixed-variant": "#005964",
+              "on-primary": "#490078",
+              "tertiary": "#ffe792",
+              "primary-dim": "#c57eff",
+              "surface-container": "#191923",
+              "on-tertiary": "#655400",
+              "surface-tint": "#d095ff",
+              "primary": "#d095ff",
+              "surface-container-highest": "#252532",
+              "background": "#0d0d16",
+              "surface-container-lowest": "#000000",
+              "surface-dim": "#0d0d16"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            background-color: #0d0d16;
+            background-image: radial-gradient(circle at 50% 50%, rgba(208, 149, 255, 0.05) 0%, transparent 50%),
+                              radial-gradient(circle at 10% 20%, rgba(0, 227, 253, 0.03) 0%, transparent 40%);
+        }
+        .glass-panel {
+            background: rgba(37, 37, 50, 0.6);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#0d0d16]/80 backdrop-blur-md shadow-[0_8px_32px_rgba(208,149,255,0.08)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-primary/30">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Stylized RPG character portrait with neon purple accents and futuristic armor, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBWcMr09QNoEmH5_E4A438468kiDAQ0rLr0zGr5aOrgna3LO9oDCQkuuRIh_gTd85TI5K8EMSx8AuhoB1gbeEwvyCzv93t-BFB4Qj47QBpSoHsbcmbGl17rsd28mh4u5dYtTEJt-ucHCnImmNsUunVP9joDdQclO5rySkPDxEcXmfKIW0wt8LTyW5buVeyJEzjD2d5uSfbSYR85JzJouFmXKkMgNOX_8z-pksVT3Xc9HyB1_bI-lW1rmU9Ii_7AnVSLHpw2dnM21o1"/>
+</div>
+<span class="text-xl font-black text-[#d095ff] drop-shadow-[0_0_8px_rgba(208,149,255,0.4)] font-headline tracking-tight">Sidequest</span>
+</div>
+<div class="flex items-center gap-2 bg-surface-container-high px-4 py-1.5 rounded-full border border-outline-variant/15">
+<span class="material-symbols-outlined text-tertiary text-sm" data-weight="fill" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-sm font-bold tracking-tight">1,250 GP</span>
+</div>
+</header>
+<main class="pt-24 px-6 max-w-2xl mx-auto space-y-8">
+<!-- Hero: XP Progress -->
+<section class="relative overflow-hidden rounded-xl p-6 surface-container shadow-[0_32px_48px_rgba(208,149,255,0.05)]">
+<div class="flex justify-between items-end mb-4">
+<div>
+<h2 class="font-headline text-3xl font-extrabold text-on-surface">Level 12</h2>
+<p class="font-label text-xs uppercase tracking-[0.2em] text-on-surface-variant mt-1">Stellar Navigator</p>
+</div>
+<div class="text-right">
+<span class="font-label text-sm text-primary font-bold">950 <span class="text-on-surface-variant font-medium">/ 1200 XP</span></span>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="h-3 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full w-[79%] bg-gradient-to-r from-secondary to-primary relative shadow-[0_0_12px_rgba(0,227,253,0.4)]">
+<div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.2)_50%,transparent_100%)] w-24 animate-shimmer"></div>
+</div>
+</div>
+</section>
+<!-- Quest List Header -->
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-xl font-bold tracking-tight">Active Sidequests</h3>
+<span class="font-label text-[10px] uppercase tracking-widest text-secondary font-bold">3 In Progress</span>
+</div>
+<!-- Quest Cards (Bento Style/RPG Cards) -->
+<div class="grid gap-6">
+<!-- Quest Card 1 -->
+<div class="group relative rounded-lg bg-surface-container hover:bg-surface-bright transition-all duration-300 p-5 shadow-[0_0_20px_rgba(208,149,255,0.02)] hover:shadow-[0_0_30px_rgba(208,149,255,0.1)] cursor-pointer">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-2xl">cleaning_services</span>
+</div>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-label font-bold uppercase tracking-widest text-secondary rounded-full">Easy</span>
+</div>
+<h4 class="font-headline text-lg font-bold mb-1 group-hover:text-primary transition-colors">Clean the Kitchen</h4>
+<p class="text-sm text-on-surface-variant mb-6 line-clamp-2">Restore order to the culinary command center. Eliminate all grime debuffs.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">add_circle</span>
+<span class="font-label text-xs font-bold text-on-surface">50 XP</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-xs font-bold text-on-surface">10 GP</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</div>
+</div>
+<!-- Quest Card 2 -->
+<div class="group relative rounded-lg bg-surface-container hover:bg-surface-bright transition-all duration-300 p-5 shadow-[0_0_20px_rgba(208,149,255,0.02)] hover:shadow-[0_0_30px_rgba(208,149,255,0.1)] cursor-pointer">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-secondary/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary text-2xl">fitness_center</span>
+</div>
+<span class="px-3 py-1 bg-surface-container-highest text-[10px] font-label font-bold uppercase tracking-widest text-tertiary rounded-full">Medium</span>
+</div>
+<h4 class="font-headline text-lg font-bold mb-1 group-hover:text-secondary transition-colors">Morning Sprint</h4>
+<p class="text-sm text-on-surface-variant mb-6 line-clamp-2">Engage in high-velocity traversal through the local park sector. Distance: 5km.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">add_circle</span>
+<span class="font-label text-xs font-bold text-on-surface">150 XP</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-xs font-bold text-on-surface">45 GP</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</div>
+</div>
+<!-- Quest Card 3 (Featured/Hard) -->
+<div class="group relative rounded-lg bg-gradient-to-br from-surface-container to-surface-container-high border-l-4 border-error p-5 shadow-[0_0_40px_rgba(255,110,132,0.05)] cursor-pointer overflow-hidden">
+<div class="absolute top-0 right-0 p-8 opacity-5">
+<span class="material-symbols-outlined text-[120px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+</div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<div class="p-3 bg-error/10 rounded-lg">
+<span class="material-symbols-outlined text-error text-2xl">auto_stories</span>
+</div>
+<span class="px-3 py-1 bg-error/20 text-[10px] font-label font-bold uppercase tracking-widest text-error rounded-full">Hard</span>
+</div>
+<h4 class="font-headline text-lg font-bold mb-1 relative z-10">Finish Technical Manual</h4>
+<p class="text-sm text-on-surface-variant mb-6 line-clamp-2 relative z-10">Complete the final 3 chapters of the 'Deep Space Logistics' guide. Intensive mental mana required.</p>
+<div class="flex items-center justify-between pt-4 border-t border-outline-variant/10 relative z-10">
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">add_circle</span>
+<span class="font-label text-xs font-bold text-on-surface">400 XP</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-xs font-bold text-on-surface">120 GP</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Recent Loot / Activity -->
+<div class="pt-4">
+<div class="glass-panel p-4 rounded-lg flex items-center justify-between border border-outline-variant/10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-tertiary/10 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">card_giftcard</span>
+</div>
+<div>
+<p class="font-headline font-bold text-sm">Loot Dropped!</p>
+<p class="text-xs text-on-surface-variant">You earned 'Master of Suds' title</p>
+</div>
+</div>
+<span class="font-label text-[10px] text-on-surface-variant">2H AGO</span>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#191923]/90 backdrop-blur-xl rounded-t-[2.5rem] shadow-[0_-8px_48px_rgba(0,227,253,0.15)]">
+<a class="flex flex-col items-center justify-center text-[#00e3fd] bg-[#2b2b39] rounded-full p-3 shadow-[0_0_20px_rgba(0,227,253,0.3)] translate-y-[-4px] transition-transform duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase tracking-widest mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="map">map</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase tracking-widest mt-1">Quests</span>
+</a>
+<!-- FAB Integrated in Nav -->
+<div class="relative -mt-12 group">
+<div class="absolute inset-0 bg-secondary blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+<button class="relative w-16 h-16 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-lg transform active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl font-bold" data-icon="photo_camera" style="font-variation-settings: 'FILL' 1;">photo_camera</span>
+</button>
+</div>
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="camera">history</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase tracking-widest mt-1">Log</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#484751] p-3 hover:text-[#d095ff] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase tracking-widest mt-1">Profile</span>
+</a>
+</nav>
+</body></html>

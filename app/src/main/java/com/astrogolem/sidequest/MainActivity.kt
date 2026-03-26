@@ -10,13 +10,18 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,8 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -40,11 +47,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
 import com.astrogolem.sidequest.core.data.repo.SecurityService
+import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
+import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
-import com.astrogolem.sidequest.core.ui.theme.AccentViolet
 import com.astrogolem.sidequest.core.ui.theme.BgPrimary
 import com.astrogolem.sidequest.core.ui.theme.BgPanel
 import com.astrogolem.sidequest.core.ui.theme.SidequestTheme
+import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import com.astrogolem.sidequest.feature.capture.CaptureDetailRoute
 import com.astrogolem.sidequest.feature.capture.CaptureRoute
 import com.astrogolem.sidequest.feature.inbox.InboxRoute
@@ -95,6 +104,7 @@ class MainActivity : AppCompatActivity() {
 private data class TopLevelDestination(
     val route: String,
     val label: String,
+    val iconRes: Int,
 )
 
 private sealed interface DeepLinkTarget {
@@ -110,6 +120,8 @@ private fun SidequestApp(
     pendingDeepLink: DeepLinkTarget?,
     onDeepLinkConsumed: () -> Unit,
 ) {
+    val chromeViewModel: AppChromeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val chrome by chromeViewModel.state.collectAsStateWithLifecycle()
     val biometricEnabled by produceState<Boolean?>(initialValue = null) {
         value = securityService.isBiometricLockEnabled()
     }
@@ -122,17 +134,26 @@ private fun SidequestApp(
 
     val navController = rememberNavController()
     val destinations = listOf(
-        TopLevelDestination("missions", "Board"),
-        TopLevelDestination("capture", "Lens"),
-        TopLevelDestination("inbox", "Intel"),
-        TopLevelDestination("lobby", "HUD"),
-        TopLevelDestination("search", "Search"),
-        TopLevelDestination("settings", "Ops"),
+        TopLevelDestination("missions", "Dashboard", android.R.drawable.ic_menu_view),
+        TopLevelDestination("inbox", "Quests", android.R.drawable.ic_menu_agenda),
+        TopLevelDestination("capture", "Create", android.R.drawable.ic_menu_camera),
+        TopLevelDestination("lobby", "Profile", android.R.drawable.ic_menu_myplaces),
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
+    val utilityRoutes = setOf("search", "settings")
     val showBottomBar = destinations.any { it.route == currentRoute }
+    val showTopBar = showBottomBar || currentRoute in utilityRoutes
+    val topBarTitle = when (currentRoute) {
+        "missions" -> "Quest Log"
+        "inbox" -> "Quest Intake"
+        "capture" -> "Create"
+        "lobby" -> "Profile"
+        "search" -> "Search"
+        "settings" -> "Settings"
+        else -> "Sidequest"
+    }
 
     LaunchedEffect(pendingDeepLink) {
         when (val deepLink = pendingDeepLink) {
@@ -150,6 +171,28 @@ private fun SidequestApp(
     }
 
     Scaffold(
+        topBar = {
+            if (showTopBar) {
+                SidequestTopBar(
+                    title = topBarTitle,
+                    gp = chrome.totalGp,
+                    level = chrome.level,
+                    subtitle = chrome.title,
+                    showBack = currentRoute in utilityRoutes,
+                    onBack = { navController.popBackStack() },
+                    onSearch = {
+                        if (currentRoute != "search") {
+                            navController.navigate("search")
+                        }
+                    },
+                    onSettings = {
+                        if (currentRoute != "settings") {
+                            navController.navigate("settings")
+                        }
+                    },
+                )
+            }
+        },
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(containerColor = BgPanel.copy(alpha = 0.96f)) {
@@ -167,7 +210,19 @@ private fun SidequestApp(
                                 }
                             },
                             label = { Text(destination.label) },
-                            icon = { Text(destination.label.take(1)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(destination.iconRes),
+                                    contentDescription = destination.label,
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = BgPrimary,
+                                selectedTextColor = AccentSecondary,
+                                indicatorColor = AccentPrimary.copy(alpha = 0.18f),
+                                unselectedIconColor = TextSecondary,
+                                unselectedTextColor = TextSecondary,
+                            ),
                         )
                     }
                 }
@@ -193,9 +248,7 @@ private fun SidequestApp(
                 }
             }
             composable("capture") {
-                TopLevelScreenContainer {
-                    CaptureRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
-                }
+                CaptureRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
             }
             composable("captureDetail/{captureId}") {
                 Surface(
@@ -207,7 +260,7 @@ private fun SidequestApp(
             }
             composable("inbox") {
                 TopLevelScreenContainer {
-                    InboxRoute()
+                    InboxRoute(onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") })
                 }
             }
             composable("lobby") {
@@ -236,7 +289,7 @@ private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    colors = listOf(AccentViolet.copy(alpha = 0.18f), AccentCyan.copy(alpha = 0.08f), BgPrimary),
+                    colors = listOf(AccentPrimary.copy(alpha = 0.16f), AccentSecondary.copy(alpha = 0.05f), BgPrimary),
                     radius = 1800f,
                 ),
             ),
@@ -246,6 +299,93 @@ private fun TopLevelScreenContainer(content: @Composable () -> Unit) {
             color = MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+private fun SidequestTopBar(
+    title: String,
+    gp: Int,
+    level: Int,
+    subtitle: String,
+    showBack: Boolean,
+    onBack: () -> Unit,
+    onSearch: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    Surface(
+        color = BgPanel.copy(alpha = 0.96f),
+        tonalElevation = 0.dp,
+        shadowElevation = 12.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (showBack) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(android.R.drawable.ic_media_previous),
+                            contentDescription = "Back",
+                            tint = AccentSecondary,
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("SIDEQUEST", style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
+                    Text(
+                        text = if (showBack) title else subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.18f)),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(android.R.drawable.star_big_on),
+                            contentDescription = "GP",
+                            tint = AccentPrimary,
+                        )
+                        Text("$gp GP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+                    }
+                }
+                IconButton(onClick = onSearch) {
+                    Icon(
+                        painter = painterResource(android.R.drawable.ic_menu_search),
+                        contentDescription = "Search",
+                        tint = TextSecondary,
+                    )
+                }
+                Surface(
+                    color = AccentPrimary.copy(alpha = 0.14f),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                ) {
+                    IconButton(onClick = onSettings) {
+                        Text("L$level", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+                    }
+                }
+            }
         }
     }
 }

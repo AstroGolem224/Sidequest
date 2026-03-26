@@ -47,6 +47,7 @@ data class MissionDetailModel(
     val dueAt: Long?,
     val remindAt: Long?,
     val sourceCaptureId: String?,
+    val sourceImagePath: String?,
 )
 
 data class CaptureMissionLink(

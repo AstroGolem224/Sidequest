@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;family=Space_Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#FFB300",
+                        "on-primary": "#000000",
+                        "secondary": "#FFD79B",
+                        "on-secondary": "#201F1F",
+                        "tertiary": "#9E8E78",
+                        "surface": "#131313",
+                        "surface-container": "#201F1F",
+                        "surface-container-high": "#2A2929",
+                        "surface-container-highest": "#333232",
+                        "on-surface": "#F5F5F5",
+                        "on-surface-variant": "#9E8E78",
+                        "outline": "#484751",
+                        "outline-variant": "#333232",
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans", "sans-serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .amber-glow-avatar {
+            box-shadow: 0 0 40px rgba(255, 179, 0, 0.25);
+        }
+        .amber-text-glow {
+            text-shadow: 0 0 10px rgba(255, 179, 0, 0.4);
+        }
+        .refined-border {
+            border: 1px solid rgba(158, 142, 120, 0.15);
+        }
+        .refined-border:hover {
+            border-color: rgba(255, 179, 0, 0.4);
+        }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/30 selection:text-primary">
+<!-- TopAppBar Component Integration ({{DATA:COMPONENTS:COMPONENTS_14}}) -->
+<header class="flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 bg-[#131313] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#ffd79b] hover:text-[#ffb300] transition-colors cursor-pointer" data-icon="menu">menu</span>
+<span class="text-[#ffb300] font-black tracking-tighter text-xl uppercase">SIDEQUEST</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-[#201f1f] px-3 py-1.5 rounded flex items-center gap-2 border border-[#9e8e78]/10">
+<span class="material-symbols-outlined text-[#ffb300] text-sm" data-icon="payments">payments</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm font-bold text-[#ffd79b]">1,250 GP</span>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-[#ffd79b]/20">
+<img alt="User Pilot Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHaqS1CLTabPKwcFYzLwYSJmRRG2mcm0QiFIp5fe_5rwmd1yCDrw6hWe-qIPnLWBPCF6VsxzBotG61HX8IDBaGWXfYCswp3Irbc2XSFmIUy8hfB9amWG_tq-t4FoRYtr1EdyGEkFeDAy4LK_n_rl7zkgHkziju-erE59E-Eq30QB1jZJkpVnJRYL6Xaf8b1EYDPs_rWcWj7FY_beraNO_F65p-aafzg8lPKvWo4uaGaW6eP1AJIRkYzSS7tSQ8OjfcT4QG1smCuaCL"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-5xl mx-auto space-y-12">
+<!-- Profile Hero Section -->
+<section class="relative">
+<div class="flex flex-col md:flex-row items-center md:items-end gap-10">
+<!-- Large Avatar with Amber Glow -->
+<div class="relative group">
+<div class="absolute -inset-6 bg-primary/10 blur-3xl rounded-full opacity-60 group-hover:opacity-100 transition-opacity"></div>
+<div class="relative w-44 h-44 md:w-52 md:h-52 rounded-full p-[2px] bg-gradient-to-tr from-primary via-surface-container to-secondary amber-glow-avatar">
+<div class="w-full h-full rounded-full bg-surface overflow-hidden border-4 border-surface">
+<img alt="Character Portrait" class="w-full h-full object-cover grayscale-[0.2] hover:grayscale-0 transition-all duration-500" data-alt="High-detail digital art of a celestial warrior with translucent wings reflecting a nebula background, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6PqFE3_GqRdZJKtDMBkFZ9ublA0q2Nxvj_GWFjdozNbwzRLMI4al9QToALKhN-LjMXo0hKdQajSjJ_QezJrCwOgJS6lPvr2VDwkMNFUeLVHGNgpIu5eKD7hMWb6MNHPJjkKzeyNjYAjcixfA_OJj3NNLv5KkAmC2avRzaR-KIugnFA_JvoHXkFzOFkBU2vC3D1XJg-sigluzyaW2ife7FxI9EneuB9e2VXNFs7g3nnE-LNz_4kzzfFXignS-4VoNt4E5xX8QY_jLY"/>
+</div>
+</div>
+<div class="absolute -bottom-1 right-6 bg-primary text-on-primary font-headline font-bold px-5 py-1 rounded shadow-xl border-2 border-surface text-sm tracking-tight">
+                        LVL 42
+                    </div>
+</div>
+<div class="flex-1 text-center md:text-left space-y-5">
+<div>
+<h1 class="font-headline text-5xl font-extrabold tracking-tight text-on-surface amber-text-glow uppercase">Astraea_Void</h1>
+<p class="font-label text-primary tracking-[0.25em] uppercase mt-2 text-xs font-bold">Grand Explorer • Season 4</p>
+</div>
+<div class="flex flex-wrap justify-center md:justify-start gap-8">
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em] font-medium">Quests Completed</p>
+<p class="font-headline text-3xl font-black text-on-surface">128</p>
+</div>
+<div class="w-px h-12 bg-outline-variant hidden md:block opacity-50"></div>
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em] font-medium">Total XP</p>
+<p class="font-headline text-3xl font-black text-primary">48,250</p>
+</div>
+<div class="w-px h-12 bg-outline-variant hidden md:block opacity-50"></div>
+<div class="space-y-1">
+<p class="font-label text-[10px] uppercase text-on-surface-variant tracking-[0.2em] font-medium">Global Rank</p>
+<p class="font-headline text-3xl font-black text-secondary">#402</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Stats & Attributes Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="md:col-span-2 space-y-6">
+<h3 class="font-headline text-sm font-bold tracking-[0.2em] uppercase text-on-surface-variant flex items-center gap-3">
+<span class="w-6 h-[1px] bg-primary"></span>
+                    Character Attributes
+                </h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Productivity -->
+<div class="bg-surface-container p-6 rounded border border-white/[0.03] hover:bg-surface-container-high transition-all group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="bolt">bolt</span>
+<span class="font-headline font-bold text-sm uppercase tracking-wide">Productivity</span>
+</div>
+<span class="font-label text-xs font-bold text-primary">85%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[85%] group-hover:bg-secondary transition-colors duration-500"></div>
+</div>
+</div>
+<!-- Wellness -->
+<div class="bg-surface-container p-6 rounded border border-white/[0.03] hover:bg-surface-container-high transition-all group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="favorite">favorite</span>
+<span class="font-headline font-bold text-sm uppercase tracking-wide">Wellness</span>
+</div>
+<span class="font-label text-xs font-bold text-primary">62%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary/70 w-[62%] group-hover:bg-primary transition-colors duration-500"></div>
+</div>
+</div>
+<!-- Knowledge -->
+<div class="bg-surface-container p-6 rounded border border-white/[0.03] hover:bg-surface-container-high transition-all group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="auto_stories">auto_stories</span>
+<span class="font-headline font-bold text-sm uppercase tracking-wide">Knowledge</span>
+</div>
+<span class="font-label text-xs font-bold text-primary">94%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[94%] group-hover:bg-primary transition-colors duration-500"></div>
+</div>
+</div>
+<!-- Discipline -->
+<div class="bg-surface-container p-6 rounded border border-white/[0.03] hover:bg-surface-container-high transition-all group">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="shield">shield</span>
+<span class="font-headline font-bold text-sm uppercase tracking-wide">Discipline</span>
+</div>
+<span class="font-label text-xs font-bold text-primary">77%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary/50 w-[77%] group-hover:bg-primary transition-colors duration-500"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Bento: Current Quest -->
+<div class="bg-surface-container rounded p-8 flex flex-col justify-between border border-primary/20 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-[80px] -mr-16 -mt-16 group-hover:bg-primary/10 transition-all"></div>
+<div class="relative z-10">
+<span class="font-label text-[10px] uppercase tracking-[0.3em] text-primary/60 mb-3 block font-bold">Protocol Active</span>
+<h4 class="font-headline text-3xl font-black mb-4 leading-tight">THE DIGITAL DETOX ABYSS</h4>
+<p class="text-on-surface-variant text-sm mb-8 leading-relaxed font-medium">Limit connectivity parameters to under 2 hours daily for 5 cycles to authorize the 'Zen Master' chassis upgrade.</p>
+</div>
+<div class="space-y-5 relative z-10">
+<div class="flex justify-between items-end">
+<span class="font-label text-[10px] uppercase tracking-widest font-bold">Analysis Progress</span>
+<span class="font-label text-xs font-black text-primary">3/5 CYCLES</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest rounded-full">
+<div class="h-full bg-primary w-[60%] shadow-[0_0_8px_rgba(255,179,0,0.5)]"></div>
+</div>
+<button class="w-full py-4 rounded bg-primary text-on-primary font-headline font-black text-xs uppercase tracking-widest hover:bg-secondary transition-colors active:scale-95 duration-150">
+                        ACCESS SYSTEM LOGS
+                    </button>
+</div>
+</div>
+</section>
+<!-- Inventory Grid -->
+<section class="space-y-6">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-sm font-bold tracking-[0.2em] uppercase text-on-surface-variant flex items-center gap-3">
+<span class="w-6 h-[1px] bg-primary"></span>
+                    Collected Loot
+                </h3>
+<button class="font-label text-[10px] text-primary tracking-[0.2em] uppercase hover:text-secondary font-bold">INVENTORY_MGR.EXE</button>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+<!-- Item 1: Epic -->
+<div class="aspect-square bg-surface-container rounded p-4 relative group cursor-pointer overflow-hidden refined-border">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="h-full flex flex-col items-center justify-center">
+<div class="w-20 h-20 mb-3 relative flex items-center justify-center">
+<div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-0 group-hover:scale-100 transition-transform duration-500"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10 drop-shadow-2xl" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwKH2TjZFo82RUoQVMMXfUzncGUlpO2yar-3t7Cqetm4vHFss-igFVjWdABzf4Wuuj11jnR3s_GckrlhWHxa861fGZOQvrb-ZLc441DJkFUeQYyHj0kG-0wMa0l_nArd2DdhZ784Gq4hAEA4zU9ysG_jFH7tC9bBGaqIOA7Dzobl_2j_HUUja4hGLJyipum6eJ9Yb_PVoXJvqNmVTQJjBpQU0Uz2N3twF3gn-pj9hkFyo2ME1dgd9neRSB1dERP7EzUn0x0zPdKMuz"/>
+</div>
+<span class="font-label text-[9px] text-primary uppercase font-black tracking-widest mb-1">RELIC_EPIC</span>
+<p class="font-headline text-[10px] font-bold text-center uppercase tracking-tight truncate w-full">Void-Slayer Blade</p>
+</div>
+</div>
+<!-- Item 2: Rare -->
+<div class="aspect-square bg-surface-container rounded p-4 relative group cursor-pointer overflow-hidden refined-border">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="h-full flex flex-col items-center justify-center">
+<div class="w-20 h-20 mb-3 relative flex items-center justify-center">
+<div class="absolute inset-0 bg-secondary/15 blur-2xl rounded-full scale-0 group-hover:scale-100 transition-transform duration-500"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10 drop-shadow-2xl" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5mHzL1jt2NIhhBf_ew9kEDqIyWzH2Tf4N7P9wnC2cHAgWNBdgTG7c21UdyriZQ6zmDmREQIvJS4Z0LgaKZ22hJZ59XnnAhCpNtMjSzyYuuEzBWMjJz3VLXITNl4ytP0MHlJdpNP2L0FRl19EOX_7Zzx14FDntu5OSr-Z0VF79wb7UF1nA8aqykC1hmzjbexwnTKSUAk--SUQhVeZVd2ucTk7ckDVN12OkxUtp4tD677oRZRjZ3xn0HeBFuqIH6Z1kQjYndUN1Nsls"/>
+</div>
+<span class="font-label text-[9px] text-secondary uppercase font-black tracking-widest mb-1">DATA_RARE</span>
+<p class="font-headline text-[10px] font-bold text-center uppercase tracking-tight truncate w-full">Liquid Focus Aura</p>
+</div>
+</div>
+<!-- Item 4: Epic -->
+<div class="aspect-square bg-surface-container rounded p-4 relative group cursor-pointer overflow-hidden refined-border">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="h-full flex flex-col items-center justify-center">
+<div class="w-20 h-20 mb-3 relative flex items-center justify-center">
+<div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-0 group-hover:scale-100 transition-transform duration-500"></div>
+<img alt="Item" class="w-full h-full object-contain relative z-10 drop-shadow-2xl" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfDlwPRI47J1XqO-mOaMPuTW4UWCgx84Q8Wi0MtXRIB42uNj2D5NCYKjjqF-ne9DpKu4nmMp4qBbTAoL5He9rsM1PkxlL9aAxoicBZ6e4vYLiSa66dK0Li1pbro8FXZlPosMRKvArvpY9Vc53pVzGA8gATNN2onYqOM892bOspeIMHC8txuzCck_b9ag3VjficHjNZvWWihorqfPPl2aIUFmdEoogzF0sikjVZdZvgANCqzQxoOmPyXHAQZbp-lAqywM2wZTlBeSCY"/>
+</div>
+<span class="font-label text-[9px] text-primary uppercase font-black tracking-widest mb-1">CORE_EPIC</span>
+<p class="font-headline text-[10px] font-bold text-center uppercase tracking-tight truncate w-full">Crown of Focus</p>
+</div>
+</div>
+<!-- Empty Slots -->
+<div class="aspect-square bg-surface-container/50 rounded border border-outline-variant/30 border-dashed flex items-center justify-center group hover:bg-surface-container transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors text-3xl" data-icon="add">add</span>
+</div>
+<div class="aspect-square bg-surface-container/50 rounded border border-outline-variant/30 border-dashed hidden lg:flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/40" data-icon="lock">lock</span>
+</div>
+</div>
+</section>
+<!-- Achievements Section -->
+<section class="space-y-6">
+<h3 class="font-headline text-sm font-bold tracking-[0.2em] uppercase text-on-surface-variant flex items-center gap-3">
+<span class="w-6 h-[1px] bg-primary"></span>
+                Recent Archives
+            </h3>
+<div class="space-y-3">
+<!-- Achievement 1 -->
+<div class="flex items-center gap-6 p-5 rounded bg-surface-container border-l-2 border-primary group hover:bg-surface-container-high transition-colors">
+<div class="w-16 h-16 bg-primary/10 rounded flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h5 class="font-headline font-black text-sm uppercase tracking-wider">EARLY RISER ELITE</h5>
+<span class="font-label text-[9px] text-tertiary font-bold tracking-widest">2 DAYS AGO</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1 font-medium">Protocol executed: 10 daily objectives before 0800 HRS for 7 consecutive cycles.</p>
+</div>
+</div>
+<!-- Achievement 2 -->
+<div class="flex items-center gap-6 p-5 rounded bg-surface-container border-l-2 border-tertiary/30 group hover:bg-surface-container-high transition-colors">
+<div class="w-16 h-16 bg-surface-container-highest rounded flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-tertiary text-3xl" data-icon="directions_run">directions_run</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h5 class="font-headline font-black text-sm uppercase tracking-wider opacity-60">STAMINA MASTER</h5>
+<span class="font-label text-[9px] text-tertiary font-bold tracking-widest opacity-60">1 WEEK AGO</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1 font-medium opacity-60">Biological exertion exceeded 50,000 movement units in a single weekly expedition.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Component Integration ({{DATA:COMPONENTS:COMPONENTS_14}}) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#201f1f]/60 backdrop-blur-xl border-t border-[#9e8e78]/20 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] md:hidden">
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="military_tech">military_tech</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Quests</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="add_a_photo">add_a_photo</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Create</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#ffd79b] bg-[#ffb300]/10 rounded-xl px-4 py-1 shadow-[0_0_12px_rgba(255,215,155,0.2)]" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider mt-1">Profile</span>
+</a>
+</nav>
+<!-- Desktop Sidebar Mockup -->
+<div class="hidden md:flex fixed left-8 top-1/2 -translate-y-1/2 flex-col gap-6 z-50">
+<div class="flex flex-col gap-4 p-2 bg-[#131313]/80 backdrop-blur rounded-full border border-primary/20 shadow-2xl">
+<button class="p-4 rounded-full text-[#9e8e78] hover:text-[#ffb300] transition-colors">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+</button>
+<button class="p-4 rounded-full text-[#9e8e78] hover:text-[#ffb300] transition-colors">
+<span class="material-symbols-outlined" data-icon="military_tech">military_tech</span>
+</button>
+<button class="p-4 rounded-full text-[#9e8e78] hover:text-[#ffb300] transition-colors">
+<span class="material-symbols-outlined" data-icon="add_a_photo">add_a_photo</span>
+</button>
+<button class="p-4 rounded-full bg-[#ffb300]/10 text-[#ffb300] border border-[#ffb300]/30 shadow-[0_0_15px_rgba(255,179,0,0.2)]">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+</div>
+</div>
+</body></html>

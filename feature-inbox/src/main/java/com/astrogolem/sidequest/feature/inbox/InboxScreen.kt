@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,7 +35,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @Composable
-fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
+fun InboxRoute(
+    onOpenCapture: (String) -> Unit,
+    viewModel: InboxViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LazyColumn(
         modifier = Modifier
@@ -44,8 +48,8 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
     ) {
         item {
             ScaffoldCard(
-                title = "Inbox Pipeline",
-                subtitle = "Candidates appear here when a background capture job finishes extraction.",
+                title = "Quest Intake",
+                subtitle = "Fresh candidates stage here after a scan so you can approve or reject them before deployment.",
             ) {
                 Text("Queued: ${state.queuedCount}")
                 Text("Processing: ${state.processingCount}")
@@ -59,7 +63,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
         if (state.candidates.isEmpty()) {
             item {
                 ScaffoldCard(
-                    title = "No candidates yet",
+                    title = "No staged quests",
                     subtitle = state.emptyStateMessage,
                 ) {
                     state.recentCaptures.take(3).forEach { capture ->
@@ -74,8 +78,8 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
             if (bestBets.isNotEmpty()) {
                 item {
                     ScaffoldCard(
-                        title = "Best Bets",
-                        subtitle = "Higher-signal candidates that look ready to turn into missions.",
+                        title = "Ready To Deploy",
+                        subtitle = "Higher-signal candidates that already look like real quests.",
                     ) {}
                 }
                 items(bestBets, key = { it.id }) { candidate ->
@@ -83,6 +87,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                         candidate = candidate,
                         onPromote = { viewModel.promote(candidate.id) },
                         onDismiss = { viewModel.dismiss(candidate.id) },
+                        onOpenCapture = { onOpenCapture(candidate.captureId) },
                     )
                 }
             }
@@ -91,7 +96,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                 item {
                     ScaffoldCard(
                         title = "Needs Review",
-                        subtitle = "Low-signal OCR lines. Keep only the candidates that are actually useful.",
+                        subtitle = "Low-signal OCR lines. Only keep the candidates that survive a human glance.",
                     ) {}
                 }
                 items(reviewQueue, key = { it.id }) { candidate ->
@@ -99,6 +104,7 @@ fun InboxRoute(viewModel: InboxViewModel = hiltViewModel()) {
                         candidate = candidate,
                         onPromote = { viewModel.promote(candidate.id) },
                         onDismiss = { viewModel.dismiss(candidate.id) },
+                        onOpenCapture = { onOpenCapture(candidate.captureId) },
                     )
                 }
             }
@@ -120,6 +126,7 @@ data class InboxUiState(
 
 data class InboxCandidateItem(
     val id: String,
+    val captureId: String,
     val title: String,
     val body: String,
     val confidence: Float,
@@ -135,6 +142,7 @@ private fun CandidateCard(
     candidate: InboxCandidateItem,
     onPromote: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenCapture: () -> Unit,
 ) {
     ScaffoldCard(
         title = candidate.title,
@@ -164,9 +172,15 @@ private fun CandidateCard(
             Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
                 Text("Promote")
             }
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                Text("Dismiss")
+            OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
+                Text("Open Intel")
             }
+        }
+        TextButton(
+            onClick = onDismiss,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Text("Dismiss")
         }
     }
 }
@@ -185,6 +199,7 @@ class InboxViewModel @Inject constructor(
             candidates = candidates.map { candidate ->
                 InboxCandidateItem(
                     id = candidate.id,
+                    captureId = candidate.captureId,
                     title = candidate.title,
                     body = candidate.body,
                     confidence = candidate.confidence,

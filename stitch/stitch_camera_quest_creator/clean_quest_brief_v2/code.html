@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quest Detail - Sidequest</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Space_Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#ffb300",
+              "on-primary": "#453900",
+              "primary-container": "#665500",
+              "on-primary-container": "#ffd79b",
+              "secondary": "#ffd79b",
+              "tertiary": "#9e8e78",
+              "background": "#0d0d0d",
+              "surface": "#131313",
+              "surface-container": "#201f1f",
+              "surface-bright": "#2b2b2b",
+              "on-surface": "#e6e1e1",
+              "on-surface-variant": "#9e8e78",
+              "outline": "#484747",
+              "outline-variant": "#302f2f",
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {
+              "DEFAULT": "0.25rem",
+              "sm": "0.125rem",
+              "md": "0.375rem",
+              "lg": "0.5rem",
+              "xl": "0.75rem",
+              "2xl": "1rem",
+              "3xl": "1.5rem",
+              "full": "9999px"
+            },
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .gold-glow {
+        box-shadow: 0 0 24px rgba(255, 179, 0, 0.25);
+      }
+      .solar-gradient {
+        background: linear-gradient(135deg, #ffb300 0%, #ffd79b 100%);
+      }
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body min-h-screen pb-32">
+<!-- TopAppBar from COMPONENTS_14 -->
+<header class="flex justify-between items-center px-6 h-16 w-full fixed top-0 z-50 bg-[#131313] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#ffd79b] hover:text-[#ffb300] transition-colors active:scale-95 duration-150">menu</button>
+<span class="text-[#ffb300] font-black tracking-tighter text-xl uppercase font-headline">Sidequest</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 px-3 py-1 bg-[#201f1f] rounded-full border border-outline/20">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-label text-sm font-bold text-on-surface">1,250 GP</span>
+</div>
+<div class="w-8 h-8 rounded-full border border-primary/30 overflow-hidden bg-surface-bright">
+<img alt="User Pilot Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC62snibt31RD0zhSutQj_-GUFCMgdg1H1-r_NEtmfVE8AFX4m7H7U2miDPSN2vrNqDvMY13RGXDeGdWz1n3nkKHJ6cSJx4IdKx4nZEzVuwb91LvgRUmdYfV0ye0Bqbxgyda4GOVInUKLyuBVNN4CH8xV2jokn7j5-9AsNDCWMWwMWH_XhLsk2MGhDvZnrdXfx_KVlKpQBa2GtN40JiEQvhf_OFSNWCUhFBQLLGj_TMTpPl4ZcmCiT461JupRnk5iE6xQ9s5SXSktiW"/>
+</div>
+</div>
+</header>
+<main class="pt-20 px-4 max-w-2xl mx-auto space-y-6">
+<!-- Hero Section -->
+<section class="relative rounded-2xl overflow-hidden aspect-[16/10] flex flex-col justify-end p-8 border border-outline-variant/30">
+<div class="absolute inset-0 z-0">
+<img alt="Quest Background" class="w-full h-full object-cover opacity-60" data-alt="dramatic still life of ancient glowing books and scrolls on a dark stone altar illuminated by purple magical energy sparks" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1h-DYYXx87mRds2vwJLNoq1zJ2CnAtTXaeSrY-ai3NzSf5s3ZCOVSlpr1mmU9N6U84mGDy-6vvSRKHkpWq3sxdomKlJLeMrFp-r4t0A76rK3uvHn6mHYhzctqJSgDvQljKreQSb6zxc-sZD25d61xkKOHA3DQa_uHH3iKYeEG2dwmQDe74es8H8awyQ2EL8BWxOAi3KtME93CKGBMTMmlrUh03_ttxziig7TV2BvapDQJytQurJudhryfFLuxj2R_hEyG1qqHfICl"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+</div>
+<div class="relative z-10 space-y-2">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 backdrop-blur-md rounded-md border border-primary/20 mb-2">
+<span class="material-symbols-outlined text-primary text-[14px]" style="font-variation-settings: 'FILL' 1;">auto_stories</span>
+<span class="font-label text-[10px] uppercase tracking-widest text-primary font-bold">Active Quest</span>
+</div>
+<h1 class="text-3xl font-extrabold font-headline text-on-surface leading-tight tracking-tight">Mastering the Ancient Scrolls</h1>
+</div>
+</section>
+<!-- Quest Content -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Briefing -->
+<section class="md:col-span-2 bg-surface-container p-6 rounded-2xl border border-outline-variant/30 space-y-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">description</span>
+<h2 class="font-headline font-bold text-sm uppercase tracking-widest text-on-surface">Briefing</h2>
+</div>
+<div class="h-px w-full bg-outline-variant/30"></div>
+<p class="text-on-surface leading-relaxed text-base font-medium">
+                    "The knowledge within these scrolls must be mastered before the celestial alignment begins. Your journey through the archives of the Astral Library will test your resolve and focus. Do not let the whispers of the void distract you from the text."
+                </p>
+</section>
+<!-- Spoils Section -->
+<section class="bg-surface-container p-6 rounded-2xl border border-outline-variant/30 space-y-4 flex flex-col justify-between">
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+<h2 class="font-headline font-bold text-sm uppercase tracking-widest text-on-surface">Potential Spoils</h2>
+</div>
+<div class="space-y-2">
+<div class="flex items-center justify-between p-3 bg-surface-bright/50 rounded-xl border border-outline-variant/20">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">bolt</span>
+<span class="font-label text-[11px] uppercase tracking-tighter text-on-surface-variant font-bold">Experience</span>
+</div>
+<span class="font-label font-bold text-secondary">+100 XP</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-bright/50 rounded-xl border border-outline-variant/20">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">payments</span>
+<span class="font-label text-[11px] uppercase tracking-tighter text-on-surface-variant font-bold">Gold Pieces</span>
+</div>
+<span class="font-label font-bold text-secondary">+20 GP</span>
+</div>
+</div>
+</div>
+<div class="p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
+<div class="relative">
+<span class="material-symbols-outlined text-primary text-2xl">stars</span>
+</div>
+<div>
+<p class="text-[9px] uppercase font-label tracking-widest text-on-surface-variant font-bold">Rare Bonus</p>
+<p class="text-xs font-bold text-secondary">Common Item Drop (15%)</p>
+</div>
+</div>
+</section>
+<!-- Stats Section -->
+<section class="bg-surface-container p-6 rounded-2xl border border-outline-variant/30 space-y-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">analytics</span>
+<h2 class="font-headline font-bold text-sm uppercase tracking-widest text-on-surface">Vital Stats</h2>
+</div>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between mb-2">
+<span class="text-[10px] font-label uppercase text-on-surface-variant font-bold">Difficulty</span>
+<span class="text-[10px] font-label text-primary font-bold uppercase">Veteran</span>
+</div>
+<div class="h-1 w-full bg-outline-variant/30 rounded-full overflow-hidden">
+<div class="h-full w-3/4 bg-primary shadow-[0_0_8px_rgba(255,179,0,0.5)]"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-3 bg-surface-bright/50 rounded-xl border border-outline-variant/20">
+<p class="text-[9px] uppercase font-label text-on-surface-variant mb-2 font-bold">Duration</p>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">schedule</span>
+<span class="font-bold text-sm">45 Mins</span>
+</div>
+</div>
+<div class="p-3 bg-surface-bright/50 rounded-xl border border-outline-variant/20">
+<p class="text-[9px] uppercase font-label text-on-surface-variant mb-2 font-bold">Energy Cost</p>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">bolt</span>
+<span class="font-bold text-sm">12 HP</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Action Section -->
+<section class="space-y-4 pt-4">
+<button class="w-full solar-gradient text-on-primary py-5 rounded-xl font-headline font-black text-lg uppercase tracking-widest gold-glow active:scale-95 transition-all duration-200">
+                Complete Quest
+            </button>
+<button class="w-full py-2 text-on-surface-variant font-label text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-2 hover:text-primary transition-colors font-bold">
+<span class="material-symbols-outlined text-sm">close</span>
+                Forfeit Quest
+            </button>
+</section>
+</main>
+<!-- BottomNavBar from COMPONENTS_14 -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#201f1f]/60 backdrop-blur-xl rounded-t-2xl border-t border-[#9e8e78]/20 shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">dashboard</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#ffd79b] bg-[#ffb300]/10 rounded-xl px-4 py-1 shadow-[0_0_12px_rgba(255,215,155,0.2)] active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">military_tech</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider">Quests</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">add_a_photo</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider">Create</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9e8e78] px-4 py-1 hover:bg-white/5 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-['Plus_Jakarta_Sans'] text-[10px] font-medium uppercase tracking-wider">Profile</span>
+</a>
+</nav>
+</body></html>

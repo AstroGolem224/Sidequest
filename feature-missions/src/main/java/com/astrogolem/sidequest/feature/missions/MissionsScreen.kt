@@ -2,17 +2,28 @@ package com.astrogolem.sidequest.feature.missions
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.net.Uri
+import android.widget.ImageView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,8 +32,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -31,15 +47,19 @@ import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.MissionAction
 import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionDetailModel
+import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
-import com.astrogolem.sidequest.core.ui.components.HudRing
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
-import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
-import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.components.HudTone
+import com.astrogolem.sidequest.core.ui.components.StatusPill
+import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
+import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
+import com.astrogolem.sidequest.core.ui.theme.BgGlow
+import com.astrogolem.sidequest.core.ui.theme.CardSurfaceStrong
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.DateFormat
+import java.io.File
 import java.util.Calendar
 import java.util.Date
 import java.util.concurrent.TimeUnit
@@ -55,62 +75,76 @@ fun MissionsRoute(
     viewModel: MissionsViewModel = hiltViewModel(),
 ) {
     val missions by viewModel.missions.collectAsStateWithLifecycle()
-    val activeCount = missions.count { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
-    val focusTargets = missions.take(3)
+    val activeMissions = missions.filter { it.status.name == "OPEN" || it.status.name == "ACTIVE" }
+    val completedCount = missions.count { it.status.name == "DONE" }
+    val totalGp = missions.sumOf(::rewardGp).coerceAtLeast(125)
+    val level = (totalGp / 180) + 1
+    val xpCurrent = totalGp % 180
+    val activeCount = activeMissions.size
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            ScaffoldCard(
-                title = "Mission Control v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
-                subtitle = if (missions.isEmpty()) {
-                    "No missions yet. Capture or import something to let Sidequest build your first quest."
-                } else {
-                    "Time-to-failure sorted objective board."
-                },
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    HudRing(
-                        progress = if (missions.isEmpty()) 0.08f else activeCount / missions.size.toFloat(),
-                        modifier = Modifier.weight(0.35f),
-                    )
-                    Column(
-                        modifier = Modifier.weight(0.65f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        StatusPill("daily focus x${focusTargets.size.coerceAtLeast(1)}", tone = HudTone.Amber)
-                        Text("${activeCount} active missions", style = MaterialTheme.typography.headlineSmall)
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Level $level", style = MaterialTheme.typography.headlineLarge)
                         Text(
-                            if (missions.isEmpty()) {
-                                "Start with the lens, confirm intel in Inbox, then deploy missions here."
-                            } else {
-                                "Top missions stay in thumb range so the next move is obvious in under half a second."
-                            },
+                            text = if (completedCount >= 20) "STELLAR NAVIGATOR" else "QUEST PILOT",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AccentPrimary,
+                        )
+                    }
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        Text("$xpCurrent/180 XP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+                        Text(
+                            "$activeCount active | v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
                         )
-                        SegmentedMeter(progress = if (missions.isEmpty()) 0.12f else activeCount / (missions.size.coerceAtLeast(1)).toFloat())
                     }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                        .background(CardSurfaceStrong),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((xpCurrent / 180f).coerceIn(0.08f, 1f))
+                            .height(6.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                            .background(AccentPrimary),
+                    )
                 }
             }
         }
 
-        if (focusTargets.isNotEmpty()) {
-            item {
-                ScaffoldCard(
-                    title = "Immediate Action",
-                    subtitle = "Your top three missions are pinned as high-contrast launch targets.",
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text("ACTIVE SIDEQUESTS", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+                Surface(
+                    color = AccentPrimary.copy(alpha = 0.12f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 ) {
-                    focusTargets.forEach { mission ->
-                        Button(
-                            onClick = { onOpenMission(mission.id) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        ) {
-                            Text(mission.title)
-                        }
-                    }
+                    Text(
+                        text = "${activeCount.coerceAtLeast(missions.size)} ACTIVE",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = AccentSecondary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
                 }
             }
         }
@@ -118,8 +152,8 @@ fun MissionsRoute(
         if (missions.isEmpty()) {
             item {
                 ScaffoldCard(
-                    title = "Nothing in flight",
-                    subtitle = "The dashboard is healthy, just empty.",
+                    title = "No quests deployed",
+                    subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
                 ) {
                     Text("1. Capture a note, receipt or whiteboard.")
                     Text("2. Wait for background extraction to finish.")
@@ -130,20 +164,55 @@ fun MissionsRoute(
             items(missions, key = { it.id }) { mission ->
                 ScaffoldCard(
                     title = mission.title,
-                    subtitle = buildSubtitle(mission),
+                    subtitle = mission.description,
                 ) {
-                    StatusPill(
-                        text = urgencyLabel(mission),
-                        tone = urgencyTone(mission),
-                    )
-                    Text(mission.description, modifier = Modifier.padding(top = 12.dp))
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.Top,
                     ) {
-                        Button(onClick = { onOpenMission(mission.id) }) { Text("Open") }
-                        Button(onClick = { viewModel.complete(mission.id) }) { Text("Complete") }
-                        Button(onClick = { viewModel.snooze(mission.id, TimeUnit.HOURS.toMillis(1)) }) { Text("Snooze 1h") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Surface(
+                                color = AccentPrimary.copy(alpha = 0.12f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                modifier = Modifier.size(44.dp),
+                            ) {
+                                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(missionIconRes(mission)),
+                                        contentDescription = mission.title,
+                                        tint = AccentPrimary,
+                                    )
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StatusPill(text = missionTierLabel(mission), tone = HudTone.Amber)
+                                StatusPill(text = urgencyLabel(mission), tone = urgencyTone(mission))
+                            }
+                        }
+                        Text(
+                            text = "${rewardXp(mission)} XP",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AccentSecondary,
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(top = 18.dp),
+                    ) {
+                        RewardChip(android.R.drawable.star_big_on, "${rewardXp(mission)} XP")
+                        RewardChip(android.R.drawable.ic_menu_info_details, "${rewardGp(mission)} GP")
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(top = 18.dp),
+                    ) {
+                        Button(onClick = { onOpenMission(mission.id) }, modifier = Modifier.weight(1f)) {
+                            Text("Open")
+                        }
+                        Button(onClick = { viewModel.complete(mission.id) }, modifier = Modifier.weight(1f)) {
+                            Text("Complete")
+                        }
                     }
                 }
             }
@@ -201,89 +270,434 @@ fun MissionDetailRoute(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                ScaffoldCard(
-                    title = detail.title,
-                    subtitle = "Priority ${detail.priorityScore} | ${detail.status.name.lowercase()}",
-                ) {
-                    Text(
-                        text = "Due: ${detail.dueAt?.let(::formatTimestamp) ?: "not set"}",
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                    Text(
-                        text = "Reminder: ${detail.remindAt?.let(::formatTimestamp) ?: "not set"}",
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Button(onClick = { openDateTimePicker(dueCalendar, viewModel::updateDueDate) }) { Text("Set due") }
-                        Button(onClick = { openDateTimePicker(reminderCalendar, viewModel::updateReminderAt) }) { Text("Set reminder") }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Button(onClick = { viewModel.clearDueDate() }) { Text("Clear due") }
-                        Button(onClick = { viewModel.clearReminderAt() }) { Text("Clear reminder") }
-                    }
-                }
+                MissionHero(detail = detail)
             }
 
             item {
-                ScaffoldCard(title = "Description", subtitle = "Edit the mission brief directly.") {
+                ScaffoldCard(title = "Briefing", subtitle = "Refine the quest text before execution.") {
                     OutlinedTextField(
                         value = draftDescription,
                         onValueChange = { draftDescription = it },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                     )
-                    Button(
-                        onClick = { viewModel.updateDescription(draftDescription) },
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Text("Save description")
-                    }
-                }
-            }
-
-            item {
-                ScaffoldCard(title = "Priority", subtitle = "Use fixed presets to keep scoring readable.") {
-                    PrioritySelector(
-                        selected = detail.priorityScore,
-                        onSelect = viewModel::updatePriority,
-                    )
-                }
-            }
-
-            item {
-                ScaffoldCard(title = "Quick actions", subtitle = "Status and re-engagement controls.") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { viewModel.complete() }) { Text("Complete") }
-                        Button(onClick = { viewModel.activate() }) { Text("Activate") }
-                    }
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Button(onClick = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) }) { Text("Snooze 30m") }
-                        Button(onClick = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) }) { Text("Snooze 2h") }
-                        Button(onClick = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) }) { Text("Snooze 1d") }
-                    }
-                    if (sourceCaptureId != null) {
                         Button(
-                            onClick = { onOpenCapture(sourceCaptureId) },
-                            modifier = Modifier.padding(top = 12.dp),
+                            onClick = { viewModel.updateDescription(draftDescription) },
+                            modifier = Modifier.weight(1f),
                         ) {
-                            Text("Open source capture")
+                            Text("Save Brief")
+                        }
+                        if (sourceCaptureId != null) {
+                            OutlinedButton(
+                                onClick = { onOpenCapture(sourceCaptureId) },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Evidence Window")
+                            }
                         }
                     }
                 }
             }
+
+            item {
+                SpoilsCard(detail = detail)
+            }
+
+            item {
+                VitalStatsCard(
+                    detail = detail,
+                    onPickDueDate = { openDateTimePicker(dueCalendar, viewModel::updateDueDate) },
+                    onPickReminder = { openDateTimePicker(reminderCalendar, viewModel::updateReminderAt) },
+                    onClearDueDate = viewModel::clearDueDate,
+                    onClearReminder = viewModel::clearReminderAt,
+                    onSelectPriority = viewModel::updatePriority,
+                )
+            }
+
+            item {
+                CommandActionsCard(
+                    detail = detail,
+                    onComplete = viewModel::complete,
+                    onActivate = viewModel::activate,
+                    onArchive = viewModel::archive,
+                    onSnoozeThirty = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) },
+                    onSnoozeTwoHours = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) },
+                    onSnoozeOneDay = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) },
+                    onOpenCapture = sourceCaptureId?.let { { onOpenCapture(it) } },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionHero(detail: MissionDetailModel) {
+    Surface(
+        color = BgGlow,
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.2f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(248.dp),
+        ) {
+            detail.sourceImagePath?.let { sourceImagePath ->
+                MissionSourceImage(
+                    imagePath = sourceImagePath,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Black.copy(alpha = 0.14f), Color.Black.copy(alpha = 0.82f)),
+                        ),
+                    ),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                StatusPill(
+                    text = when (detail.status) {
+                        MissionStatus.DONE -> "completed quest"
+                        MissionStatus.ACTIVE -> "active quest"
+                        MissionStatus.SNOOZED -> "snoozed quest"
+                        MissionStatus.ARCHIVED -> "archived quest"
+                        MissionStatus.OPEN -> "open quest"
+                    },
+                    tone = HudTone.Amber,
+                )
+                Text(
+                    text = detail.title,
+                    style = MaterialTheme.typography.headlineLarge,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+                Text(
+                    text = buildSubtitle(
+                        MissionCardModel(
+                            id = detail.id,
+                            title = detail.title,
+                            description = detail.description,
+                            priorityScore = detail.priorityScore,
+                            status = detail.status,
+                            dueAt = detail.dueAt,
+                            remindAt = detail.remindAt,
+                            sourceCaptureId = detail.sourceCaptureId,
+                        ),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionSourceImage(
+    imagePath: String,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        factory = { context ->
+            ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            }
+        },
+        update = { imageView ->
+            imageView.setImageURI(Uri.fromFile(File(imagePath)))
+        },
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun SpoilsCard(detail: MissionDetailModel) {
+    ScaffoldCard(
+        title = "Potential Spoils",
+        subtitle = "Rewards are deterministic so the game wrapper stays honest.",
+    ) {
+        RewardStrip(label = "Experience", value = "+${rewardXp(detail.toMissionCard())} XP", iconRes = android.R.drawable.ic_menu_compass)
+        RewardStrip(
+            label = "Gold Pieces",
+            value = "+${rewardGp(detail.toMissionCard())} GP",
+            iconRes = android.R.drawable.star_big_on,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 14.dp),
+            color = AccentPrimary.copy(alpha = 0.08f),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.16f)),
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Rare Bonus", style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
+                Text(
+                    text = if (detail.priorityScore >= 85) "Critical-focus bonus (15%)" else "Steady progress bonus (5%)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AccentSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RewardStrip(
+    label: String,
+    value: String,
+    iconRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = BgGlow,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = label,
+                    tint = AccentPrimary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(label, style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+            }
+            Text(value, style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
+        }
+    }
+}
+
+@Composable
+private fun VitalStatsCard(
+    detail: MissionDetailModel,
+    onPickDueDate: () -> Unit,
+    onPickReminder: () -> Unit,
+    onClearDueDate: () -> Unit,
+    onClearReminder: () -> Unit,
+    onSelectPriority: (Int) -> Unit,
+) {
+    ScaffoldCard(
+        title = "Vital Stats",
+        subtitle = "Timing, difficulty, and mission cost.",
+    ) {
+        val difficultyProgress = (detail.priorityScore / 100f).coerceIn(0.08f, 1f)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("Difficulty", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+            Text(priorityTier(detail.priorityScore), style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(CardSurfaceStrong),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(difficultyProgress)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(AccentPrimary),
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            StatTile(
+                label = "Duration",
+                value = estimatedDuration(detail.priorityScore),
+                modifier = Modifier.weight(1f),
+            )
+            StatTile(
+                label = "Energy Cost",
+                value = "${(detail.priorityScore / 8).coerceAtLeast(4)} HP",
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Text(
+            text = "Due: ${detail.dueAt?.let(::formatTimestamp) ?: "not set"}",
+            modifier = Modifier.padding(top = 16.dp),
+            color = TextSecondary,
+        )
+        Text(
+            text = "Reminder: ${detail.remindAt?.let(::formatTimestamp) ?: "not set"}",
+            modifier = Modifier.padding(top = 4.dp),
+            color = TextSecondary,
+        )
+        Row(
+            modifier = Modifier.padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(onClick = onPickDueDate, modifier = Modifier.weight(1f)) { Text("Set Due") }
+            Button(onClick = onPickReminder, modifier = Modifier.weight(1f)) { Text("Set Reminder") }
+        }
+        Row(
+            modifier = Modifier.padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(onClick = onClearDueDate, modifier = Modifier.weight(1f)) { Text("Clear Due") }
+            OutlinedButton(onClick = onClearReminder, modifier = Modifier.weight(1f)) { Text("Clear Reminder") }
+        }
+        Text(
+            text = "Priority Presets",
+            style = MaterialTheme.typography.titleSmall,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        )
+        PrioritySelector(
+            selected = detail.priorityScore,
+            onSelect = onSelectPriority,
+        )
+    }
+}
+
+@Composable
+private fun StatTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = BgGlow,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+            Text(value, style = MaterialTheme.typography.titleMedium, color = AccentSecondary)
+        }
+    }
+}
+
+@Composable
+private fun CommandActionsCard(
+    detail: MissionDetailModel,
+    onComplete: () -> Unit,
+    onActivate: () -> Unit,
+    onArchive: () -> Unit,
+    onSnoozeThirty: () -> Unit,
+    onSnoozeTwoHours: () -> Unit,
+    onSnoozeOneDay: () -> Unit,
+    onOpenCapture: (() -> Unit)?,
+) {
+    ScaffoldCard(
+        title = "Command Actions",
+        subtitle = "Deploy, pause, or drop the quest without losing control over source intel.",
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = onComplete, modifier = Modifier.weight(1f)) { Text("Complete Quest") }
+            OutlinedButton(onClick = if (detail.status == MissionStatus.ACTIVE) onArchive else onActivate, modifier = Modifier.weight(1f)) {
+                Text(if (detail.status == MissionStatus.ACTIVE) "Forfeit Quest" else "Activate")
+            }
+        }
+        Row(
+            modifier = Modifier.padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(onClick = onSnoozeThirty, modifier = Modifier.weight(1f)) { Text("30m") }
+            OutlinedButton(onClick = onSnoozeTwoHours, modifier = Modifier.weight(1f)) { Text("2h") }
+            OutlinedButton(onClick = onSnoozeOneDay, modifier = Modifier.weight(1f)) { Text("1d") }
+        }
+        if (onOpenCapture != null) {
+            Button(
+                onClick = onOpenCapture,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
+            ) {
+                Text("Open Source Intel")
+            }
+        }
+    }
+}
+
+private fun MissionDetailModel.toMissionCard(): MissionCardModel {
+    return MissionCardModel(
+        id = id,
+        title = title,
+        description = description,
+        priorityScore = priorityScore,
+        status = status,
+        dueAt = dueAt,
+        remindAt = remindAt,
+        sourceCaptureId = sourceCaptureId,
+    )
+}
+
+private fun priorityTier(priorityScore: Int): String {
+    return when {
+        priorityScore >= 90 -> "Veteran"
+        priorityScore >= 70 -> "Elite"
+        priorityScore >= 45 -> "Standard"
+        else -> "Scout"
+    }
+}
+
+private fun estimatedDuration(priorityScore: Int): String {
+    return when {
+        priorityScore >= 90 -> "45 mins"
+        priorityScore >= 70 -> "30 mins"
+        priorityScore >= 45 -> "20 mins"
+        else -> "10 mins"
+    }
+}
+
+@Composable
+private fun RewardChip(
+    iconRes: Int,
+    value: String,
+) {
+    Surface(
+        color = BgGlow,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = value,
+                tint = AccentPrimary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(value, style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
         }
     }
 }
@@ -318,6 +732,32 @@ private fun buildSubtitle(mission: MissionCardModel): String {
         append("Priority ${mission.priorityScore} | ${mission.status.name.lowercase()}")
         mission.dueAt?.let { append(" | due ${formatTimestamp(it)}") }
         mission.remindAt?.let { append(" | remind ${formatTimestamp(it)}") }
+    }
+}
+
+private fun rewardXp(mission: MissionCardModel): Int {
+    return (mission.priorityScore * 2).coerceAtLeast(50)
+}
+
+private fun rewardGp(mission: MissionCardModel): Int {
+    return (mission.priorityScore / 4).coerceAtLeast(10)
+}
+
+private fun missionTierLabel(mission: MissionCardModel): String {
+    return when {
+        mission.priorityScore >= 90 -> "HARD"
+        mission.priorityScore >= 70 -> "TIER II"
+        else -> "TIER I"
+    }
+}
+
+private fun missionIconRes(mission: MissionCardModel): Int {
+    val title = mission.title.lowercase()
+    return when {
+        "clean" in title || "desk" in title || "kitchen" in title -> android.R.drawable.ic_menu_delete
+        "read" in title || "book" in title || "study" in title -> android.R.drawable.ic_menu_edit
+        "run" in title || "walk" in title || "fit" in title -> android.R.drawable.ic_media_play
+        else -> android.R.drawable.ic_menu_compass
     }
 }
 
@@ -426,6 +866,12 @@ class MissionDetailViewModel @Inject constructor(
     fun activate() {
         viewModelScope.launch {
             missionRepository.applyAction(MissionAction.Activate(missionId))
+        }
+    }
+
+    fun archive() {
+        viewModelScope.launch {
+            missionRepository.applyAction(MissionAction.Archive(missionId))
         }
     }
 

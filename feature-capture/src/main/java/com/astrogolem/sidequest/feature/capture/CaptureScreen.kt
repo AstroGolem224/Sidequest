@@ -31,12 +31,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -78,11 +83,17 @@ import com.astrogolem.sidequest.core.data.model.CaptureDetailModel
 import com.astrogolem.sidequest.core.data.model.ExtractionCandidate
 import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ExtractionStatus
+import com.astrogolem.sidequest.core.data.model.CaptureProcessingStatus
 import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
+import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
+import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
+import com.astrogolem.sidequest.core.ui.theme.BgPanel
+import com.astrogolem.sidequest.core.ui.theme.CardSurface
+import com.astrogolem.sidequest.core.ui.theme.CardStrokeStrong
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -170,6 +181,9 @@ fun CaptureRoute(
                 cameraError = null
             }
         },
+        onDismissReview = viewModel::dismissReviewDrawer,
+        onPromoteCandidate = viewModel::promoteCandidate,
+        onDismissCandidate = viewModel::dismissCandidate,
         onOpenCapture = onOpenCapture,
     )
 }
@@ -188,6 +202,9 @@ private fun CaptureScreen(
     onCapture: () -> Unit,
     onRetake: () -> Unit,
     onSave: () -> Unit,
+    onDismissReview: () -> Unit,
+    onPromoteCandidate: (String) -> Unit,
+    onDismissCandidate: (String) -> Unit,
     onOpenCapture: (String) -> Unit,
 ) {
     val latestCapture = state.captures.firstOrNull()
@@ -264,6 +281,237 @@ private fun CaptureScreen(
                     .fillMaxWidth(),
             ) {
                 Text("Restore Vision")
+            }
+        }
+
+        if (state.showReviewDrawer) {
+            val reviewCapture = state.reviewCapture
+            if (reviewCapture != null) {
+                PostScanReviewDrawer(
+                    reviewCapture = reviewCapture,
+                    reviewCandidates = state.reviewCandidates,
+                    onDismissDrawer = onDismissReview,
+                    onPromoteCandidate = onPromoteCandidate,
+                    onDismissCandidate = onDismissCandidate,
+                    onOpenCapture = { onOpenCapture(reviewCapture.id) },
+                )
+            }
+        } else if (cameraError != null || state.isSaving || state.lastMessage != DefaultCaptureMessage) {
+            CaptureStatusBanner(
+                message = cameraError ?: state.lastMessage,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 108.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CaptureStatusBanner(
+    message: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = BgPanel.copy(alpha = 0.94f),
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.4f)),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = AccentSecondary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun PostScanReviewDrawer(
+    reviewCapture: CaptureDetailModel,
+    reviewCandidates: List<ExtractionCandidate>,
+    onDismissDrawer: () -> Unit,
+    onPromoteCandidate: (String) -> Unit,
+    onDismissCandidate: (String) -> Unit,
+    onOpenCapture: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissDrawer,
+        containerColor = BgPanel.copy(alpha = 0.98f),
+        scrimColor = Color.Black.copy(alpha = 0.42f),
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                color = CardStrokeStrong,
+            )
+        },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            when (reviewCapture.status) {
+                CaptureProcessingStatus.PROCESSING -> ReviewDrawerHeader(
+                    title = "Analyzing objective",
+                    subtitle = "OCR and classification are running in the background. Keep the drawer open or jump into intel when it completes.",
+                )
+                CaptureProcessingStatus.DONE -> ReviewDrawerHeader(
+                    title = if (reviewCandidates.isEmpty()) "Intel archived" else "Review suggested quests",
+                    subtitle = if (reviewCandidates.isEmpty()) {
+                        "This scan produced search-worthy intel but no strong quest candidates."
+                    } else {
+                        "Confirm or veto the fresh mission suggestions before they enter your quest log."
+                    },
+                )
+                CaptureProcessingStatus.FAILED -> ReviewDrawerHeader(
+                    title = "Scan analysis failed",
+                    subtitle = "The source image is still stored locally. Open the intel detail to inspect OCR and retry from the source.",
+                )
+                CaptureProcessingStatus.PENDING -> ReviewDrawerHeader(
+                    title = "Capture queued",
+                    subtitle = "The image is saved locally and waiting for the background worker.",
+                )
+            }
+
+            when (reviewCapture.status) {
+                CaptureProcessingStatus.PROCESSING,
+                CaptureProcessingStatus.PENDING,
+                -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp,
+                            color = AccentPrimary,
+                        )
+                        Text(
+                            text = "Analyzing Objective...",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AccentSecondary,
+                        )
+                    }
+                }
+
+                CaptureProcessingStatus.DONE -> {
+                    if (reviewCandidates.isEmpty()) {
+                        ScaffoldCard(
+                            title = "No quests deployed",
+                            subtitle = "The scan stayed in memory mode. Dates, facts, and references are still preserved inside the intel view.",
+                        ) {
+                            Text(
+                                text = reviewCapture.summary.ifBlank { "Open intel to inspect OCR, dates, and linked facts." },
+                                color = TextSecondary,
+                            )
+                        }
+                    } else {
+                        reviewCandidates.take(3).forEach { candidate ->
+                            FreshQuestCandidateCard(
+                                candidate = candidate,
+                                onPromote = { onPromoteCandidate(candidate.id) },
+                                onDismiss = { onDismissCandidate(candidate.id) },
+                            )
+                        }
+                    }
+                }
+
+                CaptureProcessingStatus.FAILED -> {
+                    ScaffoldCard(
+                        title = "Manual recovery",
+                        subtitle = "Use the intel detail to inspect what was saved and decide whether to retake or re-import the source.",
+                    ) {
+                        Text(
+                            text = "Sidequest kept the original image. Nothing was silently discarded.",
+                            color = TextSecondary,
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismissDrawer,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Later")
+                }
+                Button(
+                    onClick = onOpenCapture,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Intel" else "Open Source")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewDrawerHeader(
+    title: String,
+    subtitle: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.headlineSmall)
+        Text(subtitle, color = TextSecondary)
+    }
+}
+
+@Composable
+private fun FreshQuestCandidateCard(
+    candidate: ExtractionCandidate,
+    onPromote: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.45f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(candidate.title, style = MaterialTheme.typography.titleMedium)
+                AssistChip(
+                    onClick = {},
+                    label = {
+                        Text("${(candidate.confidence * 100).toInt()}%")
+                    },
+                )
+            }
+            Text(candidate.body, color = TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Dismiss")
+                }
+                Button(
+                    onClick = onPromote,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Deploy Quest")
+                }
             }
         }
     }
