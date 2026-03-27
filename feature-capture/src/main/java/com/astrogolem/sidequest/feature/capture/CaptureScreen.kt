@@ -37,9 +37,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
@@ -49,6 +51,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -431,70 +434,80 @@ private fun PostScanReviewDrawer(
             )
         },
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            when (reviewCapture.status) {
-                CaptureProcessingStatus.PROCESSING -> ReviewDrawerHeader(
-                    title = "Analyzing objective",
-                    subtitle = "OCR and classification are running in the background. Keep the drawer open or jump into intel when it completes.",
-                )
-                CaptureProcessingStatus.DONE -> ReviewDrawerHeader(
-                    title = if (reviewCandidates.isEmpty()) "Intel archived" else "Review suggested quests",
-                    subtitle = if (reviewCandidates.isEmpty()) {
-                        "This scan produced search-worthy intel but no strong quest candidates."
-                    } else {
-                        "Confirm or veto the fresh mission suggestions before they enter your quest log."
-                    },
-                )
-                CaptureProcessingStatus.FAILED -> ReviewDrawerHeader(
-                    title = "Scan analysis failed",
-                    subtitle = "The source image is still stored locally. Open the intel detail to inspect OCR and retry from the source.",
-                )
-                CaptureProcessingStatus.PENDING -> ReviewDrawerHeader(
-                    title = "Capture queued",
-                    subtitle = "The image is saved locally and waiting for the background worker.",
-                )
+            item {
+                when (reviewCapture.status) {
+                    CaptureProcessingStatus.PROCESSING -> ReviewDrawerHeader(
+                        title = "Analyzing objective",
+                        subtitle = "OCR and classification are running in the background. Keep the drawer open or jump into intel when it completes.",
+                    )
+                    CaptureProcessingStatus.DONE -> ReviewDrawerHeader(
+                        title = if (reviewCandidates.isEmpty()) "Intel archived" else "Review suggested quests",
+                        subtitle = if (reviewCandidates.isEmpty()) {
+                            "This scan produced search-worthy intel but no strong quest candidates."
+                        } else {
+                            "Confirm or veto the fresh mission suggestions before they enter your quest log."
+                        },
+                    )
+                    CaptureProcessingStatus.FAILED -> ReviewDrawerHeader(
+                        title = "Scan analysis failed",
+                        subtitle = "The source image is still stored locally. Open the intel detail to inspect OCR and retry from the source.",
+                    )
+                    CaptureProcessingStatus.PENDING -> ReviewDrawerHeader(
+                        title = "Capture queued",
+                        subtitle = "The image is saved locally and waiting for the background worker.",
+                    )
+                }
             }
 
             when (reviewCapture.status) {
                 CaptureProcessingStatus.PROCESSING,
                 CaptureProcessingStatus.PENDING,
                 -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp,
-                            color = AccentPrimary,
-                        )
-                        Text(
-                            text = "Analyzing Objective...",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AccentSecondary,
-                        )
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.5.dp,
+                                color = AccentPrimary,
+                            )
+                            Text(
+                                text = "Analyzing Objective...",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = AccentSecondary,
+                            )
+                        }
                     }
                 }
 
                 CaptureProcessingStatus.DONE -> {
                     if (reviewCandidates.isEmpty()) {
-                        GlassCard(
-                            title = "No quests deployed",
-                            subtitle = "The scan stayed in memory mode. Dates, facts, and references are still preserved inside the intel view.",
-                        ) {
-                            Text(
-                                text = reviewCapture.summary.ifBlank { "Open intel to inspect OCR, dates, and linked facts." },
-                                color = TextSecondary,
-                            )
+                        item {
+                            GlassCard(
+                                title = "No quests deployed",
+                                subtitle = "The scan stayed in memory mode. Dates, facts, and references are still preserved inside the intel view.",
+                            ) {
+                                Text(
+                                    text = reviewCapture.summary.ifBlank { "Open intel to inspect OCR, dates, and linked facts." },
+                                    color = TextSecondary,
+                                )
+                            }
                         }
                     } else {
-                        reviewCandidates.take(3).forEachIndexed { index, candidate ->
+                        itemsIndexed(
+                            items = reviewCandidates,
+                            key = { _, candidate -> candidate.id },
+                        ) { index, candidate ->
                             AnimatedVisibility(
                                 visible = true,
                                 enter = fadeIn(animationSpec = tween(durationMillis = 180, delayMillis = index * 70)) +
@@ -514,35 +527,37 @@ private fun PostScanReviewDrawer(
                 }
 
                 CaptureProcessingStatus.FAILED -> {
-                    GlassCard(
-                        title = "Manual recovery",
-                        subtitle = "Use the intel detail to inspect what was saved and decide whether to retake or re-import the source.",
-                    ) {
-                        Text(
-                            text = "Sidequest kept the original image. Nothing was silently discarded.",
-                            color = TextSecondary,
-                        )
+                    item {
+                        GlassCard(
+                            title = "Manual recovery",
+                            subtitle = "Use the intel detail to inspect what was saved and decide whether to retake or re-import the source.",
+                        ) {
+                            Text(
+                                text = "Sidequest kept the original image. Nothing was silently discarded.",
+                                color = TextSecondary,
+                            )
+                        }
                     }
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onDismissDrawer,
-                    modifier = Modifier.weight(1f),
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Later")
-                }
-                Button(
-                    onClick = onOpenCapture,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Details" else "Open Source")
+                    OutlinedButton(
+                        onClick = onDismissDrawer,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Later")
+                    }
+                    Button(
+                        onClick = onOpenCapture,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Details" else "Open Source")
+                    }
                 }
             }
         }
@@ -566,31 +581,70 @@ private fun FreshQuestCandidateCard(
     onPromote: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    GlassCard(
-        title = candidate.title,
-        subtitle = "${(candidate.confidence * 100).toInt()}% CONFIDENCE",
+    var expanded by rememberSaveable(candidate.id) { mutableStateOf(false) }
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(26.dp),
+        border = BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.4f)),
+        shadowElevation = 2.dp,
     ) {
-        Text(candidate.body, color = TextSecondary)
-        Text(
-            text = candidate.reasoning,
-            style = MaterialTheme.typography.bodySmall,
-            color = AccentPrimary,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Text("Dismiss")
+                Text(
+                    text = candidate.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                        tint = AccentSecondary,
+                    )
+                }
             }
-            Button(
-                onClick = onPromote,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Deploy Quest")
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "${(candidate.confidence * 100).toInt()}% confidence",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                    )
+                    Text(candidate.body, color = TextSecondary)
+                    Text(
+                        text = candidate.reasoning,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AccentPrimary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Dismiss")
+                        }
+                        Button(
+                            onClick = onPromote,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Deploy Quest")
+                        }
+                    }
+                }
             }
         }
     }
@@ -795,7 +849,8 @@ private fun ZoomableCaptureImage(
     imagePath: String,
     modifier: Modifier = Modifier,
 ) {
-    val bitmap = remember(imagePath) { loadBitmapWithOrientation(imagePath) }
+    val context = LocalContext.current
+    val bitmap = remember(imagePath) { loadBitmapWithOrientation(context, imagePath) }
     var scale by remember(imagePath) { mutableStateOf(1f) }
     var offset by remember(imagePath) { mutableStateOf(Offset.Zero) }
     var containerSize by remember(imagePath) { mutableStateOf(IntSize.Zero) }
@@ -868,9 +923,14 @@ private fun ZoomableCaptureImage(
     }
 }
 
-private fun loadBitmapWithOrientation(imagePath: String): Bitmap? {
-    val source = BitmapFactory.decodeFile(imagePath) ?: return null
-    val exif = runCatching { ExifInterface(imagePath) }.getOrNull() ?: return source
+private fun loadBitmapWithOrientation(
+    context: android.content.Context,
+    imagePath: String,
+): Bitmap? {
+    val imageUri = resolveStoredImageUri(imagePath)
+    val bytes = openStoredImageInputStream(context, imageUri)?.use { it.readBytes() } ?: return null
+    val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val exif = runCatching { ExifInterface(java.io.ByteArrayInputStream(bytes)) }.getOrNull() ?: return source
     val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
     if (orientation == ExifInterface.ORIENTATION_NORMAL || orientation == ExifInterface.ORIENTATION_UNDEFINED) {
         return source
@@ -892,6 +952,19 @@ private fun loadBitmapWithOrientation(imagePath: String): Bitmap? {
         }
     }
     return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+}
+
+private fun resolveStoredImageUri(reference: String): Uri {
+    val parsed = Uri.parse(reference)
+    return if (parsed.scheme.isNullOrBlank()) Uri.fromFile(File(reference)) else parsed
+}
+
+private fun openStoredImageInputStream(
+    context: android.content.Context,
+    uri: Uri,
+) = when (uri.scheme) {
+    "file" -> uri.path?.let { path -> File(path).takeIf(File::exists)?.inputStream() }
+    else -> context.contentResolver.openInputStream(uri)
 }
 
 @Composable
@@ -1013,15 +1086,48 @@ fun CaptureDetailRoute(
                 }
 
                 items(capture.linkedMissions, key = { it.id }) { mission ->
-                    ScaffoldCard(
-                        title = mission.title,
-                        subtitle = "Mission | ${mission.status.name.lowercase()}",
+                    var expanded by rememberSaveable(mission.id) { mutableStateOf(false) }
+                    Surface(
+                        color = CardSurface,
+                        shape = RoundedCornerShape(26.dp),
+                        border = BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.4f)),
+                        shadowElevation = 2.dp,
                     ) {
-                        Button(
-                            onClick = { onOpenMission(mission.id) },
-                            modifier = Modifier.padding(top = 12.dp),
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text("Open mission")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = mission.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(onClick = { expanded = !expanded }) {
+                                    Icon(
+                                        imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                                        tint = AccentSecondary,
+                                    )
+                                }
+                            }
+                            AnimatedVisibility(visible = expanded) {
+                                Column {
+                                    Text("Mission | ${mission.status.name.lowercase()}", color = TextSecondary)
+                                    Button(
+                                        onClick = { onOpenMission(mission.id) },
+                                        modifier = Modifier.padding(top = 12.dp),
+                                    ) {
+                                        Text("Open mission")
+                                    }
+                                }
+                            }
                         }
                     }
                 }

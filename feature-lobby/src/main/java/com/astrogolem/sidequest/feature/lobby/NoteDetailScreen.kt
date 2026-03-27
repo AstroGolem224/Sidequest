@@ -18,8 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,8 +27,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.model.NoteDetail
+import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.NotesRepository
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -45,11 +45,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun NoteDetailRoute(
     onOpenMission: (String) -> Unit,
+    onOpenCapture: (String) -> Unit,
     viewModel: NoteDetailViewModel = hiltViewModel(),
 ) {
     val noteFieldShape = RoundedCornerShape(24.dp)
     val note by viewModel.note.collectAsStateWithLifecycle()
     val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
+    val sourceCaptureId = note?.sourceLabel?.let(::extractAutoNoteCaptureId)
     var previewMode by remember(note?.id) { mutableStateOf(false) }
     var title by remember(note?.id) { mutableStateOf("") }
     var markdown by remember(note?.id) { mutableStateOf("") }
@@ -87,13 +89,21 @@ fun NoteDetailRoute(
                     subtitle = "Updated ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(currentNote.updatedAt))}",
                 ) {
                     Text(
-                        text = if (currentNote.imported) {
-                            "Imported markdown${currentNote.sourceLabel?.let { " • $it" }.orEmpty()}"
-                        } else {
-                            "Local markdown note"
+                        text = when {
+                            currentNote.imported -> "Imported markdown${currentNote.sourceLabel?.let { " • $it" }.orEmpty()}"
+                            sourceCaptureId != null -> "Capture-linked markdown note"
+                            else -> "Local markdown note"
                         },
                         color = AccentPrimary,
                     )
+                    if (sourceCaptureId != null) {
+                        OutlinedButton(
+                            onClick = { onOpenCapture(sourceCaptureId) },
+                            modifier = Modifier.padding(top = 12.dp),
+                        ) {
+                            Text("Open Source Capture")
+                        }
+                    }
                 }
             }
             item {
@@ -210,6 +220,15 @@ private fun MarkdownPreviewCard(
             }
         }
     }
+}
+
+private fun extractAutoNoteCaptureId(sourceLabel: String?): String? {
+    if (sourceLabel.isNullOrBlank()) return null
+    return Regex("""^capture:([^:]+):auto-note$""")
+        .find(sourceLabel)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.takeIf { it.isNotBlank() }
 }
 
 @HiltViewModel

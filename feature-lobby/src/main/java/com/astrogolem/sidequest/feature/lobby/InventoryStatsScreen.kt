@@ -18,10 +18,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +57,8 @@ import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
+import com.astrogolem.sidequest.core.ui.theme.CardSurface
+import com.astrogolem.sidequest.core.ui.theme.CardStroke
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.DateFormat
@@ -487,19 +491,55 @@ private fun QuestInventoryCard(
     onOpen: () -> Unit,
     onReactivate: () -> Unit,
 ) {
-    GlassCard(
-        title = mission.title,
-        subtitle = mission.description.ifBlank { "Archived quest" },
+    var expanded by rememberSaveable(mission.id) { mutableStateOf(false) }
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(26.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardStroke.copy(alpha = 0.72f)),
+        shadowElevation = 2.dp,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Button(onClick = onOpen, modifier = Modifier.weight(1f)) {
-                Text("Open")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = mission.title,
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                        tint = AccentSecondary,
+                    )
+                }
             }
-            OutlinedButton(onClick = onReactivate, modifier = Modifier.weight(1f)) {
-                Text("Reactivate")
+            androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = mission.description.ifBlank { "Archived quest" },
+                        color = TextSecondary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(onClick = onOpen, modifier = Modifier.weight(1f)) {
+                            Text("Open")
+                        }
+                        OutlinedButton(onClick = onReactivate, modifier = Modifier.weight(1f)) {
+                            Text("Reactivate")
+                        }
+                    }
+                }
             }
         }
     }

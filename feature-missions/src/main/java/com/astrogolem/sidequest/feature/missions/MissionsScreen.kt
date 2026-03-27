@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,11 +27,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,6 +100,8 @@ fun MissionsRoute(
     val level = (totalGp / 180) + 1
     val xpCurrent = totalGp % 180
     val activeCount = activeMissions.size
+    var abandonMissionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var abandonMissionTitle by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(completionReward?.nonce) {
         if (completionReward != null) {
             delay(2200)
@@ -186,8 +192,10 @@ fun MissionsRoute(
             } else {
                 items(activeMissions, key = { it.id }) { mission ->
                     MissionBoardCard(
+                        cardKey = mission.id,
                         title = mission.title,
                         subtitle = mission.description,
+                        collapsible = true,
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -238,7 +246,10 @@ fun MissionsRoute(
                             }
                         }
                         OutlinedButton(
-                            onClick = { viewModel.abandon(mission.id) },
+                            onClick = {
+                                abandonMissionId = mission.id
+                                abandonMissionTitle = mission.title
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 10.dp),
@@ -278,15 +289,54 @@ fun MissionsRoute(
             }
         }
     }
+
+    if (abandonMissionId != null) {
+        AlertDialog(
+            onDismissRequest = {
+                abandonMissionId = null
+                abandonMissionTitle = null
+            },
+            title = { Text("Abandon quest?") },
+            text = {
+                Text(
+                    "This removes ${abandonMissionTitle ?: "the quest"} from your active log and archives it. You can still find it later in inventory.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        abandonMissionId?.let(viewModel::abandon)
+                        abandonMissionId = null
+                        abandonMissionTitle = null
+                    },
+                ) {
+                    Text("Abandon")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        abandonMissionId = null
+                        abandonMissionTitle = null
+                    },
+                ) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun MissionBoardCard(
     title: String,
+    cardKey: String = title,
     subtitle: String? = null,
+    collapsible: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    var expanded by rememberSaveable(cardKey) { mutableStateOf(!collapsible) }
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = CardSurface,
@@ -299,21 +349,42 @@ private fun MissionBoardCard(
                 .fillMaxWidth()
                 .padding(20.dp),
         ) {
-            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = collapsible) { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
                 Text(
                     text = title.uppercase(),
                     style = MaterialTheme.typography.titleSmall,
                     color = AccentPrimary,
+                    modifier = Modifier.weight(1f),
                 )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                    )
+                if (collapsible) {
+                    IconButton(onClick = { expanded = !expanded }) {
+                        Icon(
+                            imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                            contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                            tint = AccentSecondary,
+                        )
+                    }
                 }
             }
-            content()
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
+                        )
+                    }
+                    content()
+                }
+            }
         }
     }
 }
@@ -326,6 +397,7 @@ fun MissionDetailRoute(
     val mission by viewModel.mission.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var draftDescription by rememberSaveable { mutableStateOf("") }
+    var showAbandonDialog by rememberSaveable { mutableStateOf(false) }
 
     mission?.let { detail ->
         val dueCalendar = rememberCalendar(detail.dueAt)
@@ -425,13 +497,38 @@ fun MissionDetailRoute(
                     detail = detail,
                     onComplete = viewModel::complete,
                     onActivate = viewModel::activate,
-                    onAbandon = viewModel::abandon,
+                    onAbandon = { showAbandonDialog = true },
                     onSnoozeThirty = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) },
                     onSnoozeTwoHours = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) },
                     onSnoozeOneDay = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) },
                     onOpenCapture = sourceCaptureId?.let { { onOpenCapture(it) } },
                 )
             }
+        }
+
+        if (showAbandonDialog) {
+            AlertDialog(
+                onDismissRequest = { showAbandonDialog = false },
+                title = { Text("Abandon quest?") },
+                text = {
+                    Text("This archives ${detail.title} and removes it from the active quest log. You can recover it later from inventory.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showAbandonDialog = false
+                            viewModel.abandon()
+                        },
+                    ) {
+                        Text("Abandon")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAbandonDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
         }
     }
 }
@@ -511,6 +608,10 @@ private fun MissionSourceImage(
     imagePath: String,
     modifier: Modifier = Modifier,
 ) {
+    val imageUri = remember(imagePath) {
+        val parsed = Uri.parse(imagePath)
+        if (parsed.scheme.isNullOrBlank()) Uri.fromFile(File(imagePath)) else parsed
+    }
     AndroidView(
         factory = { context ->
             ImageView(context).apply {
@@ -518,7 +619,7 @@ private fun MissionSourceImage(
             }
         },
         update = { imageView ->
-            imageView.setImageURI(Uri.fromFile(File(imagePath)))
+            imageView.setImageURI(imageUri)
         },
         modifier = modifier,
     )

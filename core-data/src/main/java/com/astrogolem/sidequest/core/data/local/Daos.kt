@@ -315,11 +315,17 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :noteId LIMIT 1")
     fun observeNote(noteId: String): Flow<NoteEntity?>
 
+    @Query("SELECT * FROM notes WHERE sourceLabel = :sourceLabel LIMIT 1")
+    suspend fun getNoteBySourceLabel(sourceLabel: String): NoteEntity?
+
     @Query("SELECT * FROM notes ORDER BY updatedAt DESC, createdAt DESC")
     suspend fun listNotes(): List<NoteEntity>
 
     @Query("DELETE FROM notes WHERE id = :noteId")
     suspend fun deleteNote(noteId: String)
+
+    @Query("DELETE FROM notes WHERE sourceLabel = :sourceLabel")
+    suspend fun deleteNoteBySourceLabel(sourceLabel: String)
 
     @Query("DELETE FROM notes")
     suspend fun clearNotes()

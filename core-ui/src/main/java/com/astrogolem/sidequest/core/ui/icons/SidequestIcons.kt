@@ -49,6 +49,10 @@ object SidequestIcons {
         get() = documentIcon
     val Folder: ImageVector
         get() = folderIcon
+    val Plus: ImageVector
+        get() = plusIcon
+    val Minus: ImageVector
+        get() = minusIcon
 }
 
 private val strokeBrush = SolidColor(Color.Black)
@@ -409,6 +413,26 @@ private val folderIcon by lazy {
             close()
             moveTo(4.5f, 10f)
             lineTo(19.5f, 10f)
+        }
+    }.build()
+}
+
+private val plusIcon by lazy {
+    ImageVector.Builder("SqPlus", 24.dp, 24.dp, 24f, 24f).apply {
+        outlinePath {
+            moveTo(12f, 6f)
+            lineTo(12f, 18f)
+            moveTo(6f, 12f)
+            lineTo(18f, 12f)
+        }
+    }.build()
+}
+
+private val minusIcon by lazy {
+    ImageVector.Builder("SqMinus", 24.dp, 24.dp, 24f, 24f).apply {
+        outlinePath {
+            moveTo(6f, 12f)
+            lineTo(18f, 12f)
         }
     }.build()
 }

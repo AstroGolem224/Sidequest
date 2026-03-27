@@ -26,6 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
@@ -391,69 +393,108 @@ private fun QuestCandidateCard(
     onDismiss: () -> Unit,
     onOpenCapture: () -> Unit,
 ) {
-    GlassCard(
-        title = candidate.title,
-        subtitle = candidate.qualityLabel.uppercase(),
+    var expanded by rememberSaveable(candidate.id) { androidx.compose.runtime.mutableStateOf(false) }
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(26.dp),
+        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.72f)),
+        shadowElevation = 2.dp,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.Top,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(
-                color = AccentPrimary.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.size(44.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text(
+                    text = candidate.title,
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { expanded = !expanded }) {
                     Icon(
-                        imageVector = if (candidate.needsReview) SidequestIcons.Intel else SidequestIcons.QuestLog,
-                        contentDescription = candidate.title,
-                        tint = AccentPrimary,
-                        modifier = Modifier.size(18.dp),
+                        imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                        tint = AccentSecondary,
                     )
                 }
             }
-            Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                StatusPill(
-                    text = questTierLabel(candidate),
-                    tone = if (candidate.needsReview) HudTone.Neutral else HudTone.Amber,
-                )
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.Top,
+                    ) {
+                        Surface(
+                            color = AccentPrimary.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                Icon(
+                                    imageVector = if (candidate.needsReview) SidequestIcons.Intel else SidequestIcons.QuestLog,
+                                    contentDescription = candidate.title,
+                                    tint = AccentPrimary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatusPill(
+                                text = questTierLabel(candidate),
+                                tone = if (candidate.needsReview) HudTone.Neutral else HudTone.Amber,
+                            )
+                            Text(
+                                text = candidate.qualityLabel.uppercase(),
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                            )
+                        }
+                    }
+                    Text(candidate.body, color = TextSecondary)
+                    Text(
+                        text = candidate.reasoning,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = AccentPrimary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
+                        AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        RewardLine(label = "${rewardXp(candidate)} XP")
+                        RewardLine(label = "${rewardGp(candidate)} GP")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
+                            Text("Deploy")
+                        }
+                        OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
+                            Text("Open Details")
+                        }
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Dismiss")
+                    }
+                }
             }
-        }
-        Text(candidate.body, color = TextSecondary)
-        Text(
-            text = candidate.reasoning,
-            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-            color = AccentPrimary,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AssistChip(onClick = {}, label = { Text(candidate.sourceLabel) })
-            AssistChip(onClick = {}, label = { Text(candidate.captureStatusLabel) })
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            RewardLine(label = "${rewardXp(candidate)} XP")
-            RewardLine(label = "${rewardGp(candidate)} GP")
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Button(onClick = onPromote, modifier = Modifier.weight(1f)) {
-                Text("Deploy")
-            }
-            OutlinedButton(onClick = onOpenCapture, modifier = Modifier.weight(1f)) {
-                Text("Open Details")
-            }
-        }
-        TextButton(onClick = onDismiss, modifier = Modifier.padding(top = 8.dp)) {
-            Text("Dismiss")
         }
     }
 }

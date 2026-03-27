@@ -1,6 +1,5 @@
 package com.astrogolem.sidequest.core.data.provider
 
-import com.astrogolem.sidequest.core.data.model.ExtractionKind
 import com.astrogolem.sidequest.core.data.model.ProviderKind
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import java.net.HttpURLConnection
@@ -26,10 +25,7 @@ class OpenAiExtractionProvider @Inject constructor(
                 put(
                     JSONObject().apply {
                         put("type", "input_text")
-                        put(
-                            "text",
-                            buildStructuredIntelUserPrompt(request),
-                        )
+                        put("text", buildStructuredIntelUserPrompt(request))
                     },
                 )
                 request.imageDataUrl?.let { imageDataUrl ->
@@ -44,14 +40,16 @@ class OpenAiExtractionProvider @Inject constructor(
             }
             val responsesPayload = JSONObject().apply {
                 put("model", "gpt-4.1-mini")
+                put("instructions", buildStructuredIntelSystemInstructions())
                 put(
-                    "instructions",
-                    buildStructuredIntelSystemInstructions(),
+                    "input",
+                    JSONArray().put(
+                        JSONObject().apply {
+                            put("role", "user")
+                            put("content", userContent)
+                        },
+                    ),
                 )
-                put("input", JSONArray().put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", userContent)
-                }))
             }
 
             val rawText = postJson(
@@ -75,28 +73,31 @@ class OpenAiExtractionProvider @Inject constructor(
                                 .put(
                                     JSONObject().apply {
                                         put("role", "user")
-                                        put("content", JSONArray().apply {
-                                            put(
-                                                JSONObject().apply {
-                                                    put("type", "text")
-                                                    put("text", buildStructuredIntelUserPrompt(request))
-                                                },
-                                            )
-                                            request.imageDataUrl?.let { imageDataUrl ->
+                                        put(
+                                            "content",
+                                            JSONArray().apply {
                                                 put(
                                                     JSONObject().apply {
-                                                        put("type", "image_url")
-                                                        put(
-                                                            "image_url",
-                                                            JSONObject().apply {
-                                                                put("url", imageDataUrl)
-                                                                put("detail", "low")
-                                                            },
-                                                        )
+                                                        put("type", "text")
+                                                        put("text", buildStructuredIntelUserPrompt(request))
                                                     },
                                                 )
-                                            }
-                                        })
+                                                request.imageDataUrl?.let { imageDataUrl ->
+                                                    put(
+                                                        JSONObject().apply {
+                                                            put("type", "image_url")
+                                                            put(
+                                                                "image_url",
+                                                                JSONObject().apply {
+                                                                    put("url", imageDataUrl)
+                                                                    put("detail", "low")
+                                                                },
+                                                            )
+                                                        },
+                                                    )
+                                                }
+                                            },
+                                        )
                                     },
                                 ),
                         )
@@ -164,83 +165,6 @@ class OpenAiExtractionProvider @Inject constructor(
     }
 
     private fun parseProviderResponse(rawText: String): ProviderExtractionResponse {
-        val normalized = rawText
-            .trim()
-            .removePrefix("```json")
-            .removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        val jsonText = extractJsonObject(normalized)
-        val parsed = JSONObject(jsonText)
-
-        return ProviderExtractionResponse(
-            summary = parsed.optString("summary").trim(),
-            items = parseProviderItems(parsed),
-        )
-    }
-
-    private fun parseProviderItems(parsed: JSONObject): List<ProviderExtractionItem> {
-        val items = parsed.optJSONArray("items")
-        if (items != null) {
-            return buildList {
-                for (index in 0 until items.length()) {
-                    val item = items.optJSONObject(index) ?: continue
-                    val text = item.optString("text").trim()
-                    if (text.isBlank()) continue
-                    val kind = item.optString("kind")
-                        .trim()
-                        .uppercase()
-                        .takeIf { it.isNotBlank() }
-                        ?.let { runCatching { ExtractionKind.valueOf(it) }.getOrNull() }
-                        ?: inferKindFallback(text)
-                    add(
-                        ProviderExtractionItem(
-                            text = text,
-                            kind = kind,
-                            reasoning = item.optString("reasoning").trim().ifBlank { "provider insight" },
-                        ),
-                    )
-                }
-            }
-        }
-
-        val normalizedLines = parsed.optJSONArray("normalizedLines") ?: JSONArray()
-        return buildList {
-            for (index in 0 until normalizedLines.length()) {
-                val text = normalizedLines.optString(index).trim()
-                if (text.isBlank()) continue
-                add(
-                    ProviderExtractionItem(
-                        text = text,
-                        kind = inferKindFallback(text),
-                        reasoning = "provider normalized line",
-                    ),
-                )
-            }
-        }
-    }
-
-    private fun extractJsonObject(text: String): String {
-        if (text.startsWith("{") && text.endsWith("}")) return text
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        require(start >= 0 && end > start) { "Provider response did not contain JSON" }
-        return text.substring(start, end + 1)
-    }
-
-    private fun inferKindFallback(text: String): ExtractionKind {
-        val lowered = text.lowercase()
-        return when {
-            Regex("""\b(reference|ref|invoice|order|tracking|booking|confirmation|ticket|number|nr|code|id)\b""").containsMatchIn(lowered) ->
-                ExtractionKind.REFERENCE
-            Regex("""\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b""").containsMatchIn(text) ||
-                Regex("""\b(january|february|march|april|may|june|july|august|september|october|november|december|today|tomorrow|heute|morgen)\b""")
-                    .containsMatchIn(lowered) ->
-                ExtractionKind.DATE
-            Regex("""\b(add|book|buy|call|check|email|fix|follow|pay|plan|review|schedule|send|set|todo|update|anrufen|bezahlen|kaufen|planen|prüfen|prufen)\b""")
-                .containsMatchIn(lowered) ->
-                ExtractionKind.TASK
-            else -> ExtractionKind.FACT
-        }
+        return parseStructuredIntelResponse(rawText, defaultReasoning = "provider insight")
     }
 }

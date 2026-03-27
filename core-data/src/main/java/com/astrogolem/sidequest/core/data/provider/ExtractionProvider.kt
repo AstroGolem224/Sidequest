@@ -18,9 +18,16 @@ data class ProviderExtractionItem(
     val reasoning: String,
 )
 
+data class ProviderGeneratedNote(
+    val filename: String,
+    val content: String,
+)
+
 data class ProviderExtractionResponse(
     val summary: String,
     val items: List<ProviderExtractionItem>,
+    val type: String? = null,
+    val note: ProviderGeneratedNote? = null,
 )
 
 interface ExtractionProvider {

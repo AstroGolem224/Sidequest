@@ -3,11 +3,14 @@ package com.astrogolem.sidequest.core.data.repo
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Base64
 import androidx.core.net.toUri
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -204,18 +207,19 @@ class DefaultCaptureRepository @Inject constructor(
 
     override suspend fun saveCapture(uri: Uri, sourceType: String): String {
         val id = UUID.randomUUID().toString()
-        val imageDir = File(context.filesDir, "captures").apply { mkdirs() }
-        val target = File(imageDir, "$id.jpg")
-        openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
-        } ?: error("Unable to open image")
+        val storedUri = saveCaptureToCameraRoll(
+            context = context,
+            sourceUri = uri,
+            captureId = id,
+            sourceType = sourceType,
+        )
         captureDao.upsertCapture(
             CaptureEntity(
                 id = id,
                 createdAt = System.currentTimeMillis(),
                 sourceType = sourceType,
-                filePath = target.absolutePath,
-                thumbnailPath = target.absolutePath,
+                filePath = storedUri.toString(),
+                thumbnailPath = storedUri.toString(),
                 mimeType = context.contentResolver.getType(uri) ?: "image/jpeg",
                 processingStatus = CaptureProcessingStatus.PENDING,
                 retryCount = 0,
@@ -238,9 +242,9 @@ class DefaultCaptureRepository @Inject constructor(
         captureDao.clearAnalysisForCapture(captureId)
         captureDao.deleteCapture(captureId)
         workManager.cancelUniqueWork("capture-processing-$captureId")
-        runCatching { File(capture.filePath).takeIf(File::exists)?.delete() }
+        runCatching { deleteStoredCaptureReference(context, capture.filePath) }
         if (capture.thumbnailPath != capture.filePath) {
-            runCatching { File(capture.thumbnailPath).takeIf(File::exists)?.delete() }
+            runCatching { deleteStoredCaptureReference(context, capture.thumbnailPath) }
         }
         return true
     }
@@ -255,6 +259,7 @@ class DefaultCaptureRepository @Inject constructor(
 class DefaultProcessingOrchestrator @Inject constructor(
     @ApplicationContext private val context: Context,
     private val captureDao: CaptureDao,
+    private val noteDao: NoteDao,
     private val searchDao: SearchDao,
     private val workManager: WorkManager,
     private val securityService: SecurityService,
@@ -294,7 +299,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
             captureDao.clearAnalysisForCapture(capture.id)
             captureDao.clearExtractedItemsForCapture(capture.id)
             val aiFirstEnabled = securityService.isAiFirstCaptureEnabled()
-            val providerImageDataUrl = buildProviderImageDataUrl(capture.filePath)
+            val providerImageDataUrl = buildProviderImageDataUrl(context, capture.filePath)
             val imageFirstEnhanced = if (aiFirstEnabled && providerImageDataUrl != null) {
                 enhanceWithActiveProvider(
                     request = ProviderExtractionRequest(
@@ -307,7 +312,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
             } else {
                 null
             }
-            val image = InputImage.fromFilePath(context, File(capture.filePath).toUri())
+            val image = InputImage.fromFilePath(context, resolveStoredCaptureUri(capture.filePath))
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             val result = recognizer.process(image).await()
             val localLines = result.textBlocks.mapNotNull { it.text.trim().takeIf(String::isNotBlank) }
@@ -328,6 +333,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
                 imageFirstEnhanced?.items?.let(::addAll)
                 enhanced?.items?.let(::addAll)
             }
+            val generatedNote = enhanced?.note ?: imageFirstEnhanced?.note
             val extractionDrafts = buildExtractionDrafts(
                 documentType = documentType,
                 ocrText = result.text,
@@ -368,6 +374,11 @@ class DefaultProcessingOrchestrator @Inject constructor(
             if (candidates.isNotEmpty()) {
                 captureDao.upsertExtractedItems(candidates)
             }
+            syncGeneratedCaptureNote(
+                captureId = capture.id,
+                captureRef = capture.filePath,
+                generatedNote = generatedNote,
+            )
             searchDao.upsertNode(
                 KnowledgeNodeEntity(
                     id = UUID.randomUUID().toString(),
@@ -380,6 +391,7 @@ class DefaultProcessingOrchestrator @Inject constructor(
             captureDao.updateRetryCount(capture.id, 0)
             ProcessingResult.Success(capture.id, candidates.count { it.kind == ExtractionKind.TASK })
         } catch (error: Throwable) {
+            noteDao.deleteNoteBySourceLabel(autoGeneratedCaptureNoteSource(capture.id))
             captureDao.updateStatus(capture.id, CaptureProcessingStatus.FAILED.name)
             captureDao.updateRetryCount(capture.id, capture.retryCount + 1)
             ProcessingResult.Failure(capture.id, error.message ?: "Processing failed")
@@ -396,6 +408,36 @@ class DefaultProcessingOrchestrator @Inject constructor(
             ProviderKind.OPENROUTER -> openRouterExtractionProvider.enhance(request).getOrNull()
             null -> null
         }
+
+    private suspend fun syncGeneratedCaptureNote(
+        captureId: String,
+        captureRef: String,
+        generatedNote: com.astrogolem.sidequest.core.data.provider.ProviderGeneratedNote?,
+    ) {
+        val sourceLabel = autoGeneratedCaptureNoteSource(captureId)
+        if (generatedNote == null) {
+            noteDao.deleteNoteBySourceLabel(sourceLabel)
+            return
+        }
+
+        val existing = noteDao.getNoteBySourceLabel(sourceLabel)
+        val now = System.currentTimeMillis()
+        noteDao.upsertNote(
+            NoteEntity(
+                id = existing?.id ?: UUID.randomUUID().toString(),
+                title = generatedNoteTitle(generatedNote),
+                markdown = decorateGeneratedNoteMarkdown(
+                    markdown = generatedNote.content,
+                    captureId = captureId,
+                    captureRef = captureRef,
+                ),
+                createdAt = existing?.createdAt ?: now,
+                updatedAt = now,
+                imported = false,
+                sourceLabel = sourceLabel,
+            ),
+        )
+    }
 
     private fun classify(text: String): DocumentType {
         val lowered = text.lowercase()
@@ -1157,10 +1199,9 @@ class DefaultArchiveService @Inject constructor(
                     zip.closeEntry()
 
                     captures.forEach { capture ->
-                        val file = File(capture.filePath)
-                        if (file.exists()) {
+                        openStoredCaptureInputStream(context, capture.filePath)?.use { captureStream ->
                             zip.putNextEntry(ZipEntry("captures/${capture.id}.jpg"))
-                            file.inputStream().use { it.copyTo(zip) }
+                            captureStream.copyTo(zip)
                             zip.closeEntry()
                         }
                     }
@@ -1229,16 +1270,22 @@ class DefaultArchiveService @Inject constructor(
                 val captureFile = File(context.filesDir, "captures/${captureId}.jpg").apply {
                     parentFile?.mkdirs()
                 }
-                entries["captures/$captureId.jpg"]?.let { bytes ->
-                    captureFile.outputStream().use { it.write(bytes) }
-                }
+                val restoredRef = entries["captures/$captureId.jpg"]?.let { bytes ->
+                    saveCaptureBytesToCameraRoll(
+                        context = context,
+                        bytes = bytes,
+                        captureId = captureId,
+                        sourceType = json.getString("sourceType"),
+                        mimeType = json.optString("mimeType").ifBlank { "image/jpeg" },
+                    ).toString()
+                } ?: captureFile.absolutePath
                 captureDao.upsertCapture(
                     CaptureEntity(
                         id = captureId,
                         createdAt = json.getLong("createdAt"),
                         sourceType = json.getString("sourceType"),
-                        filePath = captureFile.absolutePath,
-                        thumbnailPath = captureFile.absolutePath,
+                        filePath = restoredRef,
+                        thumbnailPath = restoredRef,
                         mimeType = json.getString("mimeType"),
                         processingStatus = CaptureProcessingStatus.valueOf(json.getString("processingStatus")),
                         retryCount = json.optInt("retryCount", 0),
@@ -1429,9 +1476,13 @@ private fun readZipEntries(inputStream: InputStream): Map<String, ByteArray> {
     return entries
 }
 
-private fun buildProviderImageDataUrl(filePath: String): String? {
+private fun buildProviderImageDataUrl(
+    context: Context,
+    filePath: String,
+): String? {
+    val bytes = openStoredCaptureInputStream(context, filePath)?.use { it.readBytes() } ?: return null
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(filePath, bounds)
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
     var inSampleSize = 1
@@ -1442,7 +1493,7 @@ private fun buildProviderImageDataUrl(filePath: String): String? {
     val decodeOptions = BitmapFactory.Options().apply {
         this.inSampleSize = inSampleSize
     }
-    val bitmap = BitmapFactory.decodeFile(filePath, decodeOptions) ?: return null
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
     val output = ByteArrayOutputStream()
     bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, output)
     bitmap.recycle()
@@ -1833,6 +1884,145 @@ private fun firstMarkdownHeading(markdown: String): String? {
         ?.trimStart('#')
         ?.trim()
         ?.takeIf { it.isNotBlank() }
+}
+
+private fun generatedNoteTitle(note: com.astrogolem.sidequest.core.data.provider.ProviderGeneratedNote): String {
+    return firstMarkdownHeading(note.content)
+        ?: note.filename
+            .substringBeforeLast('.')
+            .substringAfter('_', note.filename.substringBeforeLast('.'))
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .trim()
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+            .takeIf { it.isNotBlank() }
+        ?: "Capture Note"
+}
+
+private fun autoGeneratedCaptureNoteSource(captureId: String): String = "capture:$captureId:auto-note"
+
+private fun decorateGeneratedNoteMarkdown(
+    markdown: String,
+    captureId: String,
+    captureRef: String,
+): String {
+    if ("## Source Capture" in markdown) return markdown
+    return buildString {
+        append(markdown.trim())
+        appendLine()
+        appendLine()
+        appendLine("## Source Capture")
+        appendLine("- Capture ID: $captureId")
+        append("- URI: $captureRef")
+    }.trim()
+}
+
+private fun resolveStoredCaptureUri(reference: String): Uri {
+    val parsed = reference.toUri()
+    return if (parsed.scheme.isNullOrBlank()) File(reference).toUri() else parsed
+}
+
+private fun openStoredCaptureInputStream(
+    context: Context,
+    reference: String,
+): InputStream? {
+    val uri = resolveStoredCaptureUri(reference)
+    return when (uri.scheme) {
+        "file" -> {
+            val path = uri.path ?: return null
+            FileInputStream(File(path))
+        }
+        "content" -> context.contentResolver.openInputStream(uri)
+        else -> null
+    }
+}
+
+private fun deleteStoredCaptureReference(
+    context: Context,
+    reference: String,
+) {
+    val uri = resolveStoredCaptureUri(reference)
+    when (uri.scheme) {
+        "content" -> {
+            context.contentResolver.delete(uri, null, null)
+        }
+        "file" -> {
+            uri.path?.let { path ->
+                File(path).takeIf(File::exists)?.delete()
+            }
+        }
+        else -> Unit
+    }
+}
+
+private fun saveCaptureToCameraRoll(
+    context: Context,
+    sourceUri: Uri,
+    captureId: String,
+    sourceType: String,
+): Uri {
+    val mimeType = context.contentResolver.getType(sourceUri) ?: "image/jpeg"
+    val extension = mimeType.substringAfter('/', "jpg").substringBefore(';').ifBlank { "jpg" }
+    val displayName = buildCaptureDisplayName(captureId = captureId, sourceType = sourceType, extension = extension)
+    val targetUri = insertCameraRollImage(context, displayName, mimeType)
+    context.contentResolver.openInputStream(sourceUri)?.use { input ->
+        context.contentResolver.openOutputStream(targetUri)?.use { output ->
+            input.copyTo(output)
+        }
+    } ?: error("Unable to open source image")
+    finishPendingMediaStoreInsert(context, targetUri)
+    return targetUri
+}
+
+private fun saveCaptureBytesToCameraRoll(
+    context: Context,
+    bytes: ByteArray,
+    captureId: String,
+    sourceType: String,
+    mimeType: String,
+): Uri {
+    val extension = mimeType.substringAfter('/', "jpg").substringBefore(';').ifBlank { "jpg" }
+    val displayName = buildCaptureDisplayName(captureId = captureId, sourceType = sourceType, extension = extension)
+    val targetUri = insertCameraRollImage(context, displayName, mimeType)
+    context.contentResolver.openOutputStream(targetUri)?.use { output ->
+        output.write(bytes)
+    } ?: error("Unable to write imported capture")
+    finishPendingMediaStoreInsert(context, targetUri)
+    return targetUri
+}
+
+private fun insertCameraRollImage(
+    context: Context,
+    displayName: String,
+    mimeType: String,
+): Uri {
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+        put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+        put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_DCIM}/Camera")
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    return context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        ?: error("Unable to insert image into DCIM/Camera")
+}
+
+private fun finishPendingMediaStoreInsert(
+    context: Context,
+    targetUri: Uri,
+) {
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.IS_PENDING, 0)
+    }
+    context.contentResolver.update(targetUri, values, null, null)
+}
+
+private fun buildCaptureDisplayName(
+    captureId: String,
+    sourceType: String,
+    extension: String,
+): String {
+    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(java.util.Date())
+    return "Sidequest_${sourceType.lowercase(Locale.ROOT)}_${stamp}_${captureId.take(8)}.$extension"
 }
 
 private fun nextRoutineTriggerAt(detail: RoutinePlanDetail, nowMillis: Long = System.currentTimeMillis()): Long? {

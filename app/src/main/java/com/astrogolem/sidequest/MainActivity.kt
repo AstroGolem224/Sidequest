@@ -408,7 +408,10 @@ private fun SidequestApp(
             }
             composable("note/{noteId}") {
                 ScreenSurfaceFrame {
-                    NoteDetailRoute(onOpenMission = { missionId -> navController.navigate("mission/$missionId") })
+                    NoteDetailRoute(
+                        onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onOpenCapture = { captureId -> navController.navigate("captureDetail/$captureId") },
+                    )
                 }
             }
             composable("shopping") {
