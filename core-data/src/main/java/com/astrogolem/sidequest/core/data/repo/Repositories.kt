@@ -28,6 +28,7 @@ interface CaptureRepository {
     fun observeCaptureDetail(captureId: String): Flow<CaptureDetailModel?>
     suspend fun saveCapture(uri: Uri, sourceType: String = "import"): String
     suspend fun importCapture(uri: Uri): String
+    suspend fun recoverOrphanedCaptures(): Int
     suspend fun dismissCandidate(candidateId: String)
     suspend fun deleteCapture(captureId: String): Boolean
 }

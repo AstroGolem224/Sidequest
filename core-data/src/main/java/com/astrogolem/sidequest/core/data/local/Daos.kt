@@ -24,6 +24,9 @@ interface CaptureDao {
     @Query("SELECT * FROM captures ORDER BY createdAt DESC")
     suspend fun listCaptures(): List<CaptureEntity>
 
+    @Query("SELECT id FROM captures")
+    suspend fun listCaptureIds(): List<String>
+
     @Query("SELECT * FROM captures WHERE id = :captureId LIMIT 1")
     fun observeCapture(captureId: String): Flow<CaptureEntity?>
 

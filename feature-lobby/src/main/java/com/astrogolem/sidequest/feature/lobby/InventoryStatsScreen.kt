@@ -98,6 +98,7 @@ fun InventoryRoute(
     var routinesExpanded by rememberSaveable { mutableStateOf(false) }
     var archivedExpanded by rememberSaveable { mutableStateOf(false) }
     var scansExpanded by rememberSaveable { mutableStateOf(false) }
+    var didAutoExpand by rememberSaveable { mutableStateOf(false) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             viewModel.importNote(uri)
@@ -109,6 +110,25 @@ fun InventoryRoute(
             onOpenNote(noteId)
             viewModel.consumeOpenNote()
         }
+    }
+
+    LaunchedEffect(
+        state.isLoaded,
+        state.notes.size,
+        state.shoppingLists.size,
+        state.routinePlans.size,
+        state.archivedMissions.size,
+        state.captures.size,
+    ) {
+        if (!state.isLoaded || didAutoExpand) {
+            return@LaunchedEffect
+        }
+        notesExpanded = state.notes.isNotEmpty()
+        shoppingExpanded = state.shoppingLists.isNotEmpty()
+        routinesExpanded = state.routinePlans.isNotEmpty()
+        archivedExpanded = state.archivedMissions.isNotEmpty()
+        scansExpanded = state.captures.isNotEmpty()
+        didAutoExpand = true
     }
 
     LazyColumn(

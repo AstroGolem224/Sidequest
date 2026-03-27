@@ -241,6 +241,40 @@ class DefaultCaptureRepository @Inject constructor(
 
     override suspend fun importCapture(uri: Uri): String = saveCapture(uri, sourceType = "import")
 
+    override suspend fun recoverOrphanedCaptures(): Int {
+        val existingIds = captureDao.listCaptureIds().toHashSet()
+        val captureDir = File(context.filesDir, "captures")
+        if (!captureDir.exists() || !captureDir.isDirectory) {
+            return 0
+        }
+
+        val recoverableFiles = captureDir.listFiles()
+            .orEmpty()
+            .filter(File::isFile)
+            .filter { file -> file.extension.lowercase(Locale.ROOT) in RecoverableCaptureExtensions }
+            .filter { file -> file.nameWithoutExtension !in existingIds }
+            .sortedByDescending(File::lastModified)
+
+        recoverableFiles.forEach { file ->
+            val captureId = file.nameWithoutExtension
+            val createdAt = file.lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()
+            val fileRef = file.toUri().toString()
+            captureDao.upsertCapture(
+                CaptureEntity(
+                    id = captureId,
+                    createdAt = createdAt,
+                    sourceType = "recovered",
+                    filePath = fileRef,
+                    thumbnailPath = fileRef,
+                    mimeType = extensionToMimeType(file.extension),
+                    processingStatus = CaptureProcessingStatus.PENDING,
+                    retryCount = 0,
+                ),
+            )
+        }
+        return recoverableFiles.size
+    }
+
     override suspend fun dismissCandidate(candidateId: String) {
         captureDao.updateExtractedStatus(candidateId, ExtractionStatus.DISMISSED.name)
     }
@@ -2054,6 +2088,16 @@ private fun determineCaptureMimeType(context: Context, captureRef: String): Stri
         }
 }
 
+private fun extensionToMimeType(extension: String): String {
+    return when (extension.lowercase(Locale.ROOT)) {
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "heic" -> "image/heic"
+        "heif" -> "image/heif"
+        else -> "image/jpeg"
+    }
+}
+
 private fun determineCaptureExtension(context: Context, captureRef: String): String {
     val mime = determineCaptureMimeType(context, captureRef)
     return MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
@@ -2231,6 +2275,8 @@ private val ActionHints = setOf(
     "planen",
     "prufen",
 )
+
+private val RecoverableCaptureExtensions = setOf("jpg", "jpeg", "png", "webp", "heic", "heif")
 
 private val VerbLikeLeadingTokens = setOf(
     "add",

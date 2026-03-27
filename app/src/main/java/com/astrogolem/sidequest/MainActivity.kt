@@ -67,6 +67,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.data.model.UserPreferences
 import com.astrogolem.sidequest.core.ui.components.ErrorStateCard
@@ -110,6 +111,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var securityService: SecurityService
     @Inject
     lateinit var processingOrchestrator: ProcessingOrchestrator
+    @Inject
+    lateinit var captureRepository: CaptureRepository
 
     private var pendingDeepLink by mutableStateOf<DeepLinkTarget?>(null)
 
@@ -127,6 +130,7 @@ class MainActivity : AppCompatActivity() {
             SidequestTheme(themePreset = themePreset) {
                 SidequestApp(
                     activity = this,
+                    captureRepository = captureRepository,
                     processingOrchestrator = processingOrchestrator,
                     userPreferences = userPreferences,
                     pendingDeepLink = pendingDeepLink,
@@ -158,6 +162,7 @@ private sealed interface DeepLinkTarget {
 @Composable
 private fun SidequestApp(
     activity: AppCompatActivity,
+    captureRepository: CaptureRepository,
     processingOrchestrator: ProcessingOrchestrator,
     userPreferences: UserPreferences,
     pendingDeepLink: DeepLinkTarget?,
@@ -166,6 +171,11 @@ private fun SidequestApp(
     val chromeViewModel: AppChromeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val chrome by chromeViewModel.state.collectAsStateWithLifecycle()
     var unlocked by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        captureRepository.recoverOrphanedCaptures()
+        processingOrchestrator.recoverPendingCaptures()
+    }
 
     if (userPreferences.biometricLockEnabled && !unlocked) {
         BiometricGate(activity = activity, onUnlocked = { unlocked = true })
@@ -211,10 +221,6 @@ private fun SidequestApp(
         if (pendingDeepLink != null) {
             onDeepLinkConsumed()
         }
-    }
-
-    LaunchedEffect(Unit) {
-        processingOrchestrator.recoverPendingCaptures()
     }
 
     Scaffold(
