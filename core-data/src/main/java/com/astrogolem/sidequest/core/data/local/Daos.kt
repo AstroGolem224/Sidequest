@@ -316,6 +316,9 @@ interface NoteDao {
     fun observeNote(noteId: String): Flow<NoteEntity?>
 
     @Query("SELECT * FROM notes WHERE sourceLabel = :sourceLabel LIMIT 1")
+    fun observeNoteBySourceLabel(sourceLabel: String): Flow<NoteEntity?>
+
+    @Query("SELECT * FROM notes WHERE sourceLabel = :sourceLabel LIMIT 1")
     suspend fun getNoteBySourceLabel(sourceLabel: String): NoteEntity?
 
     @Query("SELECT * FROM notes ORDER BY updatedAt DESC, createdAt DESC")

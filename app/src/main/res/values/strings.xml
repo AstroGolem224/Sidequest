@@ -1,3 +1,36 @@
 <resources>
     <string name="app_name">Sidequest</string>
+    <string name="nav_missions">Missions</string>
+    <string name="nav_quest_log">Quest Log</string>
+    <string name="nav_capture">Capture</string>
+    <string name="nav_inventory">Inventory</string>
+    <string name="nav_profile">Profile</string>
+    <string name="title_missions">Missions</string>
+    <string name="title_mission_detail">Mission Detail</string>
+    <string name="title_quest_log">Quest Log</string>
+    <string name="title_capture">Capture</string>
+    <string name="title_capture_detail">Capture Detail</string>
+    <string name="title_inventory">Inventory</string>
+    <string name="title_profile">Profile</string>
+    <string name="title_shopping_lists">Shopping Lists</string>
+    <string name="title_shopping_list">Shopping List</string>
+    <string name="title_routine_plans">Routine Plans</string>
+    <string name="title_routine_plan">Routine Plan</string>
+    <string name="title_stats">Stats</string>
+    <string name="title_note">Note</string>
+    <string name="title_search">Search</string>
+    <string name="title_settings">Settings</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_settings">Settings</string>
+    <string name="biometric_gate_loading_title">Unlocking Sidequest</string>
+    <string name="biometric_gate_loading_subtitle">Requesting biometric or device-credential confirmation for this device.</string>
+    <string name="biometric_gate_prompt_title">Unlock Sidequest</string>
+    <string name="biometric_gate_prompt_subtitle">Your local-first vault is protected on this device.</string>
+    <string name="biometric_gate_error_title">Sidequest locked</string>
+    <string name="biometric_gate_error_help">Retry the unlock flow or close the app if this device is not ready for biometric protection right now.</string>
+    <string name="biometric_gate_unavailable">Biometric lock is enabled, but no supported authenticator is available on this device.</string>
+    <string name="biometric_gate_failed">Authentication failed. Try again.</string>
+    <string name="biometric_gate_retry">Try again</string>
+    <string name="biometric_gate_close">Close app</string>
 </resources>

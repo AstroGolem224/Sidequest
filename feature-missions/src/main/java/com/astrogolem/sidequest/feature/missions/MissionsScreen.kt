@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,8 +63,11 @@ import com.astrogolem.sidequest.core.data.model.MissionCardModel
 import com.astrogolem.sidequest.core.data.model.MissionDetailModel
 import com.astrogolem.sidequest.core.data.model.MissionStatus
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
+import com.astrogolem.sidequest.core.ui.components.DestructiveOutlinedButton
 import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.HudTone
+import com.astrogolem.sidequest.core.ui.components.SplitActionRow
+import com.astrogolem.sidequest.core.ui.components.StateShellCard
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -70,6 +76,7 @@ import com.astrogolem.sidequest.core.ui.theme.CardSurface
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
 import com.astrogolem.sidequest.core.ui.theme.CardSurfaceStrong
 import com.astrogolem.sidequest.core.ui.theme.CardStroke
+import com.astrogolem.sidequest.core.ui.theme.SidequestSpacing
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.DateFormat
@@ -123,17 +130,30 @@ fun MissionsRoute(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Level $level", style = MaterialTheme.typography.headlineLarge)
                             Text(
-                                text = if (completedCount >= 20) "STEADY THROUGHPUT" else "ACTIVE WORKBOARD",
+                                stringResource(R.string.missions_hero_level_format, level),
+                                style = MaterialTheme.typography.headlineLarge,
+                            )
+                            Text(
+                                text = stringResource(
+                                    if (completedCount >= 20) {
+                                        R.string.missions_hero_mode_steady
+                                    } else {
+                                        R.string.missions_hero_mode_active
+                                    },
+                                ),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = AccentPrimary,
                             )
                         }
                         Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                            Text("$xpCurrent/180 XP", style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
                             Text(
-                                "$activeCount active | v${BuildConfig.SIDEQUEST_VERSION_LABEL}",
+                                stringResource(R.string.missions_hero_xp_format, xpCurrent),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = AccentSecondary,
+                            )
+                            Text(
+                                stringResource(R.string.missions_hero_active_version_format, activeCount, BuildConfig.SIDEQUEST_VERSION_LABEL),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary,
                             )
@@ -163,13 +183,17 @@ fun MissionsRoute(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
-                    Text("ACTIVE SIDEQUESTS", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+                    Text(
+                        stringResource(R.string.missions_active_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TextSecondary,
+                    )
                     Surface(
                         color = AccentPrimary.copy(alpha = 0.12f),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                     ) {
                         Text(
-                            text = "$activeCount ACTIVE",
+                            text = stringResource(R.string.missions_active_badge_format, activeCount),
                             style = MaterialTheme.typography.titleSmall,
                             color = AccentSecondary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -180,29 +204,32 @@ fun MissionsRoute(
 
             if (activeMissions.isEmpty()) {
                 item {
-                    MissionBoardCard(
-                        title = "No quests deployed",
-                        subtitle = "Capture physical context, review AI suggestions, then ship the ones that matter.",
-                    ) {
-                        Text("1. Capture a note, receipt or whiteboard.")
-                        Text("2. Wait for background extraction to finish.")
-                        Text("3. Promote a candidate from Inbox.")
-                    }
+                    StateShellCard(
+                        title = stringResource(R.string.missions_empty_title),
+                        subtitle = stringResource(R.string.missions_empty_subtitle),
+                        supportingLines = listOf(
+                            stringResource(R.string.missions_empty_step_capture),
+                            stringResource(R.string.missions_empty_step_wait),
+                            stringResource(R.string.missions_empty_step_promote),
+                        ),
+                    )
                 }
             } else {
                 items(activeMissions, key = { it.id }) { mission ->
                     MissionBoardCard(
                         cardKey = mission.id,
                         title = mission.title,
-                        subtitle = mission.description,
-                        collapsible = true,
+                        subtitle = buildBoardStatusLine(mission),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = androidx.compose.ui.Alignment.Top,
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
                                 Surface(
                                     color = AccentPrimary.copy(alpha = 0.12f),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
@@ -216,9 +243,23 @@ fun MissionsRoute(
                                         )
                                     }
                                 }
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    StatusPill(text = missionTierLabel(mission), tone = HudTone.Amber)
-                                    StatusPill(text = urgencyLabel(mission), tone = urgencyTone(mission))
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        StatusPill(text = missionTierLabel(mission), tone = HudTone.Amber)
+                                        StatusPill(text = urgencyLabel(mission), tone = urgencyTone(mission))
+                                    }
+                                    mission.description.takeIf { it.isNotBlank() }?.let { description ->
+                                        Text(
+                                            text = description,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TextSecondary,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                 }
                             }
                             Text(
@@ -228,47 +269,76 @@ fun MissionsRoute(
                             )
                         }
                         Row(
+                            modifier = Modifier.padding(top = 18.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            BoardSignalTile(
+                                label = stringResource(R.string.missions_board_due_label),
+                                value = boardDueLabel(mission),
+                                modifier = Modifier.weight(1f),
+                            )
+                            BoardSignalTile(
+                                label = stringResource(R.string.missions_board_reminder_label),
+                                value = boardReminderLabel(mission),
+                                modifier = Modifier.weight(1f),
+                            )
+                            BoardSignalTile(
+                                label = stringResource(R.string.missions_board_next_label),
+                                value = stringResource(boardPrimaryActionLabelRes(mission)),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.padding(top = 18.dp),
                         ) {
                             RewardChip(SidequestIcons.Spark, "${rewardXp(mission)} XP")
                             RewardChip(SidequestIcons.Coin, "${rewardGp(mission)} GP")
                         }
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(top = 18.dp),
-                        ) {
+                        SplitActionRow(modifier = Modifier.padding(top = SidequestSpacing.CardContentGap)) {
                             Button(onClick = { onOpenMission(mission.id) }, modifier = Modifier.weight(1f)) {
-                                Text("Open")
+                                Text(stringResource(R.string.missions_board_open))
                             }
-                            Button(onClick = { viewModel.complete(mission.id) }, modifier = Modifier.weight(1f)) {
-                                Text("Complete")
+                            Button(
+                                onClick = {
+                                    if (mission.status == MissionStatus.ACTIVE) {
+                                        viewModel.complete(mission.id)
+                                    } else {
+                                        viewModel.activate(mission.id)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(stringResource(boardPrimaryActionLabelRes(mission)))
                             }
                         }
-                        OutlinedButton(
-                            onClick = {
-                                abandonMissionId = mission.id
-                                abandonMissionTitle = mission.title
-                            },
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 10.dp),
+                                .padding(top = SidequestSpacing.ControlGap),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         ) {
-                            Text("Abandon Quest")
-                        }
-                        mission.sourceCaptureId?.let { captureId ->
-                            OutlinedButton(
-                                onClick = { onOpenCapture(captureId) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp),
+                            mission.sourceCaptureId?.let { captureId ->
+                                OutlinedButton(onClick = { onOpenCapture(captureId) }) {
+                                    Icon(
+                                        imageVector = SidequestIcons.Intel,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.missions_board_source_intel),
+                                        modifier = Modifier.padding(start = SidequestSpacing.Xs),
+                                    )
+                                }
+                            }
+                            TextButton(
+                                onClick = {
+                                    abandonMissionId = mission.id
+                                    abandonMissionTitle = mission.title
+                                },
                             ) {
-                                Icon(
-                                    imageVector = SidequestIcons.Intel,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Text("Open Source Intel", modifier = Modifier.padding(start = 8.dp))
+                                Text(stringResource(R.string.missions_board_abandon_later))
                             }
                         }
                     }
@@ -291,15 +361,16 @@ fun MissionsRoute(
     }
 
     if (abandonMissionId != null) {
+        val abandonTitle = abandonMissionTitle ?: stringResource(R.string.missions_abandon_dialog_fallback_title)
         AlertDialog(
             onDismissRequest = {
                 abandonMissionId = null
                 abandonMissionTitle = null
             },
-            title = { Text("Abandon quest?") },
+            title = { Text(stringResource(R.string.missions_abandon_dialog_title)) },
             text = {
                 Text(
-                    "This removes ${abandonMissionTitle ?: "the quest"} from your active log and archives it. You can still find it later in inventory.",
+                    stringResource(R.string.missions_abandon_dialog_body_format, abandonTitle),
                 )
             },
             confirmButton = {
@@ -310,7 +381,7 @@ fun MissionsRoute(
                         abandonMissionTitle = null
                     },
                 ) {
-                    Text("Abandon")
+                    Text(stringResource(R.string.missions_abandon_dialog_confirm))
                 }
             },
             dismissButton = {
@@ -320,7 +391,7 @@ fun MissionsRoute(
                         abandonMissionTitle = null
                     },
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.missions_abandon_dialog_cancel))
                 }
             },
         )
@@ -357,9 +428,9 @@ private fun MissionBoardCard(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
                 Text(
-                    text = title.uppercase(),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = AccentPrimary,
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AccentSecondary,
                     modifier = Modifier.weight(1f),
                 )
                 if (collapsible) {
@@ -379,12 +450,33 @@ private fun MissionBoardCard(
                             text = subtitle,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
-                            modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
+                            modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
                         )
                     }
                     content()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BoardSignalTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = BgGlow,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text(value, style = MaterialTheme.typography.titleSmall, color = AccentSecondary)
         }
     }
 }
@@ -403,6 +495,7 @@ fun MissionDetailRoute(
         val dueCalendar = rememberCalendar(detail.dueAt)
         val reminderCalendar = rememberCalendar(detail.remindAt ?: detail.dueAt)
         val sourceCaptureId = detail.sourceCaptureId
+        val primaryActionLabelRes = missionDetailPrimaryActionLabelRes(detail.status)
 
         LaunchedEffect(detail.id, detail.description) {
             draftDescription = detail.description
@@ -448,32 +541,49 @@ fun MissionDetailRoute(
             }
 
             item {
-                GlassCard(title = "Briefing", subtitle = "Refine the quest text before execution.") {
-                    OutlinedTextField(
-                        value = draftDescription,
-                        onValueChange = { draftDescription = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
+                MissionPrimaryActionCard(
+                    detail = detail,
+                    primaryActionLabelRes = primaryActionLabelRes,
+                    onPrimaryAction = {
+                        when (detail.status) {
+                            MissionStatus.ACTIVE -> viewModel.complete()
+                            MissionStatus.OPEN,
+                            MissionStatus.SNOOZED,
+                            MissionStatus.ARCHIVED,
+                            -> viewModel.activate()
+                            MissionStatus.DONE -> Unit
+                        }
+                    },
+                )
+            }
+
+            item {
+                MissionBriefingCard(
+                    draftDescription = draftDescription,
+                    onDescriptionChange = { draftDescription = it },
+                    onSave = { viewModel.updateDescription(draftDescription) },
+                )
+            }
+
+            item {
+                MissionSchedulingCard(
+                    detail = detail,
+                    onPickDueDate = { openDateTimePicker(dueCalendar, viewModel::updateDueDate) },
+                    onPickReminder = { openDateTimePicker(reminderCalendar, viewModel::updateReminderAt) },
+                    onClearDueDate = viewModel::clearDueDate,
+                    onClearReminder = viewModel::clearReminderAt,
+                    onSelectPriority = viewModel::updatePriority,
+                    onSnoozeThirty = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) },
+                    onSnoozeTwoHours = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) },
+                    onSnoozeOneDay = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) },
+                )
+            }
+
+            if (sourceCaptureId != null) {
+                item {
+                    MissionIntelLinkCard(
+                        onOpenCapture = { onOpenCapture(sourceCaptureId) },
                     )
-                    Row(
-                        modifier = Modifier.padding(top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Button(
-                            onClick = { viewModel.updateDescription(draftDescription) },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Save Brief")
-                        }
-                        if (sourceCaptureId != null) {
-                            OutlinedButton(
-                                onClick = { onOpenCapture(sourceCaptureId) },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("Evidence Window")
-                            }
-                        }
-                    }
                 }
             }
 
@@ -482,26 +592,8 @@ fun MissionDetailRoute(
             }
 
             item {
-                VitalStatsCard(
-                    detail = detail,
-                    onPickDueDate = { openDateTimePicker(dueCalendar, viewModel::updateDueDate) },
-                    onPickReminder = { openDateTimePicker(reminderCalendar, viewModel::updateReminderAt) },
-                    onClearDueDate = viewModel::clearDueDate,
-                    onClearReminder = viewModel::clearReminderAt,
-                    onSelectPriority = viewModel::updatePriority,
-                )
-            }
-
-            item {
-                CommandActionsCard(
-                    detail = detail,
-                    onComplete = viewModel::complete,
-                    onActivate = viewModel::activate,
+                MissionDangerZoneCard(
                     onAbandon = { showAbandonDialog = true },
-                    onSnoozeThirty = { viewModel.snooze(TimeUnit.MINUTES.toMillis(30)) },
-                    onSnoozeTwoHours = { viewModel.snooze(TimeUnit.HOURS.toMillis(2)) },
-                    onSnoozeOneDay = { viewModel.snooze(TimeUnit.DAYS.toMillis(1)) },
-                    onOpenCapture = sourceCaptureId?.let { { onOpenCapture(it) } },
                 )
             }
         }
@@ -509,9 +601,9 @@ fun MissionDetailRoute(
         if (showAbandonDialog) {
             AlertDialog(
                 onDismissRequest = { showAbandonDialog = false },
-                title = { Text("Abandon quest?") },
+                title = { Text(stringResource(R.string.missions_detail_abandon_title)) },
                 text = {
-                    Text("This archives ${detail.title} and removes it from the active quest log. You can recover it later from inventory.")
+                    Text(stringResource(R.string.missions_detail_abandon_body_format, detail.title))
                 },
                 confirmButton = {
                     Button(
@@ -520,12 +612,12 @@ fun MissionDetailRoute(
                             viewModel.abandon()
                         },
                     ) {
-                        Text("Abandon")
+                        Text(stringResource(R.string.missions_detail_abandon_confirm))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showAbandonDialog = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.missions_detail_abandon_cancel))
                     }
                 },
             )
@@ -567,13 +659,7 @@ private fun MissionHero(detail: MissionDetailModel) {
                 verticalArrangement = Arrangement.Bottom,
             ) {
                 StatusPill(
-                    text = when (detail.status) {
-                        MissionStatus.DONE -> "completed quest"
-                        MissionStatus.ACTIVE -> "active quest"
-                        MissionStatus.SNOOZED -> "snoozed quest"
-                        MissionStatus.ARCHIVED -> "archived quest"
-                        MissionStatus.OPEN -> "open quest"
-                    },
+                    text = stringResource(missionStatusLabelRes(detail.status)),
                     tone = HudTone.Amber,
                 )
                 Text(
@@ -604,6 +690,62 @@ private fun MissionHero(detail: MissionDetailModel) {
 }
 
 @Composable
+private fun MissionPrimaryActionCard(
+    detail: MissionDetailModel,
+    primaryActionLabelRes: Int?,
+    onPrimaryAction: () -> Unit,
+) {
+    GlassCard(
+        title = stringResource(R.string.missions_detail_primary_title),
+        subtitle = stringResource(R.string.missions_detail_primary_subtitle),
+    ) {
+        Text(
+            text = stringResource(missionDetailPrimaryBodyRes(detail.status)),
+            color = TextSecondary,
+        )
+        primaryActionLabelRes?.let { actionLabel ->
+            Button(
+                onClick = onPrimaryAction,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .padding(top = SidequestSpacing.ItemGap),
+            ) {
+                Text(stringResource(actionLabel))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionBriefingCard(
+    draftDescription: String,
+    onDescriptionChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    GlassCard(
+        title = stringResource(R.string.missions_detail_briefing_title),
+        subtitle = stringResource(R.string.missions_detail_briefing_subtitle),
+    ) {
+        OutlinedTextField(
+            value = draftDescription,
+            onValueChange = onDescriptionChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+        )
+        Button(
+            onClick = onSave,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(top = SidequestSpacing.ItemGap),
+        ) {
+            Text(stringResource(R.string.missions_detail_briefing_save))
+        }
+    }
+}
+
+@Composable
 private fun MissionSourceImage(
     imagePath: String,
     modifier: Modifier = Modifier,
@@ -628,12 +770,16 @@ private fun MissionSourceImage(
 @Composable
 private fun SpoilsCard(detail: MissionDetailModel) {
     GlassCard(
-        title = "Potential Spoils",
-        subtitle = "Rewards are deterministic so the game wrapper stays honest.",
+        title = stringResource(R.string.missions_spoils_title),
+        subtitle = stringResource(R.string.missions_spoils_subtitle),
     ) {
-        RewardStrip(label = "Experience", value = "+${rewardXp(detail.toMissionCard())} XP", icon = SidequestIcons.Spark)
         RewardStrip(
-            label = "Gold Pieces",
+            label = stringResource(R.string.missions_spoils_experience),
+            value = "+${rewardXp(detail.toMissionCard())} XP",
+            icon = SidequestIcons.Spark,
+        )
+        RewardStrip(
+            label = stringResource(R.string.missions_spoils_gold),
             value = "+${rewardGp(detail.toMissionCard())} GP",
             icon = SidequestIcons.Coin,
             modifier = Modifier.padding(top = 10.dp),
@@ -647,9 +793,19 @@ private fun SpoilsCard(detail: MissionDetailModel) {
             border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.16f)),
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Rare Bonus", style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
                 Text(
-                    text = if (detail.priorityScore >= 85) "Critical-focus bonus (15%)" else "Steady progress bonus (5%)",
+                    stringResource(R.string.missions_spoils_bonus_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = AccentPrimary,
+                )
+                Text(
+                    text = stringResource(
+                        if (detail.priorityScore >= 85) {
+                            R.string.missions_spoils_bonus_critical
+                        } else {
+                            R.string.missions_spoils_bonus_steady
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AccentSecondary,
                 )
@@ -690,25 +846,36 @@ private fun RewardStrip(
 }
 
 @Composable
-private fun VitalStatsCard(
+private fun MissionSchedulingCard(
     detail: MissionDetailModel,
     onPickDueDate: () -> Unit,
     onPickReminder: () -> Unit,
     onClearDueDate: () -> Unit,
     onClearReminder: () -> Unit,
     onSelectPriority: (Int) -> Unit,
+    onSnoozeThirty: () -> Unit,
+    onSnoozeTwoHours: () -> Unit,
+    onSnoozeOneDay: () -> Unit,
 ) {
     GlassCard(
-        title = "Vital Stats",
-        subtitle = "Timing, difficulty, and mission cost.",
+        title = stringResource(R.string.missions_schedule_title),
+        subtitle = stringResource(R.string.missions_schedule_subtitle),
     ) {
         val difficultyProgress = (detail.priorityScore / 100f).coerceIn(0.08f, 1f)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Difficulty", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
-            Text(priorityTier(detail.priorityScore), style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
+            Text(
+                stringResource(R.string.missions_schedule_difficulty),
+                style = MaterialTheme.typography.titleSmall,
+                color = TextSecondary,
+            )
+            Text(
+                priorityTier(detail.priorityScore),
+                style = MaterialTheme.typography.titleSmall,
+                color = AccentPrimary,
+            )
         }
         Box(
             modifier = Modifier
@@ -734,24 +901,30 @@ private fun VitalStatsCard(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             StatTile(
-                label = "Duration",
+                label = stringResource(R.string.missions_schedule_duration),
                 value = estimatedDuration(detail.priorityScore),
                 modifier = Modifier.weight(1f),
             )
             StatTile(
-                label = "Energy Cost",
-                value = "${(detail.priorityScore / 8).coerceAtLeast(4)} HP",
+                label = stringResource(R.string.missions_schedule_energy),
+                value = stringResource(R.string.missions_schedule_energy_value_format, (detail.priorityScore / 8).coerceAtLeast(4)),
                 modifier = Modifier.weight(1f),
             )
         }
 
         Text(
-            text = "Due: ${detail.dueAt?.let(::formatTimestamp) ?: "not set"}",
+            text = stringResource(
+                R.string.missions_schedule_due_format,
+                detail.dueAt?.let(::formatTimestamp) ?: stringResource(R.string.missions_schedule_not_set),
+            ),
             modifier = Modifier.padding(top = 16.dp),
             color = TextSecondary,
         )
         Text(
-            text = "Reminder: ${detail.remindAt?.let(::formatTimestamp) ?: "not set"}",
+            text = stringResource(
+                R.string.missions_schedule_reminder_format,
+                detail.remindAt?.let(::formatTimestamp) ?: stringResource(R.string.missions_schedule_not_set),
+            ),
             modifier = Modifier.padding(top = 4.dp),
             color = TextSecondary,
         )
@@ -759,18 +932,26 @@ private fun VitalStatsCard(
             modifier = Modifier.padding(top = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = onPickDueDate, modifier = Modifier.weight(1f)) { Text("Set Due") }
-            Button(onClick = onPickReminder, modifier = Modifier.weight(1f)) { Text("Set Reminder") }
+            Button(onClick = onPickDueDate, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_schedule_set_due))
+            }
+            Button(onClick = onPickReminder, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_schedule_set_reminder))
+            }
         }
         Row(
             modifier = Modifier.padding(top = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(onClick = onClearDueDate, modifier = Modifier.weight(1f)) { Text("Clear Due") }
-            OutlinedButton(onClick = onClearReminder, modifier = Modifier.weight(1f)) { Text("Clear Reminder") }
+            OutlinedButton(onClick = onClearDueDate, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_schedule_clear_due))
+            }
+            OutlinedButton(onClick = onClearReminder, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_schedule_clear_reminder))
+            }
         }
         Text(
-            text = "Priority Presets",
+            text = stringResource(R.string.missions_schedule_priority_title),
             style = MaterialTheme.typography.titleSmall,
             color = TextSecondary,
             modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
@@ -779,6 +960,23 @@ private fun VitalStatsCard(
             selected = detail.priorityScore,
             onSelect = onSelectPriority,
         )
+        Text(
+            text = stringResource(R.string.missions_schedule_snooze_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(SidequestSpacing.Xs)) {
+            OutlinedButton(onClick = onSnoozeThirty, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_command_snooze_thirty))
+            }
+            OutlinedButton(onClick = onSnoozeTwoHours, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_command_snooze_two_hours))
+            }
+            OutlinedButton(onClick = onSnoozeOneDay, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.missions_command_snooze_one_day))
+            }
+        }
     }
 }
 
@@ -804,52 +1002,37 @@ private fun StatTile(
 }
 
 @Composable
-private fun CommandActionsCard(
-    detail: MissionDetailModel,
-    onComplete: () -> Unit,
-    onActivate: () -> Unit,
-    onAbandon: () -> Unit,
-    onSnoozeThirty: () -> Unit,
-    onSnoozeTwoHours: () -> Unit,
-    onSnoozeOneDay: () -> Unit,
-    onOpenCapture: (() -> Unit)?,
+private fun MissionIntelLinkCard(
+    onOpenCapture: () -> Unit,
 ) {
     GlassCard(
-        title = "Command Actions",
-        subtitle = "Deploy, pause, or drop the quest without losing control over source intel.",
+        title = stringResource(R.string.missions_detail_intel_title),
+        subtitle = stringResource(R.string.missions_detail_intel_subtitle),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onComplete, modifier = Modifier.weight(1f)) { Text("Complete Quest") }
-            OutlinedButton(onClick = onActivate, modifier = Modifier.weight(1f)) {
-                Text("Activate")
-            }
-        }
         OutlinedButton(
-            onClick = onAbandon,
+            onClick = onOpenCapture,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp),
+                .heightIn(min = 48.dp),
         ) {
-            Text("Abandon Quest")
+            Text(stringResource(R.string.missions_detail_intel_button))
         }
-        Row(
-            modifier = Modifier.padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(onClick = onSnoozeThirty, modifier = Modifier.weight(1f)) { Text("30m") }
-            OutlinedButton(onClick = onSnoozeTwoHours, modifier = Modifier.weight(1f)) { Text("2h") }
-            OutlinedButton(onClick = onSnoozeOneDay, modifier = Modifier.weight(1f)) { Text("1d") }
-        }
-        if (onOpenCapture != null) {
-            Button(
-                onClick = onOpenCapture,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp),
-            ) {
-                Text("Open Source Intel")
-            }
-        }
+    }
+}
+
+@Composable
+private fun MissionDangerZoneCard(
+    onAbandon: () -> Unit,
+) {
+    GlassCard(
+        title = stringResource(R.string.missions_detail_danger_title),
+        subtitle = stringResource(R.string.missions_detail_danger_subtitle),
+    ) {
+        DestructiveOutlinedButton(
+            label = stringResource(R.string.missions_detail_danger_action),
+            onClick = onAbandon,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -932,7 +1115,7 @@ private fun CompletionRewardBanner(
                 Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
                     Icon(
                         imageVector = SidequestIcons.Spark,
-                        contentDescription = "Quest completed",
+                        contentDescription = stringResource(R.string.missions_completion_icon_content_description),
                         tint = AccentPrimary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -940,7 +1123,7 @@ private fun CompletionRewardBanner(
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "quest synced: ${reward.title}",
+                    stringResource(R.string.missions_completion_banner_format, reward.title),
                     style = MaterialTheme.typography.titleSmall,
                     color = AccentSecondary,
                 )
@@ -971,17 +1154,98 @@ private fun PrioritySelector(
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
-    val options = listOf(25 to "Low", 50 to "Normal", 75 to "High", 95 to "Critical")
+    val options = listOf(
+        25 to R.string.missions_priority_low,
+        50 to R.string.missions_priority_normal,
+        75 to R.string.missions_priority_high,
+        95 to R.string.missions_priority_critical,
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (score, label) ->
+                row.forEach { (score, labelRes) ->
                     Button(onClick = { onSelect(score) }) {
+                        val label = stringResource(labelRes)
                         Text(if (selected == score) "$label *" else label)
                     }
                 }
             }
         }
+    }
+}
+
+private fun boardPrimaryActionLabelRes(mission: MissionCardModel): Int {
+    return if (mission.status == MissionStatus.ACTIVE) {
+        R.string.missions_board_complete
+    } else {
+        R.string.missions_command_activate
+    }
+}
+
+private fun buildBoardStatusLine(mission: MissionCardModel): String {
+    return buildString {
+        append(stringResourceLabel(missionStatusLabelRes(mission.status)))
+        append(" | ")
+        append(priorityTier(mission.priorityScore))
+        mission.dueAt?.let {
+            append(" | ")
+            append(stringResourceLabel(R.string.missions_board_due_label))
+            append(" ")
+            append(formatTimestamp(it))
+        }
+    }
+}
+
+private fun boardDueLabel(mission: MissionCardModel): String {
+    return mission.dueAt?.let(::formatTimestamp) ?: stringResourceLabel(R.string.missions_board_no_due)
+}
+
+private fun boardReminderLabel(mission: MissionCardModel): String {
+    return mission.remindAt?.let(::formatTimestamp) ?: stringResourceLabel(R.string.missions_board_no_reminder)
+}
+
+private fun missionStatusLabelRes(status: MissionStatus): Int {
+    return when (status) {
+        MissionStatus.DONE -> R.string.missions_status_done
+        MissionStatus.ACTIVE -> R.string.missions_status_active
+        MissionStatus.SNOOZED -> R.string.missions_status_snoozed
+        MissionStatus.ARCHIVED -> R.string.missions_status_archived
+        MissionStatus.OPEN -> R.string.missions_status_open
+    }
+}
+
+private fun missionDetailPrimaryActionLabelRes(status: MissionStatus): Int? {
+    return when (status) {
+        MissionStatus.ACTIVE -> R.string.missions_command_complete
+        MissionStatus.OPEN,
+        MissionStatus.SNOOZED,
+        MissionStatus.ARCHIVED,
+        -> R.string.missions_command_activate
+        MissionStatus.DONE -> null
+    }
+}
+
+private fun missionDetailPrimaryBodyRes(status: MissionStatus): Int {
+    return when (status) {
+        MissionStatus.ACTIVE -> R.string.missions_detail_primary_body_active
+        MissionStatus.OPEN -> R.string.missions_detail_primary_body_open
+        MissionStatus.SNOOZED -> R.string.missions_detail_primary_body_snoozed
+        MissionStatus.ARCHIVED -> R.string.missions_detail_primary_body_archived
+        MissionStatus.DONE -> R.string.missions_detail_primary_body_done
+    }
+}
+
+private fun stringResourceLabel(@androidx.annotation.StringRes resId: Int): String {
+    return when (resId) {
+        R.string.missions_board_due_label -> "Due"
+        R.string.missions_board_no_due -> "No due date"
+        R.string.missions_board_no_reminder -> "No reminder"
+        R.string.missions_status_done -> "completed quest"
+        R.string.missions_status_active -> "active quest"
+        R.string.missions_status_snoozed -> "snoozed quest"
+        R.string.missions_status_archived -> "archived quest"
+        R.string.missions_status_open -> "open quest"
+        else -> ""
     }
 }
 
@@ -1071,6 +1335,10 @@ class MissionsViewModel @Inject constructor(
             )
         }
         viewModelScope.launch { missionRepository.applyAction(MissionAction.Complete(missionId)) }
+    }
+
+    fun activate(missionId: String) {
+        viewModelScope.launch { missionRepository.applyAction(MissionAction.Activate(missionId)) }
     }
 
     fun snooze(missionId: String, delayMillis: Long) {

@@ -102,4 +102,5 @@ interface SecurityService {
     suspend fun clearAvatarImage()
     suspend fun setBiometricLockEnabled(enabled: Boolean)
     suspend fun isBiometricLockEnabled(): Boolean
+    suspend fun setNotesSaveFolderUri(uri: String?)
 }

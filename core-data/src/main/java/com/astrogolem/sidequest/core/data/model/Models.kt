@@ -63,6 +63,11 @@ data class CaptureMissionLink(
     val status: MissionStatus,
 )
 
+data class CaptureNoteLink(
+    val id: String,
+    val title: String,
+)
+
 data class CaptureDetailModel(
     val id: String,
     val sourceLabel: String,
@@ -73,6 +78,7 @@ data class CaptureDetailModel(
     val summary: String,
     val candidates: List<ExtractionCandidate>,
     val linkedMissions: List<CaptureMissionLink>,
+    val linkedNote: CaptureNoteLink? = null,
 )
 
 data class SearchResultModel(
@@ -181,6 +187,7 @@ data class UserPreferences(
     val aiFirstCaptureEnabled: Boolean = false,
     val themePresetName: String = "SOLAR",
     val avatarImagePath: String? = null,
+    val notesSaveFolderUri: String? = null,
 )
 
 sealed interface ProcessingResult {

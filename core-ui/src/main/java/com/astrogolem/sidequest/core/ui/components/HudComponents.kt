@@ -21,13 +21,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.dp
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
 import com.astrogolem.sidequest.core.ui.theme.AccentCoral
 import com.astrogolem.sidequest.core.ui.theme.AccentGold
 import com.astrogolem.sidequest.core.ui.theme.AccentNeutral
 import com.astrogolem.sidequest.core.ui.theme.AccentViolet
 import com.astrogolem.sidequest.core.ui.theme.BgGlow
+import com.astrogolem.sidequest.core.ui.theme.SidequestSpacing
 
 @Composable
 fun StatusPill(
@@ -38,9 +38,12 @@ fun StatusPill(
     val color = tone.color()
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(SidequestSpacing.PillCorner))
             .background(color.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(
+                horizontal = SidequestSpacing.StatusPillHorizontal,
+                vertical = SidequestSpacing.StatusPillVertical,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -60,15 +63,15 @@ fun SegmentedMeter(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(SidequestSpacing.Xxxs),
     ) {
         val activeSegments = (segments * progress.coerceIn(0f, 1f)).toInt().coerceAtLeast(if (progress > 0f) 1 else 0)
         repeat(segments) { index ->
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .height(SidequestSpacing.MeterHeight)
+                    .clip(RoundedCornerShape(SidequestSpacing.FullCorner))
                     .background(
                         if (index < activeSegments) tone.color().copy(alpha = 0.95f) else BgGlow.copy(alpha = 0.45f),
                     ),

@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -83,6 +85,7 @@ fun LobbyRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showDeleteAvatarDialog by remember { mutableStateOf(false) }
+    var milestonesExpanded by rememberSaveable { mutableStateOf(false) }
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) {
             viewModel.saveAvatar(uri)
@@ -105,41 +108,33 @@ fun LobbyRoute(
         }
 
         item {
-            OutlinedButton(onClick = onOpenStats, modifier = Modifier.fillMaxWidth()) {
-                Text("Open Stats")
-            }
+            StatsEntryCard(onOpenStats = onOpenStats)
         }
 
-        item { ProtocolCard(state) }
+        item { ProgressSnapshotCard(state) }
 
-        item { SectionTitle("Milestones", "Unlocks tied to real usage and completion history.") }
-
-        items(state.loot.chunked(2)) { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                row.forEach { loot ->
-                    LootCard(loot = loot, modifier = Modifier.weight(1f))
-                }
-                if (row.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
+        item {
+            LobbyCollapsibleSectionHeader(
+                title = "Milestones",
+                subtitle = "Unlocks tied to real usage and completion history.",
+                expanded = milestonesExpanded,
+                onToggle = { milestonesExpanded = !milestonesExpanded },
+            )
         }
 
-        item { SectionTitle("Recent Archives", "Resolved or active quest artifacts from the live board.") }
-
-        if (state.recentArchives.isEmpty()) {
-            item {
-                GlassCard(
-                    title = "Archive quiet",
-                    subtitle = "Deploy and complete a few quests to build visible history.",
-                ) {}
-            }
-        } else {
-            items(state.recentArchives, key = { it.id }) { mission ->
-                ArchiveCard(mission)
+        if (milestonesExpanded) {
+            items(state.loot.chunked(2)) { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    row.forEach { loot ->
+                        LootCard(loot = loot, modifier = Modifier.weight(1f))
+                    }
+                    if (row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
@@ -164,6 +159,32 @@ fun LobbyRoute(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun LobbyCollapsibleSectionHeader(
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        SectionTitle(title, subtitle)
+        OutlinedIconButton(
+            onClick = onToggle,
+            border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.9f)),
+            colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = AccentSecondary),
+        ) {
+            Icon(
+                imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+            )
+        }
     }
 }
 
@@ -212,8 +233,8 @@ private fun ProfileHero(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 StatusPill(
-                    text = if (state.systemOverload) "system overload" else "systems stable",
-                    tone = if (state.systemOverload) HudTone.Amber else HudTone.Violet,
+                    text = "${state.streakDays}-day streak",
+                    tone = HudTone.Violet,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -239,9 +260,9 @@ private fun ProfileHero(
             modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            MetricStack("Saved Quests", state.totalCount.toString(), Modifier.weight(1f))
+            MetricStack("Collected", state.totalCount.toString(), Modifier.weight(1f))
             MetricStack("Completed", state.doneCount.toString(), Modifier.weight(1f))
-            MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
+            MetricStack("Streak", state.streakDays.toString(), Modifier.weight(1f))
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -257,6 +278,23 @@ private fun ProfileHero(
             color = TextSecondary,
             modifier = Modifier.padding(top = 8.dp)
         )
+    }
+}
+
+@Composable
+private fun StatsEntryCard(
+    onOpenStats: () -> Unit,
+) {
+    GlassCard(
+        title = "Stats",
+        subtitle = "Open the analytics surface when you want metric explanations, not when you are just checking identity or progress.",
+    ) {
+        OutlinedButton(
+            onClick = onOpenStats,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Open Stats")
+        }
     }
 }
 
@@ -345,30 +383,22 @@ private fun MetricStack(
 }
 
 @Composable
-private fun ProtocolCard(state: LobbyUiState) {
+private fun ProgressSnapshotCard(state: LobbyUiState) {
     GlassCard(
-        title = if (state.systemOverload) "Warning: System Overload" else "Protocol Active",
-        subtitle = if (state.systemOverload) {
-            "Too many active quests increase paralysis. Consolidate or archive before adding more."
-        } else {
-            "The bridge is stable. Keep the queue lean and work the top three quests."
-        },
+        title = "Progress Snapshot",
+        subtitle = "Profile tracks identity, level, and momentum. Archived assets and deep analytics now live elsewhere.",
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MetricStack("Focus Slots", "${state.spotlight.size}/3", Modifier.weight(1f))
-            MetricStack("Open Quests", state.openCount.toString(), Modifier.weight(1f))
+            MetricStack("Level", state.level.toString(), Modifier.weight(1f))
+            MetricStack("Active", state.openCount.toString(), Modifier.weight(1f))
             MetricStack("Resolved", state.doneCount.toString(), Modifier.weight(1f))
         }
 
         Text(
-            text = if (state.systemOverload) {
-                "Archive low-value quests and promote only high-signal intake items."
-            } else {
-                "Capture stays fast. XP only lands on completion so the system does not reward task inflation."
-            },
+            text = "XP only lands on completion, so this surface reflects real follow-through instead of queue size. Use Inventory for saved assets and Stats for metric breakdowns.",
             color = TextSecondary,
             modifier = Modifier.padding(top = 14.dp),
         )
@@ -408,57 +438,6 @@ private fun LootCard(
     }
 }
 
-@Composable
-private fun ArchiveCard(mission: MissionCardModel) {
-    val icon = when {
-        "clean" in mission.title.lowercase() || "desk" in mission.title.lowercase() -> SidequestIcons.Clean
-        "read" in mission.title.lowercase() || "study" in mission.title.lowercase() -> SidequestIcons.Study
-        "run" in mission.title.lowercase() || "walk" in mission.title.lowercase() -> SidequestIcons.Sprint
-        else -> SidequestIcons.Compass
-    }
-    Surface(
-        color = BgGlow,
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.8f)),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Surface(
-                color = AccentPrimary.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.size(42.dp),
-            ) {
-                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = mission.title,
-                        tint = AccentPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(mission.title, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                Text(
-                    mission.description.ifBlank { "No custom briefing saved yet." },
-                    color = TextSecondary,
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            StatusPill(
-                text = mission.status.name.lowercase(),
-                tone = if (mission.status.name == "DONE") HudTone.Amber else HudTone.Violet,
-            )
-        }
-    }
-}
-
 data class LootCardModel(
     val title: String,
     val subtitle: String,
@@ -481,8 +460,6 @@ data class LobbyUiState(
     val avatarImagePath: String? = null,
     val systemOverload: Boolean = false,
     val loot: List<LootCardModel> = emptyList(),
-    val spotlight: List<MissionCardModel> = emptyList(),
-    val recentArchives: List<MissionCardModel> = emptyList(),
 )
 
 @HiltViewModel
@@ -514,10 +491,6 @@ class LobbyViewModel @Inject constructor(
                     avatarImagePath = userPreferences.avatarImagePath,
                     systemOverload = openCount > 10,
                     loot = buildLoot(doneCount, totalCount, openCount),
-                    spotlight = missions.take(3),
-                    recentArchives = missions
-                        .sortedWith(compareByDescending<MissionCardModel> { it.status.name == "DONE" }.thenByDescending { it.priorityScore })
-                        .take(4),
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LobbyUiState())

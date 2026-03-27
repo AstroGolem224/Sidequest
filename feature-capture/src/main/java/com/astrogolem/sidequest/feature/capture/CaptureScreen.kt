@@ -29,16 +29,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -49,13 +48,10 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -82,12 +78,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
@@ -103,6 +102,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
+import com.astrogolem.sidequest.core.ui.components.SplitActionRow
+import com.astrogolem.sidequest.core.ui.components.StateShellCard
 import com.astrogolem.sidequest.core.data.model.CaptureDetailModel
 import com.astrogolem.sidequest.core.data.model.ExtractionCandidate
 import com.astrogolem.sidequest.core.data.model.ExtractionKind
@@ -112,6 +113,7 @@ import com.astrogolem.sidequest.core.data.model.CaptureSummary
 import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentCyan
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -120,6 +122,7 @@ import com.astrogolem.sidequest.core.ui.theme.BgGlow
 import com.astrogolem.sidequest.core.ui.theme.BgPanel
 import com.astrogolem.sidequest.core.ui.theme.CardSurface
 import com.astrogolem.sidequest.core.ui.theme.CardStrokeStrong
+import com.astrogolem.sidequest.core.ui.theme.SidequestSpacing
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -130,6 +133,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -190,7 +194,7 @@ fun CaptureRoute(
                     }
 
                     override fun onError(exception: ImageCaptureException) {
-                        cameraError = exception.message ?: "Capture failed."
+                        cameraError = exception.message ?: context.getString(R.string.capture_error_failed)
                     }
                 },
             )
@@ -210,6 +214,7 @@ fun CaptureRoute(
             }
         },
         onSetAiFirstEnabled = viewModel::setAiFirstEnabled,
+        onOpenReview = viewModel::reopenReviewDrawer,
         onConsumeActionFeedback = viewModel::clearActionFeedback,
         onDismissReview = viewModel::dismissReviewDrawer,
         onPromoteCandidate = viewModel::promoteCandidate,
@@ -233,14 +238,24 @@ private fun CaptureScreen(
     onRetake: () -> Unit,
     onSave: () -> Unit,
     onSetAiFirstEnabled: (Boolean) -> Unit,
+    onOpenReview: () -> Unit,
     onConsumeActionFeedback: () -> Unit,
     onDismissReview: () -> Unit,
     onPromoteCandidate: (String) -> Unit,
     onDismissCandidate: (String) -> Unit,
     onOpenCapture: (String) -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
+    val hasPendingCapture = pendingCaptureUri != null
+    val showPermissionFallback = !hasCameraPermission
     val latestCapture = state.captures.firstOrNull()
     val latestCaptureDone = latestCapture?.status?.name == "DONE"
+    val statusMessage =
+        if (cameraError != null || state.actionFeedback != null || state.isSaving || state.lastMessage != DefaultCaptureMessage) {
+            cameraError ?: state.actionFeedback ?: state.lastMessage
+        } else {
+            null
+        }
     LaunchedEffect(state.actionFeedback) {
         if (state.actionFeedback != null) {
             delay(1800)
@@ -250,13 +265,13 @@ private fun CaptureScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         when {
-            !hasCameraPermission -> TacticalCaptureFallback(
-                title = "Visual sensors offline",
-                body = "Grant camera access to restore live scanning and HUD targeting.",
+            showPermissionFallback -> TacticalCaptureFallback(
+                onRestoreVision = onRequestPermission,
+                onImport = onImport,
                 modifier = Modifier.fillMaxSize(),
             )
 
-            pendingCaptureUri != null -> PreviewImage(
+            hasPendingCapture -> PreviewImage(
                 uri = Uri.parse(pendingCaptureUri),
                 modifier = Modifier.fillMaxSize(),
             )
@@ -277,74 +292,51 @@ private fun CaptureScreen(
                 ),
         )
 
-        LensScanlineOverlay(modifier = Modifier.fillMaxSize())
+        if (!showPermissionFallback) {
+            LensScanlineOverlay(modifier = Modifier.fillMaxSize())
 
-        AiFirstToggle(
-            enabled = state.aiFirstEnabled,
-            onCheckedChange = onSetAiFirstEnabled,
-            modifier = Modifier
-                .align(androidx.compose.ui.Alignment.BottomEnd)
-                .padding(end = 24.dp, bottom = 156.dp),
-        )
-
-        if (!hasCameraPermission) {
-            Column(
+            AiFirstToggle(
+                enabled = state.aiFirstEnabled,
+                onCheckedChange = onSetAiFirstEnabled,
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.TopStart)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Visual sensors offline", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Grant camera access to restore the live lens. Until then, Sidequest can only work from imported images.",
-                    color = TextSecondary,
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = latestCaptureDone && pendingCaptureUri == null,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
-            modifier = Modifier
-                .align(androidx.compose.ui.Alignment.TopEnd)
-                .padding(top = 18.dp, end = 16.dp),
-        ) {
-            OutlinedButton(onClick = { latestCapture?.id?.let(onOpenCapture) }) {
-                Icon(
-                    imageVector = SidequestIcons.Intel,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text("Open Details", modifier = Modifier.padding(start = 8.dp))
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(androidx.compose.ui.Alignment.BottomCenter)
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-        ) {
-            LensActionBar(
-                pendingCapture = pendingCaptureUri != null,
-                hasReadyCapture = latestCaptureDone,
-                onCapture = onCapture,
-                onImport = onImport,
-                onRetake = onRetake,
-                onSave = onSave,
-                onOpenCapture = { latestCapture?.id?.let(onOpenCapture) },
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
             )
-        }
 
-        if (!hasCameraPermission) {
-            Button(
-                onClick = onRequestPermission,
+            Column(
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 116.dp)
-                    .fillMaxWidth(),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Restore Vision")
+                if (!state.showReviewDrawer) {
+                    state.reviewCapture?.let { reviewCapture ->
+                        CaptureReviewRail(
+                            reviewCapture = reviewCapture,
+                            reviewCandidates = state.reviewCandidates,
+                            onOpenReview = onOpenReview,
+                            onOpenCapture = { onOpenCapture(reviewCapture.id) },
+                        )
+                    }
+                    statusMessage?.let { message ->
+                        CaptureStatusBanner(message = message)
+                    }
+                }
+                LensActionBar(
+                    pendingCapture = hasPendingCapture,
+                    hasReadyCapture = latestCaptureDone,
+                    onCapture = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onCapture()
+                    },
+                    onImport = onImport,
+                    onRetake = onRetake,
+                    onSave = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSave()
+                    },
+                    onOpenCapture = { latestCapture?.id?.let(onOpenCapture) },
+                )
             }
         }
 
@@ -360,13 +352,6 @@ private fun CaptureScreen(
                     onOpenCapture = { onOpenCapture(reviewCapture.id) },
                 )
             }
-        } else if (cameraError != null || state.actionFeedback != null || state.isSaving || state.lastMessage != DefaultCaptureMessage) {
-            CaptureStatusBanner(
-                message = cameraError ?: state.actionFeedback ?: state.lastMessage,
-                modifier = Modifier
-                    .align(androidx.compose.ui.Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 108.dp),
-            )
         }
     }
 }
@@ -377,20 +362,27 @@ private fun AiFirstToggle(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Surface(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        color = BgPanel.copy(alpha = 0.78f),
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.38f)),
     ) {
-        Text(
-            text = "AI",
-            style = MaterialTheme.typography.titleSmall,
-            color = AccentSecondary,
-        )
-        Switch(
-            checked = enabled,
-            onCheckedChange = onCheckedChange,
-        )
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.capture_ai_first_label),
+                style = MaterialTheme.typography.titleSmall,
+                color = AccentSecondary,
+            )
+            Switch(
+                checked = enabled,
+                onCheckedChange = onCheckedChange,
+            )
+        }
     }
 }
 
@@ -412,6 +404,82 @@ private fun CaptureStatusBanner(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         )
     }
+}
+
+@Composable
+private fun CaptureReviewRail(
+    reviewCapture: CaptureDetailModel,
+    reviewCandidates: List<ExtractionCandidate>,
+    onOpenReview: () -> Unit,
+    onOpenCapture: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val title: String
+    val subtitle: String
+    val primaryActionLabel: String?
+    val openActionRes = if (reviewCapture.status == CaptureProcessingStatus.DONE) {
+        R.string.capture_review_action_open_details
+    } else {
+        R.string.capture_review_action_open_source
+    }
+    when (reviewCapture.status) {
+        CaptureProcessingStatus.PROCESSING -> {
+            title = stringResource(R.string.capture_review_processing_title)
+            subtitle = stringResource(R.string.capture_review_processing_subtitle)
+            primaryActionLabel = null
+        }
+        CaptureProcessingStatus.PENDING -> {
+            title = stringResource(R.string.capture_review_pending_title)
+            subtitle = stringResource(R.string.capture_review_pending_subtitle)
+            primaryActionLabel = null
+        }
+        CaptureProcessingStatus.FAILED -> {
+            title = stringResource(R.string.capture_review_failed_title)
+            subtitle = stringResource(R.string.capture_review_failed_subtitle)
+            primaryActionLabel = null
+        }
+        CaptureProcessingStatus.DONE -> {
+            if (reviewCandidates.isEmpty()) {
+                title = stringResource(R.string.capture_review_archived_title)
+                subtitle = stringResource(R.string.capture_review_archived_subtitle)
+                primaryActionLabel = null
+            } else {
+                title = stringResource(R.string.capture_review_ready_title)
+                subtitle = stringResource(R.string.capture_review_ready_subtitle, reviewCandidates.size)
+                primaryActionLabel = stringResource(R.string.capture_review_action_open_queue)
+            }
+        }
+    }
+    StateShellCard(
+        title = title,
+        subtitle = subtitle,
+        modifier = modifier,
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SidequestSpacing.ControlGap),
+            ) {
+                if (primaryActionLabel != null) {
+                    Button(
+                        onClick = onOpenReview,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                    ) {
+                        Text(primaryActionLabel)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onOpenCapture,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(text = stringResource(openActionRes))
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -444,24 +512,28 @@ private fun PostScanReviewDrawer(
             item {
                 when (reviewCapture.status) {
                     CaptureProcessingStatus.PROCESSING -> ReviewDrawerHeader(
-                        title = "Analyzing objective",
-                        subtitle = "OCR and classification are running in the background. Keep the drawer open or jump into intel when it completes.",
+                        title = stringResource(R.string.capture_drawer_processing_title),
+                        subtitle = stringResource(R.string.capture_drawer_processing_subtitle),
                     )
                     CaptureProcessingStatus.DONE -> ReviewDrawerHeader(
-                        title = if (reviewCandidates.isEmpty()) "Intel archived" else "Review suggested quests",
-                        subtitle = if (reviewCandidates.isEmpty()) {
-                            "This scan produced search-worthy intel but no strong quest candidates."
+                        title = if (reviewCandidates.isEmpty()) {
+                            stringResource(R.string.capture_drawer_archived_title)
                         } else {
-                            "Confirm or veto the fresh mission suggestions before they enter your quest log."
+                            stringResource(R.string.capture_drawer_ready_title)
+                        },
+                        subtitle = if (reviewCandidates.isEmpty()) {
+                            stringResource(R.string.capture_drawer_archived_subtitle)
+                        } else {
+                            stringResource(R.string.capture_drawer_ready_subtitle)
                         },
                     )
                     CaptureProcessingStatus.FAILED -> ReviewDrawerHeader(
-                        title = "Scan analysis failed",
-                        subtitle = "The source image is still stored locally. Open the intel detail to inspect OCR and retry from the source.",
+                        title = stringResource(R.string.capture_drawer_failed_title),
+                        subtitle = stringResource(R.string.capture_drawer_failed_subtitle),
                     )
                     CaptureProcessingStatus.PENDING -> ReviewDrawerHeader(
-                        title = "Capture queued",
-                        subtitle = "The image is saved locally and waiting for the background worker.",
+                        title = stringResource(R.string.capture_drawer_pending_title),
+                        subtitle = stringResource(R.string.capture_drawer_pending_subtitle),
                     )
                 }
             }
@@ -482,7 +554,7 @@ private fun PostScanReviewDrawer(
                                 color = AccentPrimary,
                             )
                             Text(
-                                text = "Analyzing Objective...",
+                                text = stringResource(R.string.capture_drawer_processing_inline),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = AccentSecondary,
                             )
@@ -494,11 +566,11 @@ private fun PostScanReviewDrawer(
                     if (reviewCandidates.isEmpty()) {
                         item {
                             GlassCard(
-                                title = "No quests deployed",
-                                subtitle = "The scan stayed in memory mode. Dates, facts, and references are still preserved inside the intel view.",
+                                title = stringResource(R.string.capture_drawer_empty_title),
+                                subtitle = stringResource(R.string.capture_drawer_empty_subtitle),
                             ) {
                                 Text(
-                                    text = reviewCapture.summary.ifBlank { "Open intel to inspect OCR, dates, and linked facts." },
+                                    text = reviewCapture.summary.ifBlank { stringResource(R.string.capture_drawer_empty_summary) },
                                     color = TextSecondary,
                                 )
                             }
@@ -529,11 +601,11 @@ private fun PostScanReviewDrawer(
                 CaptureProcessingStatus.FAILED -> {
                     item {
                         GlassCard(
-                            title = "Manual recovery",
-                            subtitle = "Use the intel detail to inspect what was saved and decide whether to retake or re-import the source.",
+                            title = stringResource(R.string.capture_drawer_failed_recovery_title),
+                            subtitle = stringResource(R.string.capture_drawer_failed_recovery_subtitle),
                         ) {
                             Text(
-                                text = "Sidequest kept the original image. Nothing was silently discarded.",
+                                text = stringResource(R.string.capture_drawer_failed_recovery_body),
                                 color = TextSecondary,
                             )
                         }
@@ -550,13 +622,21 @@ private fun PostScanReviewDrawer(
                         onClick = onDismissDrawer,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("Later")
+                        Text(stringResource(R.string.capture_drawer_action_later))
                     }
                     Button(
                         onClick = onOpenCapture,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(if (reviewCapture.status == CaptureProcessingStatus.DONE) "Open Details" else "Open Source")
+                        Text(
+                            stringResource(
+                                if (reviewCapture.status == CaptureProcessingStatus.DONE) {
+                                    R.string.capture_drawer_action_open_details
+                                } else {
+                                    R.string.capture_drawer_action_open_source
+                                },
+                            ),
+                        )
                     }
                 }
             }
@@ -609,7 +689,13 @@ private fun FreshQuestCandidateCard(
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
-                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                        contentDescription = stringResource(
+                            if (expanded) {
+                                R.string.capture_suggestion_collapse
+                            } else {
+                                R.string.capture_suggestion_expand
+                            },
+                        ),
                         tint = AccentSecondary,
                     )
                 }
@@ -635,13 +721,13 @@ private fun FreshQuestCandidateCard(
                             onClick = onDismiss,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("Dismiss")
+                            Text(stringResource(R.string.capture_suggestion_dismiss))
                         }
                         Button(
                             onClick = onPromote,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("Deploy Quest")
+                            Text(stringResource(R.string.capture_suggestion_deploy))
                         }
                     }
                 }
@@ -699,24 +785,38 @@ private fun LensScanlineOverlay(
 
 @Composable
 private fun TacticalCaptureFallback(
-    title: String,
-    body: String,
+    onRestoreVision: () -> Unit,
+    onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .background(Brush.verticalGradient(listOf(BgGlow.copy(alpha = 0.8f), Color.Black.copy(alpha = 0.92f)))),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(20.dp),
-        )
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 74.dp),
+        StateShellCard(
+            title = stringResource(R.string.capture_permission_title),
+            subtitle = stringResource(R.string.capture_permission_subtitle),
+            supportingLines = listOf(stringResource(R.string.capture_permission_detail)),
+            modifier = Modifier.padding(SidequestSpacing.ScreenPadding),
+            actions = {
+                Button(
+                    onClick = onRestoreVision,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(stringResource(R.string.capture_permission_button))
+                }
+                OutlinedButton(
+                    onClick = onImport,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(stringResource(R.string.capture_permission_import))
+                }
+            },
         )
     }
 }
@@ -732,77 +832,82 @@ private fun LensActionBar(
     onOpenCapture: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.width(268.dp),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         color = Color(0x6605070A),
+        border = BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.34f)),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedIconButton(
-                onClick = if (pendingCapture) onRetake else onImport,
-                modifier = Modifier.size(44.dp),
+            Button(
+                onClick = if (pendingCapture) onSave else onCapture,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
             ) {
                 Icon(
-                    imageVector = if (pendingCapture) SidequestIcons.Retake else SidequestIcons.Gallery,
-                    contentDescription = if (pendingCapture) "Retake capture" else "Photo library",
+                    imageVector = if (pendingCapture) SidequestIcons.Save else SidequestIcons.Camera,
+                    contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
-            }
-            val transition = rememberInfiniteTransition(label = "lens-trigger")
-            val pulseRadius by transition.animateFloat(
-                initialValue = 0.96f,
-                targetValue = 1.28f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 1400),
-                ),
-                label = "lens-trigger-radius",
-            )
-            val pulseAlpha by transition.animateFloat(
-                initialValue = 0.26f,
-                targetValue = 0.04f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 1400),
-                ),
-                label = "lens-trigger-alpha",
-            )
-            Box(
-                modifier = Modifier.size(88.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center,
-            ) {
-                Canvas(modifier = Modifier.size(88.dp * pulseRadius)) {
-                    drawCircle(color = AccentCyan.copy(alpha = pulseAlpha))
-                }
-                FilledIconButton(
-                    onClick = if (pendingCapture) onSave else onCapture,
-                    modifier = Modifier.size(76.dp),
-                    shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = AccentCyan,
-                        contentColor = Color.Black,
+                Text(
+                    text = stringResource(
+                        if (pendingCapture) {
+                            R.string.capture_footer_save
+                        } else {
+                            R.string.capture_footer_capture
+                        },
                     ),
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedButton(
+                    onClick = if (pendingCapture) onRetake else onImport,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
                 ) {
                     Icon(
-                        imageVector = if (pendingCapture) SidequestIcons.Save else SidequestIcons.Camera,
-                        contentDescription = if (pendingCapture) "Save capture" else "Capture image",
-                        modifier = Modifier.size(28.dp),
+                        imageVector = if (pendingCapture) SidequestIcons.Retake else SidequestIcons.Gallery,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = stringResource(
+                            if (pendingCapture) {
+                                R.string.capture_footer_retake
+                            } else {
+                                R.string.capture_footer_import
+                            },
+                        ),
+                        modifier = Modifier.padding(start = 8.dp),
                     )
                 }
-            }
-            OutlinedIconButton(
-                onClick = onOpenCapture,
-                enabled = hasReadyCapture && !pendingCapture,
-                modifier = Modifier.size(44.dp),
-            ) {
-                Icon(
-                    imageVector = SidequestIcons.Intel,
-                    contentDescription = "Open latest intel",
-                    modifier = Modifier.size(18.dp),
-                )
+                OutlinedButton(
+                    onClick = onOpenCapture,
+                    enabled = hasReadyCapture && !pendingCapture,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                ) {
+                    Icon(
+                        imageVector = SidequestIcons.Intel,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.capture_footer_latest),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
         }
     }
@@ -999,13 +1104,28 @@ private data class CameraPermissionState(
 @Composable
 fun CaptureDetailRoute(
     onOpenMission: (String) -> Unit,
+    onOpenNote: (String) -> Unit,
     onDeleted: () -> Unit,
     viewModel: CaptureDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val feedback by viewModel.feedback.collectAsStateWithLifecycle()
+    val aiFirstEnabled by viewModel.aiFirstEnabled.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
+    val haptics = LocalHapticFeedback.current
+    val copiedFeedback = stringResource(R.string.capture_feedback_copied)
+    val feedbackMessage = feedback?.let { code ->
+        when (code) {
+            "mission_created" -> stringResource(R.string.capture_feedback_mission_created)
+            "reminder_created" -> stringResource(R.string.capture_feedback_reminder_created)
+            "reference_saved" -> stringResource(R.string.capture_feedback_reference_saved)
+            "delete_failed" -> stringResource(R.string.capture_feedback_delete_failed)
+            "retry_queued" -> stringResource(R.string.capture_feedback_retry_queued)
+            else -> code
+        }
+    }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var tasksExpanded by rememberSaveable(detail?.id) { mutableStateOf(false) }
     LaunchedEffect(feedback) {
         if (feedback != null) {
             delay(1800)
@@ -1034,54 +1154,108 @@ fun CaptureDetailRoute(
                                 .padding(top = 12.dp),
                         )
                         if (capture.summary.isNotBlank()) {
-                            Text("Summary: ${capture.summary}", modifier = Modifier.padding(top = 12.dp))
+                            Text(
+                                stringResource(R.string.capture_detail_summary_format, capture.summary),
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
                         }
-                        if (capture.ocrText.isNotBlank()) {
-                            Text("OCR", modifier = Modifier.padding(top = 12.dp))
+                        capture.linkedNote?.let { linkedNote ->
+                            Text(stringResource(R.string.capture_detail_linked_note), modifier = Modifier.padding(top = 12.dp))
+                            OutlinedButton(
+                                onClick = { onOpenNote(linkedNote.id) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = SidequestIcons.Document,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(
+                                    text = linkedNote.title,
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                        }
+                        if (!aiFirstEnabled && capture.ocrText.isNotBlank()) {
+                            Text(stringResource(R.string.capture_detail_ocr_heading), modifier = Modifier.padding(top = 12.dp))
                             Text(capture.ocrText)
                         }
                         if (capture.linkedMissions.isNotEmpty()) {
-                            Text("Linked missions", modifier = Modifier.padding(top = 12.dp))
+                            Text(stringResource(R.string.capture_detail_linked_missions), modifier = Modifier.padding(top = 12.dp))
                         }
                         if (capture.status == CaptureProcessingStatus.FAILED) {
                             Button(
-                                onClick = { viewModel.retryCapture() },
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    viewModel.retryCapture()
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 12.dp),
                             ) {
-                                Text("Retry Analysis")
+                                Text(stringResource(R.string.capture_detail_retry_analysis))
                             }
                         }
                         OutlinedButton(
-                            onClick = { showDeleteDialog = true },
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showDeleteDialog = true
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 12.dp),
                         ) {
-                            Text("Delete Scan")
+                            Text(stringResource(R.string.capture_detail_delete_scan))
                         }
                     }
                 }
 
                 extractionSections(capture).forEach { (kind, candidates) ->
                     item(key = "section-$kind") {
-                        ScaffoldCard(
-                            title = sectionTitle(kind, candidates.size),
-                            subtitle = sectionSubtitle(kind),
-                        ) {
-                            Text("These items stay attached to the capture unless you act on them.")
+                        if (kind == ExtractionKind.TASK) {
+                            CollapsibleTaskSectionCard(
+                                candidates = candidates,
+                                expanded = tasksExpanded,
+                                onToggle = { tasksExpanded = !tasksExpanded },
+                            )
+                        } else {
+                            ScaffoldCard(
+                                title = sectionTitle(kind, candidates.size),
+                                subtitle = sectionSubtitle(kind),
+                            ) {
+                                Text(stringResource(R.string.capture_detail_section_helper))
+                            }
                         }
                     }
-                    items(candidates, key = { it.id }) { candidate ->
-                        CaptureDetailCandidateCard(
-                            candidate = candidate,
-                            onPrimaryAction = { viewModel.promoteCandidate(candidate.id, candidate.kind) },
-                            onCopy = {
-                                clipboardManager.setText(AnnotatedString(candidate.body))
-                                viewModel.showFeedback("copied intel to clipboard")
-                            },
-                        )
+                    if (kind == ExtractionKind.TASK) {
+                        item(key = "tasks-$kind") {
+                            ExpandableTaskCandidateList(
+                                expanded = tasksExpanded,
+                                candidates = candidates,
+                                onPromoteCandidate = { candidate ->
+                                    viewModel.promoteCandidate(candidate.id, candidate.kind)
+                                },
+                                onCopy = { candidate ->
+                                    clipboardManager.setText(AnnotatedString(candidate.body))
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    viewModel.showFeedback(copiedFeedback)
+                                },
+                            )
+                        }
+                    } else {
+                        items(candidates, key = { it.id }) { candidate ->
+                            CaptureDetailCandidateCard(
+                                candidate = candidate,
+                                onPrimaryAction = { viewModel.promoteCandidate(candidate.id, candidate.kind) },
+                                onCopy = {
+                                    clipboardManager.setText(AnnotatedString(candidate.body))
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    viewModel.showFeedback(copiedFeedback)
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -1112,7 +1286,13 @@ fun CaptureDetailRoute(
                                 IconButton(onClick = { expanded = !expanded }) {
                                     Icon(
                                         imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
-                                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                                        contentDescription = stringResource(
+                                            if (expanded) {
+                                                R.string.capture_detail_mission_collapse
+                                            } else {
+                                                R.string.capture_detail_mission_expand
+                                            },
+                                        ),
                                         tint = AccentSecondary,
                                     )
                                 }
@@ -1121,10 +1301,13 @@ fun CaptureDetailRoute(
                                 Column {
                                     Text("Mission | ${mission.status.name.lowercase()}", color = TextSecondary)
                                     Button(
-                                        onClick = { onOpenMission(mission.id) },
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onOpenMission(mission.id)
+                                        },
                                         modifier = Modifier.padding(top = 12.dp),
                                     ) {
-                                        Text("Open mission")
+                                        Text(stringResource(R.string.capture_detail_open_mission))
                                     }
                                 }
                             }
@@ -1141,7 +1324,7 @@ fun CaptureDetailRoute(
                     .align(androidx.compose.ui.Alignment.BottomCenter)
                     .padding(horizontal = 16.dp, vertical = 18.dp),
             ) {
-                feedback?.let { message ->
+                feedbackMessage?.let { message ->
                     CaptureStatusBanner(message = message)
                 }
             }
@@ -1150,23 +1333,24 @@ fun CaptureDetailRoute(
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete scan?") },
+                title = { Text(stringResource(R.string.capture_detail_delete_title)) },
                 text = {
-                    Text("The source image, OCR text, extracted items, and search index entries for this scan will be removed. Linked missions stay intact but lose the source attachment.")
+                    Text(stringResource(R.string.capture_detail_delete_body))
                 },
                 confirmButton = {
                     Button(
                         onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             showDeleteDialog = false
                             viewModel.deleteCapture(onDeleted)
                         },
                     ) {
-                        Text("Delete")
+                        Text(stringResource(R.string.capture_detail_delete_confirm))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.capture_detail_delete_cancel))
                     }
                 },
             )
@@ -1180,6 +1364,7 @@ class CaptureDetailViewModel @Inject constructor(
     captureRepository: CaptureRepository,
     private val missionRepository: MissionRepository,
     private val processingOrchestrator: ProcessingOrchestrator,
+    securityService: SecurityService,
 ) : ViewModel() {
     private val captureId: String = checkNotNull(savedStateHandle["captureId"])
     private val captureRepositoryRef = captureRepository
@@ -1190,16 +1375,20 @@ class CaptureDetailViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val feedback: StateFlow<String?> = _feedback
+    val aiFirstEnabled: StateFlow<Boolean> =
+        securityService.observeUserPreferences()
+            .map { it.aiFirstCaptureEnabled }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun promoteCandidate(candidateId: String, kind: ExtractionKind) {
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)
             _feedback.value = when (kind) {
-                ExtractionKind.TASK -> "mission created from source intel"
-                ExtractionKind.DATE -> "reminder mission created"
+                ExtractionKind.TASK -> "mission_created"
+                ExtractionKind.DATE -> "reminder_created"
                 ExtractionKind.REFERENCE,
                 ExtractionKind.FACT,
-                -> "intel promoted"
+                -> "reference_saved"
             }
         }
     }
@@ -1217,7 +1406,7 @@ class CaptureDetailViewModel @Inject constructor(
             if (captureRepositoryRef.deleteCapture(captureId)) {
                 onDeleted()
             } else {
-                _feedback.value = "scan could not be deleted"
+                _feedback.value = "delete_failed"
             }
         }
     }
@@ -1225,7 +1414,79 @@ class CaptureDetailViewModel @Inject constructor(
     fun retryCapture() {
         viewModelScope.launch {
             processingOrchestrator.enqueue(captureId)
-            _feedback.value = "analysis queued again"
+            _feedback.value = "retry_queued"
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleTaskSectionCard(
+    candidates: List<ExtractionCandidate>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(26.dp),
+        border = BorderStroke(1.dp, CardStrokeStrong.copy(alpha = 0.4f)),
+        shadowElevation = 2.dp,
+        onClick = onToggle,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = sectionTitle(ExtractionKind.TASK, candidates.size),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                IconButton(onClick = onToggle) {
+                    Icon(
+                        imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                        contentDescription = stringResource(
+                            if (expanded) {
+                                R.string.capture_detail_task_collapse
+                            } else {
+                                R.string.capture_detail_task_expand
+                            },
+                        ),
+                        tint = AccentSecondary,
+                    )
+                }
+            }
+            Text(
+                text = sectionSubtitle(ExtractionKind.TASK),
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+            )
+            Text(stringResource(R.string.capture_detail_section_helper))
+        }
+    }
+}
+
+@Composable
+private fun ExpandableTaskCandidateList(
+    expanded: Boolean,
+    candidates: List<ExtractionCandidate>,
+    onPromoteCandidate: (ExtractionCandidate) -> Unit,
+    onCopy: (ExtractionCandidate) -> Unit,
+) {
+    AnimatedVisibility(visible = expanded) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            candidates.forEach { candidate ->
+                CaptureDetailCandidateCard(
+                    candidate = candidate,
+                    onPrimaryAction = { onPromoteCandidate(candidate) },
+                    onCopy = { onCopy(candidate) },
+                )
+            }
         }
     }
 }
@@ -1243,13 +1504,13 @@ private fun CaptureDetailCandidateCard(
         AssistChip(
             onClick = {},
             label = { Text(candidate.kind.name.lowercase()) },
-            modifier = Modifier.padding(bottom = 12.dp),
+            modifier = Modifier.padding(bottom = SidequestSpacing.ItemGap),
         )
         candidate.dueAt?.let { dueAt ->
             Text(
-                text = "Detected date: ${formatTimestamp(dueAt)}",
+                text = stringResource(R.string.capture_candidate_detected_date_format, formatTimestamp(dueAt)),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = SidequestSpacing.Xs),
             )
         }
         Text(candidate.body)
@@ -1257,28 +1518,40 @@ private fun CaptureDetailCandidateCard(
             text = candidate.reasoning,
             style = MaterialTheme.typography.bodySmall,
             color = AccentPrimary,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = SidequestSpacing.Xs),
         )
         if (candidate.status == ExtractionStatus.CANDIDATE) {
             when (candidate.kind) {
                 ExtractionKind.TASK -> {
-                    Button(
-                        onClick = onPrimaryAction,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                    ) {
-                        Text("Create Mission")
+                    SplitActionRow(modifier = Modifier.padding(top = SidequestSpacing.ItemGap)) {
+                        Button(
+                            onClick = onPrimaryAction,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.capture_candidate_create_mission))
+                        }
+                        OutlinedButton(
+                            onClick = onCopy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.capture_candidate_copy))
+                        }
                     }
                 }
                 ExtractionKind.DATE -> {
-                    Button(
-                        onClick = onPrimaryAction,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                    ) {
-                        Text("Create Reminder")
+                    SplitActionRow(modifier = Modifier.padding(top = SidequestSpacing.ItemGap)) {
+                        Button(
+                            onClick = onPrimaryAction,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.capture_candidate_create_reminder))
+                        }
+                        OutlinedButton(
+                            onClick = onCopy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(stringResource(R.string.capture_candidate_copy))
+                        }
                     }
                 }
                 ExtractionKind.REFERENCE,
@@ -1288,9 +1561,9 @@ private fun CaptureDetailCandidateCard(
                         onClick = onCopy,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 12.dp),
+                            .padding(top = SidequestSpacing.ItemGap),
                     ) {
-                        Text("Copy")
+                        Text(stringResource(R.string.capture_candidate_copy))
                     }
                 }
             }
@@ -1311,22 +1584,24 @@ private fun extractionSections(capture: CaptureDetailModel): List<Pair<Extractio
     }
 }
 
+@Composable
 private fun sectionTitle(kind: ExtractionKind, count: Int): String {
     val label = when (kind) {
-        ExtractionKind.TASK -> "Tasks"
-        ExtractionKind.DATE -> "Dates"
-        ExtractionKind.REFERENCE -> "References"
-        ExtractionKind.FACT -> "Facts"
+        ExtractionKind.TASK -> stringResource(R.string.capture_detail_tasks_label)
+        ExtractionKind.DATE -> stringResource(R.string.capture_detail_dates_label)
+        ExtractionKind.REFERENCE -> stringResource(R.string.capture_detail_references_label)
+        ExtractionKind.FACT -> stringResource(R.string.capture_detail_facts_label)
     }
     return "$label ($count)"
 }
 
+@Composable
 private fun sectionSubtitle(kind: ExtractionKind): String {
     return when (kind) {
-        ExtractionKind.TASK -> "Actionable lines that can become missions."
-        ExtractionKind.DATE -> "Recognized deadlines or time anchors you can turn into reminders."
-        ExtractionKind.REFERENCE -> "IDs, codes and reference values kept for lookup."
-        ExtractionKind.FACT -> "Context captured for search and recall."
+        ExtractionKind.TASK -> stringResource(R.string.capture_detail_tasks_subtitle)
+        ExtractionKind.DATE -> stringResource(R.string.capture_detail_dates_subtitle)
+        ExtractionKind.REFERENCE -> stringResource(R.string.capture_detail_references_subtitle)
+        ExtractionKind.FACT -> stringResource(R.string.capture_detail_facts_subtitle)
     }
 }
 

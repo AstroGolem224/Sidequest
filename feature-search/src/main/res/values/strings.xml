@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_title">Memory Search</string>
+    <string name="search_subtitle">Local semantic search across captures, notes, missions, dates, references, and facts.</string>
+    <string name="search_status_initial">Search the local archive.</string>
+    <string name="search_status_prompt">Enter a query to search captures, dates, references, missions, and notes.</string>
+    <string name="search_status_loading">Searching local archive...</string>
+    <string name="search_status_failed">Search failed.</string>
+    <string name="search_status_empty_format">No %1$s matches for "%2$s".</string>
+    <string name="search_status_results_format">%1$d %2$s matches for "%3$s".</string>
+    <string name="search_query_label">Search query</string>
+    <string name="search_action">Search</string>
+    <string name="search_loading_title">Searching local archive</string>
+    <string name="search_loading_subtitle">Matching captures, notes, missions, dates, references, and facts on this device.</string>
+    <string name="search_error_title">Search unavailable</string>
+    <string name="search_error_subtitle">The search could not be completed right now.</string>
+    <string name="search_error_help">Try the same query again or clear the form and start from a simpler phrase.</string>
+    <string name="search_retry_action">Retry search</string>
+    <string name="search_clear_action">Clear query</string>
+    <string name="search_idle_title">Search is idle</string>
+    <string name="search_idle_subtitle">Search local memory by intent instead of exact OCR wording.</string>
+    <string name="search_idle_detail">Examples: passport expiry, buy coffee, invoice id, garden routine, launch note.</string>
+    <string name="search_examples_action">Try example search</string>
+    <string name="search_empty_title">No matches found</string>
+    <string name="search_empty_subtitle">Try a synonym, switch the filter, or search by date, reference, note heading, or mission title.</string>
+    <string name="search_empty_detail_format">Nothing matched "%1$s" in the local archive.</string>
+    <string name="search_results_heading">Results</string>
+    <string name="search_open_quest">Open mission</string>
+    <string name="search_open_source">Source capture</string>
+    <string name="search_open_note">Open note</string>
+    <string name="search_recover_from_scan">Recover from capture</string>
+    <string name="search_open_capture">Open capture</string>
+</resources>

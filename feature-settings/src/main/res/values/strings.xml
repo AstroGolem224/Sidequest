@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_section_appearance_title">Appearance</string>
+    <string name="settings_section_appearance_subtitle">Choose how Sidequest looks without changing how it works.</string>
+    <string name="settings_section_privacy_title">Privacy and Security</string>
+    <string name="settings_section_privacy_subtitle">Protect this device and confirm what stays local.</string>
+    <string name="settings_section_alerts_title">Alerts and Reminders</string>
+    <string name="settings_section_alerts_subtitle">Control whether Sidequest can surface reminder prompts on this device.</string>
+    <string name="settings_section_notes_title">Notes and Backups</string>
+    <string name="settings_section_notes_subtitle">Choose where notes are mirrored and how you move data between devices.</string>
+    <string name="settings_section_ai_title">AI Analysis</string>
+    <string name="settings_section_ai_subtitle">Optional remote analysis. Leave everything off if you want to stay local-only.</string>
+    <string name="settings_section_support_title">Support and Diagnostics</string>
+    <string name="settings_section_support_subtitle">Quick checks when capture, reminders, or unlock flow feel off.</string>
+
+    <string name="settings_theme_title">Color theme</string>
+    <string name="settings_theme_subtitle">This changes the palette only. Your layout and workflow stay the same.</string>
+    <string name="settings_theme_active_format">%1$s active</string>
+    <string name="settings_theme_preset_solar">solar</string>
+    <string name="settings_theme_preset_aether">aether</string>
+    <string name="settings_theme_preset_frost">frost</string>
+    <string name="settings_theme_preset_hearth">hearth</string>
+    <string name="settings_theme_preset_cyber">cyber</string>
+
+    <string name="settings_security_title">Device protection</string>
+    <string name="settings_security_subtitle">Keep local Sidequest data behind the same lock flow you trust on this phone.</string>
+    <string name="settings_security_local_storage_note">Your Sidequest data stays on this device unless you connect a notes folder or turn on an AI provider.</string>
+    <string name="settings_biometric_title">Biometric lock</string>
+    <string name="settings_biometric_supporting_text">Require Face ID, fingerprint, or your device credential before Sidequest opens.</string>
+
+    <string name="settings_notifications_title">Notifications</string>
+    <string name="settings_notifications_subtitle">Let Sidequest deliver reminder alerts and follow-up prompts on this device.</string>
+    <string name="settings_notifications_status_format">Notification access: %1$s</string>
+    <string name="settings_notifications_enabled_help">Notifications are available, so scheduled reminders can surface outside the app.</string>
+    <string name="settings_notifications_missing_help">Without notification access, reminders stay in Sidequest and will not appear as system alerts.</string>
+    <string name="settings_grant_notifications">Turn on notifications</string>
+
+    <string name="settings_notes_folder_title">Notes folder</string>
+    <string name="settings_notes_folder_subtitle">Optionally mirror markdown notes into a folder you choose.</string>
+    <string name="settings_notes_folder_scope_note">When connected, Sidequest writes note files and linked capture images into that folder. Disconnecting stops future writes there but does not delete files already created.</string>
+    <string name="settings_notes_folder_current_format">Connected folder: %1$s</string>
+    <string name="settings_notes_folder_empty">No notes folder connected.</string>
+    <string name="settings_notes_folder_choose">Connect folder</string>
+    <string name="settings_notes_folder_change">Change folder</string>
+    <string name="settings_notes_folder_clear">Disconnect</string>
+
+    <string name="settings_backup_title">Backup and restore</string>
+    <string name="settings_backup_subtitle">Create a manual snapshot or restore one you exported earlier.</string>
+    <string name="settings_backup_scope_note">A snapshot includes your local captures, missions, notes, routines, shopping lists, and search index on this device.</string>
+    <string name="settings_backup_restore_note">Restoring a snapshot replaces the current local Sidequest data on this device with the contents of that file.</string>
+    <string name="settings_export_button">Export snapshot</string>
+    <string name="settings_import_button">Restore snapshot</string>
+
+    <string name="settings_ai_title">How AI analysis works</string>
+    <string name="settings_ai_subtitle">Use this only if you want remote help with capture analysis.</string>
+    <string name="settings_ai_remote_processing_note">When a provider is active, eligible captures can send the image and OCR text needed to generate mission, date, reference, or fact suggestions.</string>
+    <string name="settings_providers_empty_title">No AI providers available</string>
+    <string name="settings_providers_empty_subtitle">Sidequest still works locally with on-device OCR and manual review.</string>
+    <string name="settings_providers_loading_title">Checking AI providers</string>
+    <string name="settings_providers_loading_subtitle">Loading the locally configured provider keys and availability on this device.</string>
+    <string name="settings_providers_error_title">AI provider setup unavailable</string>
+    <string name="settings_providers_error_help">Retry the provider check. Until then, capture stays local-only.</string>
+    <string name="settings_retry_provider_load">Retry provider check</string>
+
+    <string name="settings_device_readiness_title">Diagnostics</string>
+    <string name="settings_device_readiness_subtitle">Operational checks for the core Sidequest flows on this device.</string>
+    <string name="settings_device_camera_status">Camera permission: %1$s</string>
+    <string name="settings_device_notifications_status">Notification access: %1$s</string>
+    <string name="settings_device_biometric_status">Biometric lock: %1$s</string>
+    <string name="settings_device_storage_status">Local storage: active</string>
+
+    <string name="settings_status_granted">granted</string>
+    <string name="settings_status_missing">missing</string>
+    <string name="settings_status_enabled">enabled</string>
+    <string name="settings_status_disabled">disabled</string>
+    <string name="settings_status_not_configured">No key added</string>
+    <string name="settings_status_provider_ready">Key saved on this device</string>
+    <string name="settings_status_provider_active">Currently handling AI analysis</string>
+
+    <string name="settings_provider_single_active_note">Only one AI provider can be active at a time. Saved keys stay on this device even when a provider is turned off.</string>
+    <string name="settings_provider_toggle_title">Use %1$s for AI analysis</string>
+    <string name="settings_provider_toggle_enabled_help">%1$s currently handles AI analysis for eligible captures. New AI-assisted scans can send the required image and OCR text there.</string>
+    <string name="settings_provider_toggle_inactive_help">Turn this on when you want eligible captures sent to %1$s for AI analysis.</string>
+    <string name="settings_provider_toggle_unconfigured_help">Add a key first if you want to use %1$s. Until then, Sidequest stays local-only.</string>
+    <string name="settings_provider_api_key_label">%1$s API key</string>
+    <string name="settings_provider_editing_help">Paste a new key here. Saving replaces the existing key on this device only.</string>
+    <string name="settings_provider_existing_help">A key is already saved on this device. Sidequest hides most of it after saving.</string>
+    <string name="settings_provider_local_only_help">No key is saved for %1$s yet.</string>
+    <string name="settings_provider_save_key">Save key</string>
+    <string name="settings_provider_cancel">Cancel</string>
+    <string name="settings_provider_edit_key">Replace key</string>
+    <string name="settings_provider_add_key">Add key</string>
+
+    <string name="settings_notes_folder_updated">Notes folder connected.</string>
+    <string name="settings_notes_folder_store_failed">The notes folder could not be saved.</string>
+    <string name="settings_notes_folder_cleared">Notes folder disconnected. Existing exported files stay where they are.</string>
+    <string name="settings_notes_folder_clear_failed">The notes folder could not be disconnected.</string>
+    <string name="settings_provider_blank_key">Add an API key first, or leave this provider off.</string>
+    <string name="settings_provider_key_saved">%1$s key saved on this device.</string>
+    <string name="settings_provider_key_save_failed">%1$s key could not be saved.</string>
+    <string name="settings_provider_disabled">AI analysis turned off. New captures stay local-only unless you switch it back on.</string>
+    <string name="settings_provider_enabled">%1$s is now active for AI analysis on eligible captures.</string>
+    <string name="settings_provider_switch_failed">The provider setting could not be updated.</string>
+    <string name="settings_providers_load_failed">The AI provider status could not be loaded.</string>
+    <string name="settings_snapshot_exported">Snapshot saved.</string>
+    <string name="settings_snapshot_export_failed">The snapshot could not be exported.</string>
+    <string name="settings_snapshot_imported">Snapshot restored on this device.</string>
+    <string name="settings_snapshot_import_failed">The snapshot could not be restored.</string>
+</resources>
