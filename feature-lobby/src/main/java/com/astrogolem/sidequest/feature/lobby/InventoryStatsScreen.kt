@@ -511,11 +511,7 @@ private fun CaptureInventoryCard(
     onOpen: () -> Unit,
 ) {
     GlassCard(
-        title = when (capture.sourceLabel.lowercase()) {
-            "camera" -> "Camera scan"
-            "import" -> "Imported scan"
-            else -> capture.sourceLabel.replaceFirstChar { it.uppercase() }
-        },
+        title = capture.displayTitle,
         subtitle = "Status: ${capture.status.name.lowercase()}",
     ) {
         OutlinedButton(onClick = onOpen) {
@@ -669,6 +665,7 @@ class InventoryViewModel @Inject constructor(
             }
             val filteredCaptures = captures.filter { capture ->
                 normalizedQuery.isBlank() ||
+                    capture.displayTitle.lowercase().contains(normalizedQuery) ||
                     capture.sourceLabel.lowercase().contains(normalizedQuery) ||
                     capture.status.name.lowercase().contains(normalizedQuery)
             }

@@ -260,7 +260,7 @@ private fun QuestIntakeHero(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Quest Intake", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
+                Text("Quest Log", style = androidx.compose.material3.MaterialTheme.typography.headlineLarge)
                 Text(
                     "Level $intakeLevel review flow",
                     style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
@@ -479,7 +479,7 @@ private fun RecentCaptureCard(
     onDelete: () -> Unit,
 ) {
     GlassCard(
-        title = intelLabel(capture),
+        title = capture.displayTitle,
         subtitle = capture.status.name.lowercase(),
         modifier = Modifier.clickable(onClick = onOpenCapture),
     ) {
@@ -496,7 +496,7 @@ private fun RecentCaptureCard(
                 Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
                     Icon(
                         imageVector = SidequestIcons.Intel,
-                        contentDescription = intelLabel(capture),
+                        contentDescription = capture.displayTitle,
                         tint = AccentPrimary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -570,14 +570,6 @@ private fun rewardXp(candidate: InboxCandidateItem): Int {
 
 private fun rewardGp(candidate: InboxCandidateItem): Int {
     return (rewardXp(candidate) / 4).coerceAtLeast(10)
-}
-
-private fun intelLabel(capture: CaptureSummary): String {
-    return when (capture.sourceLabel.lowercase()) {
-        "camera" -> "Camera Capture"
-        "import" -> "Imported Capture"
-        else -> capture.sourceLabel.replaceFirstChar { it.uppercase() }
-    }
 }
 
 @HiltViewModel

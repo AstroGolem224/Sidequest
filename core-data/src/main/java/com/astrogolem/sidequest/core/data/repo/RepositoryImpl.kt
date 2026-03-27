@@ -126,12 +126,22 @@ class DefaultCaptureRepository @Inject constructor(
     private val workManager: WorkManager,
 ) : CaptureRepository {
     override fun observeCaptures(): Flow<List<CaptureSummary>> {
-        return captureDao.observeCaptures().map { captures ->
+        return combine(
+            captureDao.observeCaptures(),
+            captureDao.observeAnalyses(),
+        ) { captures, analyses ->
+            val analysisByCaptureId = analyses.associateBy { it.captureId }
             captures.map {
+                val analysis = analysisByCaptureId[it.id]
                 CaptureSummary(
                     id = it.id,
                     createdAt = it.createdAt,
                     sourceLabel = it.sourceType,
+                    displayTitle = createCaptureDisplayTitle(
+                        sourceType = it.sourceType,
+                        summary = analysis?.summary,
+                        documentType = analysis?.documentType,
+                    ),
                     previewPath = it.thumbnailPath,
                     status = it.processingStatus,
                 )
@@ -1780,6 +1790,40 @@ private fun deriveShoppingTitle(items: List<String>): String {
     }
     val stamp = SimpleDateFormat("dd.MM", Locale.GERMAN).format(java.util.Date())
     return "$prefix • $stamp"
+}
+
+private fun createCaptureDisplayTitle(
+    sourceType: String,
+    summary: String?,
+    documentType: DocumentType?,
+): String {
+    val normalizedSummary = summary
+        ?.lineSequence()
+        ?.map(String::trim)
+        ?.firstOrNull { it.isNotBlank() }
+        ?.removeSuffix(".")
+        ?.replace(Regex("""\s+"""), " ")
+        ?.trim()
+        ?.take(52)
+        ?.takeIf { it.isNotBlank() && !it.equals("capture", ignoreCase = true) }
+
+    if (normalizedSummary != null) {
+        return normalizedSummary.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+    }
+
+    return when (documentType ?: DocumentType.UNKNOWN) {
+        DocumentType.RECEIPT -> "Receipt Capture"
+        DocumentType.LETTER -> "Letter Capture"
+        DocumentType.WHITEBOARD -> "Whiteboard Capture"
+        DocumentType.SCREEN -> "Screen Capture"
+        DocumentType.NOTE -> "Note Capture"
+        DocumentType.SCENE -> "Scene Capture"
+        DocumentType.UNKNOWN -> when (sourceType.lowercase(Locale.ROOT)) {
+            "import" -> "Imported Capture"
+            "camera" -> "Camera Capture"
+            else -> sourceType.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } + " Capture"
+        }
+    }
 }
 
 private fun firstMarkdownHeading(markdown: String): String? {

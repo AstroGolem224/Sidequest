@@ -17,6 +17,7 @@ data class CaptureSummary(
     val id: String,
     val createdAt: Long,
     val sourceLabel: String,
+    val displayTitle: String,
     val previewPath: String,
     val status: CaptureProcessingStatus,
 )

@@ -163,7 +163,7 @@ fun MissionsRoute(
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                     ) {
                         Text(
-                            text = "${activeCount.coerceAtLeast(missions.size)} ACTIVE",
+                            text = "$activeCount ACTIVE",
                             style = MaterialTheme.typography.titleSmall,
                             color = AccentSecondary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -172,7 +172,7 @@ fun MissionsRoute(
                 }
             }
 
-            if (missions.isEmpty()) {
+            if (activeMissions.isEmpty()) {
                 item {
                     MissionBoardCard(
                         title = "No quests deployed",
@@ -184,7 +184,7 @@ fun MissionsRoute(
                     }
                 }
             } else {
-                items(missions, key = { it.id }) { mission ->
+                items(activeMissions, key = { it.id }) { mission ->
                     MissionBoardCard(
                         title = mission.title,
                         subtitle = mission.description,

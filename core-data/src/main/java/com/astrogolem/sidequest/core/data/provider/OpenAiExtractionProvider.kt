@@ -28,7 +28,7 @@ class OpenAiExtractionProvider @Inject constructor(
                         put("type", "input_text")
                         put(
                             "text",
-                            buildPrompt(request),
+                            buildStructuredIntelUserPrompt(request),
                         )
                     },
                 )
@@ -46,7 +46,7 @@ class OpenAiExtractionProvider @Inject constructor(
                 put("model", "gpt-4.1-mini")
                 put(
                     "instructions",
-                    buildSystemInstructions(),
+                    buildStructuredIntelSystemInstructions(),
                 )
                 put("input", JSONArray().put(JSONObject().apply {
                     put("role", "user")
@@ -69,7 +69,7 @@ class OpenAiExtractionProvider @Inject constructor(
                                 .put(
                                     JSONObject().apply {
                                         put("role", "system")
-                                        put("content", buildSystemInstructions())
+                                        put("content", buildStructuredIntelSystemInstructions())
                                     },
                                 )
                                 .put(
@@ -79,7 +79,7 @@ class OpenAiExtractionProvider @Inject constructor(
                                             put(
                                                 JSONObject().apply {
                                                     put("type", "text")
-                                                    put("text", buildPrompt(request))
+                                                    put("text", buildStructuredIntelUserPrompt(request))
                                                 },
                                             )
                                             request.imageDataUrl?.let { imageDataUrl ->
@@ -226,52 +226,6 @@ class OpenAiExtractionProvider @Inject constructor(
         val end = text.lastIndexOf('}')
         require(start >= 0 && end > start) { "Provider response did not contain JSON" }
         return text.substring(start, end + 1)
-    }
-
-    private fun buildPrompt(request: ProviderExtractionRequest): String {
-        return buildString {
-            appendLine("Analyze this Sidequest capture.")
-            appendLine("Analysis mode: ${request.analysisMode.name}")
-            appendLine("Document hint: ${request.documentHint}")
-            if (request.ocrText.isNotBlank()) {
-                appendLine("OCR text:")
-                appendLine(request.ocrText)
-            } else {
-                appendLine("OCR text is empty or unreliable. Use the image directly.")
-            }
-            appendLine("Decide from the image first whether the user likely needs reading help, cleanup help, a reminder, or only memory storage.")
-            appendLine("Return only JSON.")
-        }
-    }
-
-    private fun buildSystemInstructions(): String {
-        return """
-            You are helping a local-first Android productivity app turn a capture into structured intel.
-            Inspect the image when available and use OCR text as supporting context.
-            Return strict JSON with this shape:
-            {
-              "summary": "short plain-language summary",
-              "items": [
-                {
-                  "kind": "TASK" | "DATE" | "REFERENCE" | "FACT",
-                  "text": "single concise extracted line",
-                  "reasoning": "why this belongs to that kind"
-                }
-              ]
-            }
-            Rules:
-            - Only emit TASK when the capture contains a real actionable next step.
-            - Use DATE for deadlines, validity windows, appointments, and explicit time anchors.
-            - Use REFERENCE for IDs, codes, invoice numbers, tracking numbers, booking refs, and similar identifiers.
-            - Use FACT for notable searchable context that is not actionable.
-            - Keep items concise and deduplicated.
-            - Prefer 0 tasks over inventing action.
-            - If the image shows clutter, mess, or a reset opportunity, you may emit one TASK that frames the likely cleanup quest.
-            - If the image is mostly a scene and not a document, focus on likely intent and scene-based action before OCR.
-            - If no reading is needed, still emit scene-based TASK or FACT items when useful.
-            - Never emit TASK for developer notes, build/test instructions, terminal output, git workflow text, or UI review copy about the app itself.
-            - If the capture is informational but not actionable, return FACT, DATE, or REFERENCE only.
-        """.trimIndent()
     }
 
     private fun inferKindFallback(text: String): ExtractionKind {

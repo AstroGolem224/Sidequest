@@ -71,6 +71,9 @@ interface CaptureDao {
     @Query("SELECT * FROM capture_analysis WHERE captureId = :captureId LIMIT 1")
     fun observeAnalysis(captureId: String): Flow<CaptureAnalysisEntity?>
 
+    @Query("SELECT * FROM capture_analysis")
+    fun observeAnalyses(): Flow<List<CaptureAnalysisEntity>>
+
     @Query("SELECT * FROM capture_analysis ORDER BY processedAt DESC")
     suspend fun listAnalyses(): List<CaptureAnalysisEntity>
 
