@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="note_missing_title">Note missing</string>
+    <string name="note_missing_subtitle">This note was deleted or is no longer available on this device.</string>
+    <string name="note_loading_title">Loading note</string>
+    <string name="note_loading_subtitle">Pulling the markdown content and linked capture context from local storage.</string>
+    <string name="note_updated_format">Updated %1$s</string>
+    <string name="note_status_imported_format">Imported markdown | %1$s</string>
+    <string name="note_status_capture_linked">Capture-linked markdown note</string>
+    <string name="note_status_local">Local markdown note</string>
+    <string name="note_open_capture">Open source capture</string>
+    <string name="note_editor_title">Note editor</string>
+    <string name="note_editor_subtitle">Keep writing and preview in one focused block. Mission handoff and deletion live below as separate actions.</string>
+    <string name="note_mode_edit">Edit</string>
+    <string name="note_mode_preview">Preview</string>
+    <string name="note_field_title">Title</string>
+    <string name="note_field_markdown">Markdown</string>
+    <string name="note_save_action">Save note</string>
+    <string name="note_handoff_title">Mission handoff</string>
+    <string name="note_handoff_subtitle">Turn this note into a mission only when it is ready to become action, not while you are still editing.</string>
+    <string name="note_handoff_helper">Use this after the note is stable. Editing stays the primary path in the card above.</string>
+    <string name="note_create_quest">Create mission</string>
+    <string name="note_danger_show">Open danger zone</string>
+    <string name="note_danger_hide">Hide danger zone</string>
+    <string name="note_danger_title">Danger zone</string>
+    <string name="note_danger_subtitle">Delete this note only if it should disappear completely from the local library.</string>
+    <string name="note_delete_action">Delete note</string>
+    <string name="note_preview_title">Preview</string>
+    <string name="note_preview_subtitle">Simple markdown rendering for headings, bullets, quotes, code fences, and tables.</string>
+    <string name="note_preview_empty">_empty note_</string>
+    <string name="note_preview_code_start">code block</string>
+    <string name="note_preview_code_end">end code block</string>
+</resources>

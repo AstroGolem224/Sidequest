@@ -1,10 +1,8 @@
 package com.astrogolem.sidequest.feature.missions
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,7 +13,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,8 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -37,6 +36,11 @@ import com.astrogolem.sidequest.core.data.model.RoutinePlanSummary
 import com.astrogolem.sidequest.core.data.model.RoutineTriggerMode
 import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
+import com.astrogolem.sidequest.core.ui.components.DestructiveOutlinedButton
+import com.astrogolem.sidequest.core.ui.components.EmptyStateCard
+import com.astrogolem.sidequest.core.ui.components.InlineSupportText
+import com.astrogolem.sidequest.core.ui.components.LoadingStateCard
+import com.astrogolem.sidequest.core.ui.components.PreferenceSwitchRow
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
@@ -103,40 +107,40 @@ fun RoutinePlannerRoute(
     ) {
         item {
             ScaffoldCard(
-                title = "Routine Tasks",
-                subtitle = "Template-based repeatable tasks with duration, weekdays, time, XP reward, and editable completion logic.",
+                title = stringResource(R.string.routine_screen_title),
+                subtitle = stringResource(R.string.routine_screen_subtitle),
             ) {
-                Text("Use templates as a starting point, then edit every field. Only completion earns XP, never creation.")
+                Text(stringResource(R.string.routine_screen_helper))
             }
         }
 
         item {
-            Text("Template Catalog", color = TextSecondary)
+            Text(stringResource(R.string.routine_template_heading), color = TextSecondary)
         }
         items(routineTemplates, key = { it.key }) { template ->
             ScaffoldCard(
                 title = template.title,
                 subtitle = "${template.durationMinutes} min • ${template.xpReward} XP • ${template.triggerMode.name.lowercase()}",
             ) {
-                Text("Target: ${template.targetLabel}")
+                Text(stringResource(R.string.routine_template_target_format, template.targetLabel))
                 Text(template.notes, color = TextSecondary, modifier = Modifier.padding(top = 6.dp))
                 Button(
                     onClick = { viewModel.createFromTemplate(template, onOpenPlan) },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
-                    Text("Use Template")
+                    Text(stringResource(R.string.routine_template_use))
                 }
             }
         }
 
         item {
-            Text("Your Plans", color = TextSecondary)
+            Text(stringResource(R.string.routine_plans_heading), color = TextSecondary)
         }
         if (state.plans.isEmpty()) {
             item {
                 ScaffoldCard(
-                    title = "No routine plans yet",
-                    subtitle = "Pick a template, then adjust schedule, weekdays, trigger mode, and XP to match real life.",
+                    title = stringResource(R.string.routine_empty_title),
+                    subtitle = stringResource(R.string.routine_empty_subtitle),
                 ) {}
             }
         } else {
@@ -158,8 +162,28 @@ fun RoutinePlanDetailRoute(
     viewModel: RoutinePlanDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val detailLoaded by viewModel.detailLoaded.collectAsStateWithLifecycle()
     val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
-    val plan = detail ?: return
+    if (!detailLoaded) {
+        LoadingStateCard(
+            title = stringResource(R.string.routine_detail_loading_title),
+            subtitle = stringResource(R.string.routine_detail_loading_subtitle),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+        )
+        return
+    }
+    val plan = detail ?: run {
+        EmptyStateCard(
+            title = stringResource(R.string.routine_detail_missing_title),
+            subtitle = stringResource(R.string.routine_detail_missing_subtitle),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+        )
+        return
+    }
 
     LaunchedEffect(openMissionId) {
         openMissionId?.let { missionId ->
@@ -179,11 +203,26 @@ fun RoutinePlanDetailRoute(
     var active by remember(plan.id, plan.active) { mutableStateOf(plan.active) }
     var selectedCategory by remember(plan.id, plan.category) { mutableStateOf(plan.category) }
     var selectedTrigger by remember(plan.id, plan.triggerMode) { mutableStateOf(plan.triggerMode) }
+    var showDangerZone by rememberSaveable(plan.id) { mutableStateOf(false) }
     val weekdays = remember(plan.id, plan.weekdays) {
         mutableStateListOf<String>().apply {
             addAll(plan.weekdays.split(',').map { it.trim() }.filter { it.isNotBlank() })
         }
     }
+    val updatedPlan = plan.copy(
+        title = title.trim().ifBlank { plan.title },
+        targetLabel = targetLabel.trim().ifBlank { plan.targetLabel },
+        durationMinutes = duration.toIntOrNull() ?: plan.durationMinutes,
+        xpReward = xpReward.toIntOrNull() ?: plan.xpReward,
+        hour = (hour.toIntOrNull() ?: plan.hour).coerceIn(0, 23),
+        minute = (minute.toIntOrNull() ?: plan.minute).coerceIn(0, 59),
+        notes = notes.trim(),
+        recurring = recurring,
+        active = active,
+        weekdays = weekdays.joinToString(","),
+        category = selectedCategory,
+        triggerMode = selectedTrigger,
+    )
 
     LazyColumn(
         modifier = Modifier
@@ -193,22 +232,34 @@ fun RoutinePlanDetailRoute(
     ) {
         item {
             ScaffoldCard(
-                title = title.ifBlank { "Routine Plan" },
-                subtitle = "Created ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(plan.createdAt))}",
+                title = title.ifBlank { stringResource(R.string.routine_detail_fallback_title) },
+                subtitle = stringResource(
+                    R.string.routine_detail_created_format,
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(plan.createdAt)),
+                ),
             ) {
-                Text("Completions: ${plan.completionCount} • Earned XP: ${plan.completionCount * plan.xpReward}")
+                Text(
+                    stringResource(
+                        R.string.routine_detail_completion_format,
+                        plan.completionCount,
+                        plan.completionCount * plan.xpReward,
+                    ),
+                )
                 Text(
                     text = if (plan.active) {
-                        "Routine reminders are active and will fire on the next matching schedule."
+                        stringResource(R.string.routine_detail_active)
                     } else {
-                        "Routine reminders are paused until you reactivate this plan."
+                        stringResource(R.string.routine_detail_paused)
                     },
                     color = AccentPrimary,
                     modifier = Modifier.padding(top = 6.dp),
                 )
                 plan.lastCompletedAt?.let {
                     Text(
-                        text = "Last completed ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}",
+                        text = stringResource(
+                            R.string.routine_detail_last_completed_format,
+                            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)),
+                        ),
                         color = TextSecondary,
                         modifier = Modifier.padding(top = 6.dp),
                     )
@@ -218,69 +269,91 @@ fun RoutinePlanDetailRoute(
 
         item {
             ScaffoldCard(
-                title = "Edit Routine",
-                subtitle = "Title, scope, schedule, trigger mode, recurrence, and XP are all editable.",
+                title = stringResource(R.string.routine_focus_title),
+                subtitle = stringResource(R.string.routine_focus_subtitle),
             ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title") },
+                    label = { Text(stringResource(R.string.routine_field_title)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = targetLabel,
                     onValueChange = { targetLabel = it },
-                    label = { Text("Target / what exactly?") },
+                    label = { Text(stringResource(R.string.routine_field_target)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
                 )
-                Row(
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text(stringResource(R.string.routine_field_notes)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    minLines = 3,
+                )
+                Button(
+                    onClick = { viewModel.savePlan(updatedPlan) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
                 ) {
+                    Text(stringResource(R.string.routine_save_action))
+                }
+            }
+        }
+
+        item {
+            ScaffoldCard(
+                title = stringResource(R.string.routine_schedule_title),
+                subtitle = stringResource(R.string.routine_schedule_subtitle),
+            ) {
+                RowWithSpacing {
                     OutlinedTextField(
                         value = duration,
                         onValueChange = { duration = it.filter(Char::isDigit) },
-                        label = { Text("Minutes") },
+                        label = { Text(stringResource(R.string.routine_field_minutes)) },
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = xpReward,
                         onValueChange = { xpReward = it.filter(Char::isDigit) },
-                        label = { Text("XP") },
+                        label = { Text(stringResource(R.string.routine_field_xp)) },
                         modifier = Modifier.weight(1f),
                     )
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                RowWithSpacing(modifier = Modifier.padding(top = 12.dp)) {
                     OutlinedTextField(
                         value = hour,
                         onValueChange = { hour = it.filter(Char::isDigit).take(2) },
-                        label = { Text("Hour") },
+                        label = { Text(stringResource(R.string.routine_field_hour)) },
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = minute,
                         onValueChange = { minute = it.filter(Char::isDigit).take(2) },
-                        label = { Text("Minute") },
+                        label = { Text(stringResource(R.string.routine_field_minute)) },
                         modifier = Modifier.weight(1f),
                     )
                 }
-
-                Text("Recurring", modifier = Modifier.padding(top = 12.dp))
-                Switch(checked = recurring, onCheckedChange = { recurring = it })
-
-                Text("Active", modifier = Modifier.padding(top = 12.dp))
-                Switch(checked = active, onCheckedChange = { active = it })
-
-                Text("Weekdays", modifier = Modifier.padding(top = 12.dp))
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.routine_recurring_title),
+                    checked = recurring,
+                    onCheckedChange = { recurring = it },
+                    supportingText = stringResource(R.string.routine_recurring_support),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.routine_active_title),
+                    checked = active,
+                    onCheckedChange = { active = it },
+                    supportingText = stringResource(R.string.routine_active_support),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                Text(stringResource(R.string.routine_weekdays_title), modifier = Modifier.padding(top = 12.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -295,9 +368,17 @@ fun RoutinePlanDetailRoute(
                         )
                     }
                 }
+            }
+        }
 
-                Text("Category", modifier = Modifier.padding(top = 12.dp))
+        item {
+            ScaffoldCard(
+                title = stringResource(R.string.routine_logic_title),
+                subtitle = stringResource(R.string.routine_logic_subtitle),
+            ) {
+                Text(stringResource(R.string.routine_category_title))
                 FlowRow(
+                    modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -310,8 +391,9 @@ fun RoutinePlanDetailRoute(
                     }
                 }
 
-                Text("Trigger", modifier = Modifier.padding(top = 12.dp))
+                Text(stringResource(R.string.routine_trigger_title), modifier = Modifier.padding(top = 12.dp))
                 FlowRow(
+                    modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -323,68 +405,67 @@ fun RoutinePlanDetailRoute(
                         )
                     }
                 }
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes / execution plan") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    minLines = 3,
+                InlineSupportText(
+                    text = stringResource(
+                        R.string.routine_logic_summary_format,
+                        selectedTrigger.name.lowercase(),
+                        selectedCategory.name.lowercase(),
+                    ),
+                    modifier = Modifier.padding(top = 12.dp),
                 )
+            }
+        }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Button(
-                        onClick = {
-                            viewModel.savePlan(
-                                plan.copy(
-                                    title = title.trim(),
-                                    targetLabel = targetLabel.trim(),
-                                    durationMinutes = duration.toIntOrNull() ?: plan.durationMinutes,
-                                    xpReward = xpReward.toIntOrNull() ?: plan.xpReward,
-                                    hour = (hour.toIntOrNull() ?: plan.hour).coerceIn(0, 23),
-                                    minute = (minute.toIntOrNull() ?: plan.minute).coerceIn(0, 59),
-                                    notes = notes.trim(),
-                                    recurring = recurring,
-                                    active = active,
-                                    weekdays = weekdays.joinToString(","),
-                                    category = selectedCategory,
-                                    triggerMode = selectedTrigger,
-                                ),
-                            )
-                        },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Save")
-                    }
-                OutlinedButton(
-                    onClick = viewModel::completePlan,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Complete")
-                }
-            }
-            Button(
-                onClick = viewModel::createQuest,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp),
+        item {
+            ScaffoldCard(
+                title = stringResource(R.string.routine_actions_title),
+                subtitle = stringResource(R.string.routine_actions_subtitle),
             ) {
-                Text("Create Quest")
-            }
-            OutlinedButton(
-                onClick = viewModel::deletePlan,
-                modifier = Modifier
+                Button(
+                    onClick = viewModel::completePlan,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.routine_complete_action))
+                }
+                OutlinedButton(
+                    onClick = viewModel::createQuest,
+                    modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp),
                 ) {
-                    Text("Delete Plan")
+                    Text(stringResource(R.string.routine_create_quest))
+                }
+            }
+        }
+
+        item {
+            OutlinedButton(
+                onClick = { showDangerZone = !showDangerZone },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(
+                        if (showDangerZone) {
+                            R.string.routine_danger_hide
+                        } else {
+                            R.string.routine_danger_show
+                        },
+                    ),
+                )
+            }
+        }
+
+        if (showDangerZone) {
+            item {
+                ScaffoldCard(
+                    title = stringResource(R.string.routine_danger_title),
+                    subtitle = stringResource(R.string.routine_danger_subtitle),
+                ) {
+                    DestructiveOutlinedButton(
+                        label = stringResource(R.string.routine_delete_action),
+                        onClick = viewModel::deletePlan,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -403,27 +484,44 @@ private fun RoutinePlanSummaryCard(
     ) {
         AssistChip(onClick = {}, label = { Text(plan.category.name.lowercase()) })
         Text(
-            text = "Trigger: ${plan.triggerMode.name.lowercase()} • completions: ${plan.completionCount}",
+            text = stringResource(
+                R.string.routine_summary_trigger_format,
+                plan.triggerMode.name.lowercase(),
+                plan.completionCount,
+            ),
             color = TextSecondary,
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            text = if (plan.active) "Reminder armed for next schedule." else "Reminder paused.",
+            text = if (plan.active) {
+                stringResource(R.string.routine_summary_active)
+            } else {
+                stringResource(R.string.routine_summary_paused)
+            },
             color = AccentPrimary,
             modifier = Modifier.padding(top = 6.dp),
         )
-        Row(
-            modifier = Modifier.padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        RowWithSpacing(modifier = Modifier.padding(top = 12.dp)) {
             Button(onClick = onOpen, modifier = Modifier.weight(1f)) {
-                Text("Edit")
+                Text(stringResource(R.string.routine_summary_open))
             }
             OutlinedButton(onClick = onComplete, modifier = Modifier.weight(1f)) {
-                Text("Complete")
+                Text(stringResource(R.string.routine_summary_complete))
             }
         }
     }
+}
+
+@Composable
+private fun RowWithSpacing(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        content = content,
+    )
 }
 
 data class RoutinePlannerUiState(
@@ -485,6 +583,10 @@ class RoutinePlanDetailViewModel @Inject constructor(
     val detail: StateFlow<RoutinePlanDetail?> =
         routinePlanRepository.observePlan(planId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val detailLoaded: StateFlow<Boolean> =
+        routinePlanRepository.observePlan(planId)
+            .map { true }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun savePlan(detail: RoutinePlanDetail) {
         viewModelScope.launch {

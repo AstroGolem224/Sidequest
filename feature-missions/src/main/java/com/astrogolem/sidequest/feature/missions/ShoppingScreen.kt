@@ -16,6 +16,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -49,6 +53,8 @@ import androidx.lifecycle.viewModelScope
 import com.astrogolem.sidequest.core.data.model.ShoppingListDetailModel
 import com.astrogolem.sidequest.core.data.model.ShoppingListSummary
 import com.astrogolem.sidequest.core.data.repo.ShoppingListRepository
+import com.astrogolem.sidequest.core.ui.components.EmptyStateCard
+import com.astrogolem.sidequest.core.ui.components.LoadingStateCard
 import com.astrogolem.sidequest.core.ui.components.ScaffoldCard
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
@@ -65,9 +71,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+private enum class ShoppingCreationMode {
+    Manual,
+    Voice,
+    Photo,
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShoppingRoute(
     onOpenList: (String) -> Unit,
@@ -75,6 +89,7 @@ fun ShoppingRoute(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var selectedMode by rememberSaveable { mutableStateOf<ShoppingCreationMode?>(null) }
     var manualTitle by remember { mutableStateOf("") }
     var manualItems by remember { mutableStateOf("") }
 
@@ -130,81 +145,26 @@ fun ShoppingRoute(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
-                ScaffoldCard(
-                    title = "Shopping Lists",
-                    subtitle = "Create a checklist from text, voice, or a quick photo scan. Dictation is split into individual items.",
-                ) {
-                    OutlinedTextField(
-                        value = manualTitle,
-                        onValueChange = { manualTitle = it },
-                        label = { Text("Optional title") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = manualItems,
-                        onValueChange = { manualItems = it },
-                        label = { Text("Write one item per line or separate them with commas") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        minLines = 4,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Button(
-                            onClick = {
-                                viewModel.createManualList(manualTitle, manualItems)
-                                manualTitle = ""
-                                manualItems = ""
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Write")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Dictate your shopping list")
-                                }
-                                runCatching { voiceLauncher.launch(intent) }
-                                    .onFailure { viewModel.showFeedback("Speech recognition is not available on this device.") }
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Dictate")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                                    val uri = createShoppingPhotoUri(context)
-                                    viewModel.setPendingPhotoUri(uri.toString())
-                                    photoLauncher.launch(uri)
-                                } else {
-                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Photo")
-                        }
-                    }
-                }
+                ShoppingCreationLauncherCard(
+                    selectedMode = selectedMode,
+                    onSelectMode = { mode -> selectedMode = mode },
+                )
             }
 
+            item {
+                Text(
+                    text = stringResource(R.string.shopping_active_lists_heading),
+                    color = TextSecondary,
+                )
+            }
             if (activeLists.isEmpty()) {
                 item {
                     ScaffoldCard(
-                        title = "No active shopping lists",
+                        title = stringResource(R.string.shopping_empty_title),
                         subtitle = if (state.lists.any { it.archived }) {
-                            "Your archived lists are safe in Inventory and can be reactivated there."
+                            stringResource(R.string.shopping_empty_archived_subtitle)
                         } else {
-                            "Dictate, photograph, or type a list and it will show up here."
+                            stringResource(R.string.shopping_empty_subtitle)
                         },
                     ) {}
                 }
@@ -213,6 +173,48 @@ fun ShoppingRoute(
                     ShoppingListSummaryCard(
                         summary = list,
                         onOpen = { onOpenList(list.id) },
+                    )
+                }
+            }
+
+            selectedMode?.let { mode ->
+                item {
+                    ShoppingCreationComposerCard(
+                        mode = mode,
+                        manualTitle = manualTitle,
+                        manualItems = manualItems,
+                        onManualTitleChange = { manualTitle = it },
+                        onManualItemsChange = { manualItems = it },
+                        onManualCreate = {
+                            viewModel.createManualList(manualTitle, manualItems)
+                            manualTitle = ""
+                            manualItems = ""
+                        },
+                        onVoiceCreate = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                putExtra(
+                                    RecognizerIntent.EXTRA_PROMPT,
+                                    context.getString(R.string.shopping_voice_prompt),
+                                )
+                            }
+                            runCatching { voiceLauncher.launch(intent) }
+                                .onFailure {
+                                    viewModel.showFeedback(
+                                        context.getString(R.string.shopping_voice_unavailable_feedback),
+                                    )
+                                }
+                        },
+                        onPhotoCreate = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                val uri = createShoppingPhotoUri(context)
+                                viewModel.setPendingPhotoUri(uri.toString())
+                                photoLauncher.launch(uri)
+                            } else {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
                     )
                 }
             }
@@ -239,6 +241,133 @@ fun ShoppingRoute(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ShoppingCreationLauncherCard(
+    selectedMode: ShoppingCreationMode?,
+    onSelectMode: (ShoppingCreationMode) -> Unit,
+) {
+    ScaffoldCard(
+        title = stringResource(R.string.shopping_screen_title),
+        subtitle = stringResource(R.string.shopping_screen_subtitle),
+    ) {
+        Text(
+            text = stringResource(R.string.shopping_launcher_helper),
+            color = TextSecondary,
+        )
+        FlowRow(
+            modifier = Modifier.padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            ShoppingCreationMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = selectedMode == mode,
+                    onClick = { onSelectMode(mode) },
+                    label = {
+                        Text(
+                            text = stringResource(
+                                when (mode) {
+                                    ShoppingCreationMode.Manual -> R.string.shopping_mode_manual
+                                    ShoppingCreationMode.Voice -> R.string.shopping_mode_voice
+                                    ShoppingCreationMode.Photo -> R.string.shopping_mode_photo
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShoppingCreationComposerCard(
+    mode: ShoppingCreationMode,
+    manualTitle: String,
+    manualItems: String,
+    onManualTitleChange: (String) -> Unit,
+    onManualItemsChange: (String) -> Unit,
+    onManualCreate: () -> Unit,
+    onVoiceCreate: () -> Unit,
+    onPhotoCreate: () -> Unit,
+) {
+    ScaffoldCard(
+        title = stringResource(
+            when (mode) {
+                ShoppingCreationMode.Manual -> R.string.shopping_manual_title
+                ShoppingCreationMode.Voice -> R.string.shopping_voice_title
+                ShoppingCreationMode.Photo -> R.string.shopping_photo_title
+            },
+        ),
+        subtitle = stringResource(
+            when (mode) {
+                ShoppingCreationMode.Manual -> R.string.shopping_manual_subtitle
+                ShoppingCreationMode.Voice -> R.string.shopping_voice_subtitle
+                ShoppingCreationMode.Photo -> R.string.shopping_photo_subtitle
+            },
+        ),
+    ) {
+        when (mode) {
+            ShoppingCreationMode.Manual -> {
+                OutlinedTextField(
+                    value = manualTitle,
+                    onValueChange = onManualTitleChange,
+                    label = { Text(stringResource(R.string.shopping_manual_optional_title)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = manualItems,
+                    onValueChange = onManualItemsChange,
+                    label = { Text(stringResource(R.string.shopping_manual_items_label)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    minLines = 4,
+                )
+                Button(
+                    onClick = onManualCreate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                ) {
+                    Text(stringResource(R.string.shopping_manual_action))
+                }
+            }
+
+            ShoppingCreationMode.Voice -> {
+                Text(
+                    text = stringResource(R.string.shopping_voice_helper),
+                    color = TextSecondary,
+                )
+                Button(
+                    onClick = onVoiceCreate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                ) {
+                    Text(stringResource(R.string.shopping_voice_action))
+                }
+            }
+
+            ShoppingCreationMode.Photo -> {
+                Text(
+                    text = stringResource(R.string.shopping_photo_helper),
+                    color = TextSecondary,
+                )
+                Button(
+                    onClick = onPhotoCreate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                ) {
+                    Text(stringResource(R.string.shopping_photo_action))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ShoppingDetailRoute(
     onOpenCapture: (String) -> Unit,
@@ -246,6 +375,7 @@ fun ShoppingDetailRoute(
     viewModel: ShoppingDetailViewModel = hiltViewModel(),
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val detailLoaded by viewModel.detailLoaded.collectAsStateWithLifecycle()
     val openMissionId by viewModel.openMissionId.collectAsStateWithLifecycle()
     var draftTitle by rememberSaveable(detail?.id) { mutableStateOf("") }
 
@@ -267,12 +397,19 @@ fun ShoppingDetailRoute(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         val shoppingDetail = detail
-        if (shoppingDetail == null) {
+        if (!detailLoaded) {
             item {
-                ScaffoldCard(
-                    title = "Shopping list missing",
-                    subtitle = "This list was deleted or is no longer available on this device.",
-                ) {}
+                LoadingStateCard(
+                    title = stringResource(R.string.shopping_detail_loading_title),
+                    subtitle = stringResource(R.string.shopping_detail_loading_subtitle),
+                )
+            }
+        } else if (shoppingDetail == null) {
+            item {
+                EmptyStateCard(
+                    title = stringResource(R.string.shopping_detail_missing_title),
+                    subtitle = stringResource(R.string.shopping_detail_missing_subtitle),
+                )
             }
         } else {
             item {
@@ -335,7 +472,7 @@ private fun ShoppingListHeaderCard(
         OutlinedTextField(
             value = draftTitle,
             onValueChange = onDraftTitleChange,
-            label = { Text("List title") },
+            label = { Text(stringResource(R.string.shopping_detail_title_label)) },
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
@@ -345,14 +482,26 @@ private fun ShoppingListHeaderCard(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Button(onClick = onRename, modifier = Modifier.weight(1f)) {
-                Text("Save Title")
+                Text(stringResource(R.string.shopping_detail_save_title))
             }
             OutlinedButton(onClick = onToggleArchived, modifier = Modifier.weight(1f)) {
-                Text(if (detail.archived) "Reactivate" else "Archive")
+                Text(
+                    stringResource(
+                        if (detail.archived) {
+                            R.string.shopping_detail_reactivate
+                        } else {
+                            R.string.shopping_detail_archive
+                        },
+                    ),
+                )
             }
         }
         Text(
-            text = "${detail.items.count { it.checked }}/${detail.items.size} items checked",
+            text = stringResource(
+                R.string.shopping_detail_progress_format,
+                detail.items.count { it.checked },
+                detail.items.size,
+            ),
             color = AccentPrimary,
             modifier = Modifier.padding(top = 12.dp),
         )
@@ -361,20 +510,20 @@ private fun ShoppingListHeaderCard(
                 onClick = openCapture,
                 modifier = Modifier.padding(top = 12.dp),
             ) {
-                Text("Open Source Intel")
+                Text(stringResource(R.string.shopping_detail_open_source))
             }
         }
         Button(
             onClick = onCreateQuest,
             modifier = Modifier.padding(top = 12.dp),
         ) {
-            Text("Create Quest")
+            Text(stringResource(R.string.shopping_detail_create_quest))
         }
         OutlinedButton(
             onClick = onDelete,
             modifier = Modifier.padding(top = 12.dp),
         ) {
-            Text("Delete List")
+            Text(stringResource(R.string.shopping_detail_delete))
         }
     }
 }
@@ -396,9 +545,9 @@ private fun ShoppingListSummaryCard(
     ) {
         Text(
             text = when {
-                summary.checkedCount == summary.itemCount && summary.itemCount > 0 -> "List complete"
-                summary.checkedCount > 0 -> "$progress% complete"
-                else -> "Nothing checked off yet"
+                summary.checkedCount == summary.itemCount && summary.itemCount > 0 -> stringResource(R.string.shopping_summary_complete)
+                summary.checkedCount > 0 -> stringResource(R.string.shopping_summary_progress_format, progress)
+                else -> stringResource(R.string.shopping_summary_not_started)
             },
             color = AccentPrimary,
         )
@@ -406,7 +555,7 @@ private fun ShoppingListSummaryCard(
             onClick = onOpen,
             modifier = Modifier.padding(top = 12.dp),
         ) {
-            Text("Open List")
+            Text(stringResource(R.string.shopping_summary_open))
         }
     }
 }
@@ -446,11 +595,11 @@ class ShoppingViewModel @Inject constructor(
             shoppingListRepository.createManualList(title, rawInput)
                 .fold(
                     onSuccess = { listId ->
-                        _feedback.value = "shopping list created"
+                        _feedback.value = "Shopping list created."
                         _openListId.value = listId
                     },
                     onFailure = { error ->
-                        _feedback.value = error.message ?: "shopping list could not be created"
+                        _feedback.value = error.message ?: "Shopping list could not be created."
                     },
                 )
         }
@@ -461,11 +610,11 @@ class ShoppingViewModel @Inject constructor(
             shoppingListRepository.createVoiceList(rawInput)
                 .fold(
                     onSuccess = { listId ->
-                        _feedback.value = "shopping list created from dictation"
+                        _feedback.value = "Shopping list created from dictation."
                         _openListId.value = listId
                     },
                     onFailure = { error ->
-                        _feedback.value = error.message ?: "voice import failed"
+                        _feedback.value = error.message ?: "Voice import failed."
                     },
                 )
         }
@@ -476,11 +625,11 @@ class ShoppingViewModel @Inject constructor(
             shoppingListRepository.createPhotoList(imageUri)
                 .fold(
                     onSuccess = { listId ->
-                        _feedback.value = "shopping list created from photo"
+                        _feedback.value = "Shopping list created from photo."
                         _openListId.value = listId
                     },
                     onFailure = { error ->
-                        _feedback.value = error.message ?: "photo scan failed"
+                        _feedback.value = error.message ?: "Photo scan failed."
                     },
                 )
             _pendingPhotoUri.value = null
@@ -517,6 +666,10 @@ class ShoppingDetailViewModel @Inject constructor(
     val detail: StateFlow<ShoppingListDetailModel?> =
         shoppingListRepository.observeList(listId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val detailLoaded: StateFlow<Boolean> =
+        shoppingListRepository.observeList(listId)
+            .map { true }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun toggleItem(itemId: String, checked: Boolean) {
         viewModelScope.launch {

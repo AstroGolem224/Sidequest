@@ -10,9 +10,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.astrogolem.sidequest.core.ui.theme.CardSurface
 import com.astrogolem.sidequest.core.ui.theme.CardStroke
+import com.astrogolem.sidequest.core.ui.theme.SidequestSpacing
 import com.astrogolem.sidequest.core.ui.theme.TextPrimary
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 
@@ -26,11 +26,11 @@ fun ScaffoldCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = CardSurface,
-        shape = RoundedCornerShape(26.dp),
-        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.72f)),
-        shadowElevation = 2.dp,
+        shape = RoundedCornerShape(SidequestSpacing.CardCorner),
+        border = BorderStroke(SidequestSpacing.CardBorder, CardStroke.copy(alpha = 0.72f)),
+        shadowElevation = SidequestSpacing.CardElevation,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(SidequestSpacing.CardPadding)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
@@ -41,7 +41,10 @@ fun ScaffoldCard(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
+                    modifier = Modifier.padding(
+                        top = SidequestSpacing.Xxs,
+                        bottom = SidequestSpacing.CardContentGap,
+                    ),
                 )
             }
             content()

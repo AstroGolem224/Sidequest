@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -50,9 +52,13 @@ import com.astrogolem.sidequest.core.data.repo.MissionRepository
 import com.astrogolem.sidequest.core.data.repo.NotesRepository
 import com.astrogolem.sidequest.core.data.repo.RoutinePlanRepository
 import com.astrogolem.sidequest.core.data.repo.ShoppingListRepository
+import com.astrogolem.sidequest.core.ui.components.EmptyStateCard
+import com.astrogolem.sidequest.core.ui.components.ErrorStateCard
 import com.astrogolem.sidequest.core.ui.components.GlassCard
 import com.astrogolem.sidequest.core.ui.components.HudTone
+import com.astrogolem.sidequest.core.ui.components.LoadingStateCard
 import com.astrogolem.sidequest.core.ui.components.SegmentedMeter
+import com.astrogolem.sidequest.core.ui.components.StateShellAction
 import com.astrogolem.sidequest.core.ui.components.StatusPill
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
@@ -70,7 +76,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -78,6 +83,8 @@ import kotlinx.coroutines.launch
 fun InventoryRoute(
     onOpenShoppingHub: () -> Unit,
     onOpenRoutineHub: () -> Unit,
+    onOpenMissionsHub: () -> Unit,
+    onOpenCaptureHub: () -> Unit,
     onOpenShopping: (String) -> Unit,
     onOpenRoutine: (String) -> Unit,
     onOpenMission: (String) -> Unit,
@@ -86,6 +93,12 @@ fun InventoryRoute(
     viewModel: InventoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var notesExpanded by rememberSaveable { mutableStateOf(false) }
+    var shoppingExpanded by rememberSaveable { mutableStateOf(false) }
+    var routinesExpanded by rememberSaveable { mutableStateOf(false) }
+    var archivedExpanded by rememberSaveable { mutableStateOf(false) }
+    var scansExpanded by rememberSaveable { mutableStateOf(false) }
+    var didAutoExpand by rememberSaveable { mutableStateOf(false) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             viewModel.importNote(uri)
@@ -99,6 +112,25 @@ fun InventoryRoute(
         }
     }
 
+    LaunchedEffect(
+        state.isLoaded,
+        state.notes.size,
+        state.shoppingLists.size,
+        state.routinePlans.size,
+        state.archivedMissions.size,
+        state.captures.size,
+    ) {
+        if (!state.isLoaded || didAutoExpand) {
+            return@LaunchedEffect
+        }
+        notesExpanded = state.notes.isNotEmpty()
+        shoppingExpanded = state.shoppingLists.isNotEmpty()
+        routinesExpanded = state.routinePlans.isNotEmpty()
+        archivedExpanded = state.archivedMissions.isNotEmpty()
+        scansExpanded = state.captures.isNotEmpty()
+        didAutoExpand = true
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -106,135 +138,213 @@ fun InventoryRoute(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            GlassCard(
-                title = "Inventory",
-                subtitle = "Reusable assets that stay editable, searchable, and re-openable instead of disappearing into the quest feed.",
-            ) {
-                Text("Shopping lists, notes, routine plans, archived quests, and saved scans live here.")
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = viewModel::updateQuery,
-                    label = { Text("Search inventory") },
-                    shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
+            InventoryLibraryHero(state = state)
+        }
+
+        if (!state.isLoaded) {
+            item {
+                LoadingStateCard(
+                    title = "Loading inventory",
+                    subtitle = "Checking notes, shopping lists, routines, archived missions, and saved captures on this device.",
                 )
-                Text(
-                    text = "${state.notes.size} notes • ${state.shoppingLists.size} lists • ${state.routinePlans.size} routines • ${state.archivedMissions.size} archived • ${state.captures.size} scans",
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-                if (state.feedback.isNotBlank()) {
-                    Text(
-                        text = state.feedback,
-                        color = AccentSecondary,
-                        modifier = Modifier.padding(top = 10.dp),
+            }
+        } else {
+            state.statusMessage?.takeIf { state.statusIsError && it.isNotBlank() }?.let { statusMessage ->
+                item {
+                    ErrorStateCard(
+                        title = "Inventory action failed",
+                        subtitle = statusMessage,
+                        supportingLines = listOf("Retry the import or continue browsing the rest of the library."),
+                        primaryAction = StateShellAction(
+                            label = "Import markdown again",
+                            onClick = { importLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) },
+                        ),
+                        secondaryAction = StateShellAction(
+                            label = "Dismiss",
+                            onClick = viewModel::clearStatus,
+                        ),
                     )
                 }
             }
-        }
 
-        item { InventorySectionTitle("Notes", "Markdown notes you can write, import, edit, and reopen.") }
-        item {
-            NotesCreateCard(
-                onCreateBlank = viewModel::createBlankNote,
-                onImport = { importLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) },
-            )
-        }
-        if (state.notes.isEmpty()) {
             item {
-                GlassCard(
-                    title = "No notes yet",
-                    subtitle = "Create a markdown note or import an existing .md file and it will stay in inventory.",
-                ) {}
+                CollapsibleInventorySectionHeader(
+                    title = "Notes Library",
+                    subtitle = "Markdown notes and captured reference you keep evolving over time.",
+                    count = state.notes.size,
+                    expanded = notesExpanded,
+                ) {
+                    notesExpanded = !notesExpanded
+                }
             }
-        } else {
-            items(state.notes, key = { it.id }) { note ->
-                NoteInventoryCard(note = note, onOpen = { onOpenNote(note.id) })
+            if (notesExpanded) {
+                item {
+                    NotesCreateCard(
+                        onCreateBlank = viewModel::createBlankNote,
+                        onImport = { importLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) },
+                    )
+                }
+                if (state.notes.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No notes yet",
+                            subtitle = "Create a blank markdown note or import an existing file into the local library.",
+                            primaryAction = StateShellAction(
+                                label = "Create note",
+                                onClick = viewModel::createBlankNote,
+                            ),
+                            secondaryAction = StateShellAction(
+                                label = "Import markdown",
+                                onClick = { importLauncher.launch(arrayOf("text/markdown", "text/plain", "*/*")) },
+                            ),
+                        )
+                    }
+                } else {
+                    items(state.notes, key = { it.id }) { note ->
+                        NoteInventoryCard(note = note, onOpen = { onOpenNote(note.id) })
+                    }
+                }
             }
-        }
 
-        item { InventorySectionTitle("Shopping Lists", "Active and dormant purchase flows.") }
-        item {
-            SectionActionCard(
-                title = "Shopping hub",
-                subtitle = "Open the full list builder, dictate groceries, or import a photo list.",
-                icon = SidequestIcons.QuestLog,
-                contentDescription = "Open shopping lists",
-                onPrimary = onOpenShoppingHub,
-            )
-        }
-        if (state.shoppingLists.isEmpty()) {
             item {
-                GlassCard(
-                    title = "No shopping assets",
-                    subtitle = "Create a shopping list here and it will stay reusable inside inventory.",
-                ) {}
+                CollapsibleInventorySectionHeader(
+                    title = "Shopping Systems",
+                    subtitle = "Reusable stock lists and grocery plans that support real-world runs.",
+                    count = state.shoppingLists.size,
+                    expanded = shoppingExpanded,
+                ) {
+                    shoppingExpanded = !shoppingExpanded
+                }
             }
-        } else {
-            items(state.shoppingLists, key = { it.id }) { summary ->
-                ShoppingInventoryCard(
-                    summary = summary,
-                    onRename = { viewModel.renameList(summary.id, it) },
-                    onToggleArchived = { viewModel.setListArchived(summary.id, !summary.archived) },
-                    onOpen = { onOpenShopping(summary.id) },
-                )
+            if (shoppingExpanded) {
+                item {
+                    SectionActionCard(
+                        title = "Shopping hub",
+                        icon = SidequestIcons.QuestLog,
+                        contentDescription = "Open shopping lists",
+                        onPrimary = onOpenShoppingHub,
+                    )
+                }
+                if (state.shoppingLists.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No shopping assets",
+                            subtitle = "Open the shopping hub to create your first reusable stock or grocery list.",
+                            primaryAction = StateShellAction(
+                                label = "Open shopping hub",
+                                onClick = onOpenShoppingHub,
+                            ),
+                        )
+                    }
+                } else {
+                    items(state.shoppingLists, key = { it.id }) { summary ->
+                        ShoppingInventoryCard(
+                            summary = summary,
+                            onRename = { viewModel.renameList(summary.id, it) },
+                            onToggleArchived = { viewModel.setListArchived(summary.id, !summary.archived) },
+                            onOpen = { onOpenShopping(summary.id) },
+                        )
+                    }
+                }
             }
-        }
 
-        item { InventorySectionTitle("Routine Plans", "Repeatable systems with editable schedules and reminders.") }
-        item {
-            SectionActionCard(
-                title = "Routine hub",
-                subtitle = "Build recurring plans, set reminder cadence, and keep repeatable work out of the main quest feed.",
-                icon = SidequestIcons.Sprint,
-                contentDescription = "Open routine tasks",
-                onPrimary = onOpenRoutineHub,
-            )
-        }
-        if (state.routinePlans.isEmpty()) {
             item {
-                GlassCard(
-                    title = "No routine plans yet",
-                    subtitle = "Use the routine planner here to create repeatable body, mind, home, and life-admin systems.",
-                ) {}
+                CollapsibleInventorySectionHeader(
+                    title = "Routine Systems",
+                    subtitle = "Repeatable plans that stay ready for the next scheduled session.",
+                    count = state.routinePlans.size,
+                    expanded = routinesExpanded,
+                ) {
+                    routinesExpanded = !routinesExpanded
+                }
             }
-        } else {
-            items(state.routinePlans, key = { it.id }) { plan ->
-                RoutineInventoryCard(plan = plan, onOpen = { onOpenRoutine(plan.id) })
+            if (routinesExpanded) {
+                item {
+                    SectionActionCard(
+                        title = "Routine hub",
+                        icon = SidequestIcons.Sprint,
+                        contentDescription = "Open routine tasks",
+                        onPrimary = onOpenRoutineHub,
+                    )
+                }
+                if (state.routinePlans.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No routine plans yet",
+                            subtitle = "Open the routine hub to turn a template into a repeatable plan.",
+                            primaryAction = StateShellAction(
+                                label = "Open routine hub",
+                                onClick = onOpenRoutineHub,
+                            ),
+                        )
+                    }
+                } else {
+                    items(state.routinePlans, key = { it.id }) { plan ->
+                        RoutineInventoryCard(plan = plan, onOpen = { onOpenRoutine(plan.id) })
+                    }
+                }
             }
-        }
 
-        item { InventorySectionTitle("Archived Quests", "Dormant commitments that can be reactivated.") }
-        if (state.archivedMissions.isEmpty()) {
             item {
-                GlassCard(
-                    title = "No archived quests",
-                    subtitle = "Abandoned or archived quests will accumulate here instead of vanishing.",
-                ) {}
+                CollapsibleInventorySectionHeader(
+                    title = "Mission Archive",
+                    subtitle = "Previously shipped or parked missions that no longer live on the active board.",
+                    count = state.archivedMissions.size,
+                    expanded = archivedExpanded,
+                ) {
+                    archivedExpanded = !archivedExpanded
+                }
             }
-        } else {
-            items(state.archivedMissions, key = { it.id }) { mission ->
-                QuestInventoryCard(
-                    mission = mission,
-                    onOpen = { onOpenMission(mission.id) },
-                    onReactivate = { viewModel.reactivateMission(mission.id) },
-                )
+            if (archivedExpanded) {
+                if (state.archivedMissions.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No archived missions",
+                            subtitle = "Your archive is empty. Open the mission board to deploy or complete work first.",
+                            primaryAction = StateShellAction(
+                                label = "Open mission board",
+                                onClick = onOpenMissionsHub,
+                            ),
+                        )
+                    }
+                } else {
+                    items(state.archivedMissions, key = { it.id }) { mission ->
+                        QuestInventoryCard(
+                            mission = mission,
+                            onOpen = { onOpenMission(mission.id) },
+                            onReactivate = { viewModel.reactivateMission(mission.id) },
+                        )
+                    }
+                }
             }
-        }
 
-        item { InventorySectionTitle("Saved Scans", "Recent capture intel you may want to inspect or prune.") }
-        if (state.captures.isEmpty()) {
             item {
-                GlassCard(
-                    title = "No saved scans",
-                    subtitle = "Camera imports and scans land here once Sidequest stores them locally.",
-                ) {}
+                CollapsibleInventorySectionHeader(
+                    title = "Intel Archive",
+                    subtitle = "Saved scans and evidence sources you can reopen without touching profile or stats.",
+                    count = state.captures.size,
+                    expanded = scansExpanded,
+                ) {
+                    scansExpanded = !scansExpanded
+                }
             }
-        } else {
-            items(state.captures, key = { it.id }) { capture ->
-                CaptureInventoryCard(capture = capture, onOpen = { onOpenCapture(capture.id) })
+            if (scansExpanded) {
+                if (state.captures.isEmpty()) {
+                    item {
+                        EmptyStateCard(
+                            title = "No saved scans",
+                            subtitle = "Open Capture to scan a note, receipt, or whiteboard into the local archive.",
+                            primaryAction = StateShellAction(
+                                label = "Open Capture",
+                                onClick = onOpenCaptureHub,
+                            ),
+                        )
+                    }
+                } else {
+                    items(state.captures, key = { it.id }) { capture ->
+                        CaptureInventoryCard(capture = capture, onOpen = { onOpenCapture(capture.id) })
+                    }
+                }
             }
         }
     }
@@ -243,6 +353,7 @@ fun InventoryRoute(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StatsRoute(
+    onOpenMissionsHub: () -> Unit,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -253,40 +364,102 @@ fun StatsRoute(
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item {
-            GlassCard(
-                title = "Core Signals",
-                subtitle = "The top bars are your real wellbeing readout, derived from finished work instead of self-report.",
-            ) {}
-        }
+        if (!state.isLoaded) {
+            item {
+                LoadingStateCard(
+                    title = "Loading stats",
+                    subtitle = "Calculating wellbeing signals and completion totals from your local Sidequest data.",
+                )
+            }
+        } else if (
+            state.completedQuests == 0 &&
+            state.completedRoutineSessions == 0 &&
+            state.checkedShoppingItems == 0 &&
+            state.savedScans == 0
+        ) {
+            item {
+                EmptyStateCard(
+                    title = "No stats yet",
+                    subtitle = "Complete a mission, routine, shopping list, or capture flow and the first trend signals will appear here.",
+                    primaryAction = StateShellAction(
+                        label = "Open mission board",
+                        onClick = onOpenMissionsHub,
+                    ),
+                )
+            }
+        } else {
+            item {
+                GlassCard(
+                    title = "Stats Compass",
+                    subtitle = "These scores are derived from finished work across missions, routines, shopping, and captures. They are directional signals, not medical truth.",
+                ) {
+                    Text(
+                        text = "Profile shows your personal progress. Inventory stores assets. Stats explains what your completed actions imply.",
+                        color = TextSecondary,
+                    )
+                }
+            }
 
-        item { InventorySectionTitle("Wellbeing Signals", "The four system-health bars come first. Activity totals sit below them.") }
-        items(state.wellbeing, key = { it.label }) { metric ->
-            WellbeingCard(metric)
-        }
+            item { InventorySectionTitle("Wellbeing Signals", "Each bar explains what feeds it and how the score should be read.") }
+            items(state.wellbeing, key = { it.label }) { metric ->
+                WellbeingCard(metric)
+            }
 
-        item { InventorySectionTitle("Activity Totals", "Raw completion counters and mix below the top-level wellbeing bars.") }
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                StatsMetricCard("Completed Quests", state.completedQuests.toString(), Modifier.weight(1f))
-                StatsMetricCard("Routine Sessions", state.completedRoutineSessions.toString(), Modifier.weight(1f))
+            item { InventorySectionTitle("Activity Totals", "Raw completion counters and mix below the top-level wellbeing bars.") }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    StatsMetricCard("Completed Missions", state.completedQuests.toString(), Modifier.weight(1f))
+                    StatsMetricCard("Routine Sessions", state.completedRoutineSessions.toString(), Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    StatsMetricCard("Checked Items", state.checkedShoppingItems.toString(), Modifier.weight(1f))
+                    StatsMetricCard("Saved Scans", state.savedScans.toString(), Modifier.weight(1f))
+                }
+            }
+            item { InventorySectionTitle("Completion Mix", "How work is distributed across the system.") }
+            items(state.breakdown, key = { it.label }) { slice ->
+                BreakdownCard(slice)
             }
         }
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                StatsMetricCard("Checked Items", state.checkedShoppingItems.toString(), Modifier.weight(1f))
-                StatsMetricCard("Saved Scans", state.savedScans.toString(), Modifier.weight(1f))
-            }
+    }
+}
+
+@Composable
+private fun InventoryLibraryHero(
+    state: InventoryUiState,
+) {
+    val assetCount =
+        state.notes.size +
+            state.shoppingLists.size +
+            state.routinePlans.size +
+            state.archivedMissions.size +
+            state.captures.size
+    GlassCard(
+        title = "Inventory Library",
+        subtitle = "This tab owns saved assets and archives. Personal progress lives in Profile, and analytics live in Stats.",
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            StatsMetricCard("Assets", assetCount.toString(), Modifier.weight(1f))
+            StatsMetricCard("Notes", state.notes.size.toString(), Modifier.weight(1f))
+            StatsMetricCard("Scans", state.captures.size.toString(), Modifier.weight(1f))
         }
-        item { InventorySectionTitle("Completion Mix", "How work is distributed across the system.") }
-        items(state.breakdown, key = { it.label }) { slice ->
-            BreakdownCard(slice)
+        state.statusMessage?.takeIf { it.isNotBlank() }?.let { statusMessage ->
+            Text(
+                text = statusMessage,
+                color = AccentSecondary,
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
     }
 }
@@ -331,16 +504,58 @@ private fun InventorySectionTitle(
 }
 
 @Composable
-private fun SectionActionCard(
+private fun CollapsibleInventorySectionHeader(
     title: String,
     subtitle: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        color = CardSurface,
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.Top,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "$title ($count)",
+                    color = AccentSecondary,
+                )
+                Text(
+                    text = subtitle,
+                    color = TextSecondary,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+            }
+            IconButton(onClick = onToggle) {
+                Icon(
+                    imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
+                    contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+                    tint = AccentSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionActionCard(
+    title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onPrimary: () -> Unit,
 ) {
     GlassCard(
         title = title,
-        subtitle = subtitle,
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.weight(1f))
@@ -517,7 +732,7 @@ private fun QuestInventoryCard(
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         imageVector = if (expanded) SidequestIcons.Minus else SidequestIcons.Plus,
-                        contentDescription = if (expanded) "Collapse quest" else "Expand quest",
+                        contentDescription = if (expanded) "Collapse mission" else "Expand mission",
                         tint = AccentSecondary,
                     )
                 }
@@ -525,7 +740,7 @@ private fun QuestInventoryCard(
             androidx.compose.animation.AnimatedVisibility(visible = expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = mission.description.ifBlank { "Archived quest" },
+                        text = mission.description.ifBlank { "Archived mission" },
                         color = TextSecondary,
                     )
                     Row(
@@ -599,6 +814,12 @@ private fun WellbeingCard(
             color = TextSecondary,
             modifier = Modifier.padding(top = 10.dp),
         )
+        Text(
+            text = metric.sourceSummary,
+            color = TextSecondary,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 
@@ -615,14 +836,15 @@ private fun BreakdownCard(
 }
 
 data class InventoryUiState(
-    val query: String = "",
     val notes: List<NoteSummary> = emptyList(),
     val shoppingLists: List<ShoppingListSummary> = emptyList(),
     val routinePlans: List<RoutinePlanSummary> = emptyList(),
     val archivedMissions: List<MissionCardModel> = emptyList(),
     val captures: List<CaptureSummary> = emptyList(),
-    val feedback: String = "",
+    val statusMessage: String? = null,
+    val statusIsError: Boolean = false,
     val openNoteId: String? = null,
+    val isLoaded: Boolean = false,
 )
 
 data class WellbeingMetricUi(
@@ -630,6 +852,7 @@ data class WellbeingMetricUi(
     val score: Int,
     val description: String,
     val breakdown: String,
+    val sourceSummary: String,
     val signal: String,
     val accentTone: HudTone,
     val signalTone: HudTone,
@@ -648,6 +871,7 @@ data class StatsUiState(
     val savedScans: Int = 0,
     val wellbeing: List<WellbeingMetricUi> = emptyList(),
     val breakdown: List<StatsBreakdownUi> = emptyList(),
+    val isLoaded: Boolean = false,
 )
 
 @HiltViewModel
@@ -659,8 +883,8 @@ class InventoryViewModel @Inject constructor(
     private val captureRepository: CaptureRepository,
 ) : ViewModel() {
     private val feedback = MutableStateFlow("")
+    private val feedbackIsError = MutableStateFlow(false)
     private val openNoteId = MutableStateFlow<String?>(null)
-    private val query = MutableStateFlow("")
 
     val state: StateFlow<InventoryUiState> =
         combine(
@@ -670,8 +894,8 @@ class InventoryViewModel @Inject constructor(
             missionRepository.observeMissions(),
             captureRepository.observeCaptures(),
             feedback,
+            feedbackIsError,
             openNoteId,
-            query,
         ) { values ->
             @Suppress("UNCHECKED_CAST")
             val notes = values[0] as List<NoteSummary>
@@ -684,51 +908,26 @@ class InventoryViewModel @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val captures = values[4] as List<CaptureSummary>
             val currentFeedback = values[5] as String
-            val currentOpenNoteId = values[6] as String?
-            val currentQuery = (values[7] as String).trim()
-            val normalizedQuery = currentQuery.lowercase()
-            val filteredNotes = notes.filter { note ->
-                normalizedQuery.isBlank() || note.title.lowercase().contains(normalizedQuery)
-            }
-            val filteredShoppingLists = shoppingLists.filter { list ->
-                normalizedQuery.isBlank() || list.title.lowercase().contains(normalizedQuery)
-            }
-            val filteredRoutinePlans = routinePlans.filter { plan ->
-                normalizedQuery.isBlank() ||
-                    plan.title.lowercase().contains(normalizedQuery) ||
-                    plan.targetLabel.lowercase().contains(normalizedQuery)
-            }
-            val filteredArchivedMissions = missions.filter { it.status == MissionStatus.ARCHIVED }.filter { mission ->
-                normalizedQuery.isBlank() ||
-                    mission.title.lowercase().contains(normalizedQuery) ||
-                    mission.description.lowercase().contains(normalizedQuery)
-            }
-            val filteredCaptures = captures.filter { capture ->
-                normalizedQuery.isBlank() ||
-                    capture.displayTitle.lowercase().contains(normalizedQuery) ||
-                    capture.sourceLabel.lowercase().contains(normalizedQuery) ||
-                    capture.status.name.lowercase().contains(normalizedQuery)
-            }
+            val currentFeedbackIsError = values[6] as Boolean
+            val currentOpenNoteId = values[7] as String?
             InventoryUiState(
-                query = currentQuery,
-                notes = filteredNotes,
-                shoppingLists = filteredShoppingLists,
-                routinePlans = filteredRoutinePlans,
-                archivedMissions = filteredArchivedMissions,
-                captures = filteredCaptures.take(if (normalizedQuery.isBlank()) 12 else filteredCaptures.size),
-                feedback = currentFeedback,
+                notes = notes,
+                shoppingLists = shoppingLists,
+                routinePlans = routinePlans,
+                archivedMissions = missions.filter { it.status == MissionStatus.ARCHIVED },
+                captures = captures,
+                statusMessage = currentFeedback.ifBlank { null },
+                statusIsError = currentFeedbackIsError,
                 openNoteId = currentOpenNoteId,
+                isLoaded = true,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InventoryUiState())
-
-    fun updateQuery(value: String) {
-        query.value = value
-    }
 
     fun createBlankNote() {
         viewModelScope.launch {
             val noteId = notesRepository.createNote(title = "New Note")
             feedback.value = "note created"
+            feedbackIsError.value = false
             openNoteId.value = noteId
         }
     }
@@ -739,13 +938,20 @@ class InventoryViewModel @Inject constructor(
                 .fold(
                     onSuccess = { noteId ->
                         feedback.value = "markdown imported"
+                        feedbackIsError.value = false
                         openNoteId.value = noteId
                     },
                     onFailure = { error ->
                         feedback.value = error.message ?: "markdown import failed"
+                        feedbackIsError.value = true
                     },
                 )
         }
+    }
+
+    fun clearStatus() {
+        feedback.value = ""
+        feedbackIsError.value = false
     }
 
     fun consumeOpenNote() {
@@ -808,6 +1014,7 @@ class StatsViewModel @Inject constructor(
                     buildWellbeingMetric(
                         label = "Physical Health",
                         description = "Body routines, workouts, walks, and outdoor maintenance completed.",
+                        sourceSummary = "Source: completed body-tagged missions and BODY routine sessions.",
                         count = physicalCount,
                         baseline = 28,
                         multiplier = 11,
@@ -816,6 +1023,7 @@ class StatsViewModel @Inject constructor(
                     buildWellbeingMetric(
                         label = "Mental Health",
                         description = "Meditation, journaling, reading, reflection, and other mind-care completions.",
+                        sourceSummary = "Source: completed mind-care missions and MIND routine sessions.",
                         count = mentalCount,
                         baseline = 32,
                         multiplier = 10,
@@ -824,6 +1032,7 @@ class StatsViewModel @Inject constructor(
                     buildWellbeingMetric(
                         label = "Home Order",
                         description = "Cleaning, garden, laundry, kitchen, and general reset completions.",
+                        sourceSummary = "Source: completed home-reset missions plus HOME and OUTDOOR routine sessions.",
                         count = homeCount,
                         baseline = 26,
                         multiplier = 12,
@@ -832,6 +1041,7 @@ class StatsViewModel @Inject constructor(
                     buildWellbeingMetric(
                         label = "Life Admin",
                         description = "Finance, planning, shopping, scheduling, and logistics completions.",
+                        sourceSummary = "Source: admin-style missions, LIFE routines, and shopping follow-through.",
                         count = adminCount,
                         baseline = 24,
                         multiplier = 11,
@@ -847,9 +1057,9 @@ class StatsViewModel @Inject constructor(
                 },
                 breakdown = listOf(
                     StatsBreakdownUi(
-                        label = "Quest completions",
+                        label = "Mission completions",
                         value = completedQuests.toString(),
-                        description = "Finished quests from the main board.",
+                        description = "Finished missions from the main board.",
                     ),
                     StatsBreakdownUi(
                         label = "Routine completions",
@@ -867,6 +1077,7 @@ class StatsViewModel @Inject constructor(
                         description = "Saved scans available for recall, search, or cleanup.",
                     ),
                 ),
+                isLoaded = true,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
 }
@@ -881,6 +1092,7 @@ private enum class StatsBucket {
 private fun buildWellbeingMetric(
     label: String,
     description: String,
+    sourceSummary: String,
     count: Int,
     baseline: Int,
     multiplier: Int,
@@ -903,7 +1115,8 @@ private fun buildWellbeingMetric(
         label = label,
         score = score,
         description = description,
-        breakdown = "",
+        breakdown = "Formula: baseline $baseline + $multiplier per matched completion.",
+        sourceSummary = sourceSummary,
         signal = signal,
         accentTone = accentTone,
         signalTone = tone,
@@ -930,3 +1143,4 @@ private fun classifyMissionBucket(mission: MissionCardModel): StatsBucket {
         else -> StatsBucket.ADMIN
     }
 }
+

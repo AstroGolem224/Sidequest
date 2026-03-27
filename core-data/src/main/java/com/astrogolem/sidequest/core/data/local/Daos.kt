@@ -24,6 +24,9 @@ interface CaptureDao {
     @Query("SELECT * FROM captures ORDER BY createdAt DESC")
     suspend fun listCaptures(): List<CaptureEntity>
 
+    @Query("SELECT id FROM captures")
+    suspend fun listCaptureIds(): List<String>
+
     @Query("SELECT * FROM captures WHERE id = :captureId LIMIT 1")
     fun observeCapture(captureId: String): Flow<CaptureEntity?>
 
@@ -314,6 +317,9 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE id = :noteId LIMIT 1")
     fun observeNote(noteId: String): Flow<NoteEntity?>
+
+    @Query("SELECT * FROM notes WHERE sourceLabel = :sourceLabel LIMIT 1")
+    fun observeNoteBySourceLabel(sourceLabel: String): Flow<NoteEntity?>
 
     @Query("SELECT * FROM notes WHERE sourceLabel = :sourceLabel LIMIT 1")
     suspend fun getNoteBySourceLabel(sourceLabel: String): NoteEntity?

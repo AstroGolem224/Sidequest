@@ -142,6 +142,10 @@ class CaptureViewModel @Inject constructor(
         actionFeedback.value = "review parked for later"
     }
 
+    fun reopenReviewDrawer() {
+        dismissedReviewCaptureId.value = null
+    }
+
     fun promoteCandidate(candidateId: String) {
         viewModelScope.launch {
             missionRepository.promoteCandidate(candidateId)

@@ -64,9 +64,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import com.astrogolem.sidequest.core.data.repo.ProcessingOrchestrator
+import com.astrogolem.sidequest.core.data.repo.CaptureRepository
 import com.astrogolem.sidequest.core.data.repo.SecurityService
 import com.astrogolem.sidequest.core.data.model.UserPreferences
+import com.astrogolem.sidequest.core.ui.components.ErrorStateCard
+import com.astrogolem.sidequest.core.ui.components.LoadingStateCard
+import com.astrogolem.sidequest.core.ui.components.StateShellAction
 import com.astrogolem.sidequest.core.ui.icons.SidequestIcons
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.AccentSecondary
@@ -105,6 +111,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var securityService: SecurityService
     @Inject
     lateinit var processingOrchestrator: ProcessingOrchestrator
+    @Inject
+    lateinit var captureRepository: CaptureRepository
 
     private var pendingDeepLink by mutableStateOf<DeepLinkTarget?>(null)
 
@@ -122,6 +130,7 @@ class MainActivity : AppCompatActivity() {
             SidequestTheme(themePreset = themePreset) {
                 SidequestApp(
                     activity = this,
+                    captureRepository = captureRepository,
                     processingOrchestrator = processingOrchestrator,
                     userPreferences = userPreferences,
                     pendingDeepLink = pendingDeepLink,
@@ -140,7 +149,7 @@ class MainActivity : AppCompatActivity() {
 
 private data class TopLevelDestination(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector,
 )
 
@@ -153,6 +162,7 @@ private sealed interface DeepLinkTarget {
 @Composable
 private fun SidequestApp(
     activity: AppCompatActivity,
+    captureRepository: CaptureRepository,
     processingOrchestrator: ProcessingOrchestrator,
     userPreferences: UserPreferences,
     pendingDeepLink: DeepLinkTarget?,
@@ -162,6 +172,11 @@ private fun SidequestApp(
     val chrome by chromeViewModel.state.collectAsStateWithLifecycle()
     var unlocked by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        captureRepository.recoverOrphanedCaptures()
+        processingOrchestrator.recoverPendingCaptures()
+    }
+
     if (userPreferences.biometricLockEnabled && !unlocked) {
         BiometricGate(activity = activity, onUnlocked = { unlocked = true })
         return
@@ -169,16 +184,18 @@ private fun SidequestApp(
 
     val navController = rememberNavController()
     val destinations = listOf(
-        TopLevelDestination("missions", "Dashboard", SidequestIcons.Dashboard),
-        TopLevelDestination("inbox", "Quests", SidequestIcons.QuestLog),
-        TopLevelDestination("capture", "Create", SidequestIcons.Camera),
-        TopLevelDestination("inventory", "Inventory", SidequestIcons.Intel),
-        TopLevelDestination("lobby", "Profile", SidequestIcons.Profile),
+        TopLevelDestination("missions", R.string.nav_missions, SidequestIcons.Dashboard),
+        TopLevelDestination("inbox", R.string.nav_quest_log, SidequestIcons.QuestLog),
+        TopLevelDestination("capture", R.string.nav_capture, SidequestIcons.Camera),
+        TopLevelDestination("inventory", R.string.nav_inventory, SidequestIcons.Intel),
+        TopLevelDestination("lobby", R.string.nav_profile, SidequestIcons.Profile),
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val utilityRoutes = setOf(
+    val secondaryRoutes = setOf(
+        "mission/{missionId}",
+        "captureDetail/{captureId}",
         "search",
         "settings",
         "shopping",
@@ -189,23 +206,10 @@ private fun SidequestApp(
         "note/{noteId}",
     )
     val showBottomBar = destinations.any { it.route == currentRoute }
-    val showTopBar = showBottomBar || currentRoute in utilityRoutes
-    val topBarTitle = when (currentRoute) {
-        "missions" -> "Dashboard"
-        "inbox" -> "Quest Log"
-        "capture" -> "Create"
-        "inventory" -> "Inventory"
-        "lobby" -> "Profile"
-        "shopping" -> "Shopping Lists"
-        "shopping/{listId}" -> "Shopping List"
-        "routines" -> "Routine Tasks"
-        "routine/{planId}" -> "Routine Plan"
-        "stats" -> "Stats"
-        "note/{noteId}" -> "Note"
-        "search" -> "Search"
-        "settings" -> "Settings"
-        else -> "Sidequest"
-    }
+    val showBack = currentRoute in secondaryRoutes
+    val showTopBar = showBottomBar || showBack
+    val topBarTitle = stringResource(routeTitleRes(currentRoute))
+    val topBarSubtitle = chrome.title.takeIf { showBottomBar && it.isNotBlank() }
 
     LaunchedEffect(pendingDeepLink) {
         when (val deepLink = pendingDeepLink) {
@@ -219,20 +223,17 @@ private fun SidequestApp(
         }
     }
 
-    LaunchedEffect(Unit) {
-        processingOrchestrator.recoverPendingCaptures()
-    }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             if (showTopBar) {
                 SidequestTopBar(
                     title = topBarTitle,
+                    subtitle = topBarSubtitle,
                     level = chrome.level,
-                    subtitle = chrome.title,
                     avatarImagePath = userPreferences.avatarImagePath,
-                    showBack = currentRoute in utilityRoutes,
+                    showBack = showBack,
+                    compactUtilities = showBack,
                     onBack = { navController.popBackStack() },
                     onSearch = {
                         if (currentRoute != "search") {
@@ -249,8 +250,12 @@ private fun SidequestApp(
         },
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = BgPanel.copy(alpha = 0.96f)) {
+                NavigationBar(
+                    modifier = Modifier.zIndex(5f),
+                    containerColor = BgPanel.copy(alpha = 1f),
+                ) {
                     destinations.forEach { destination ->
+                        val label = stringResource(destination.labelRes)
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
@@ -263,11 +268,11 @@ private fun SidequestApp(
                                     restoreState = true
                                 }
                             },
-                            label = { Text(destination.label) },
+                            label = { Text(label) },
                             icon = {
                                 Icon(
                                     imageVector = destination.icon,
-                                    contentDescription = destination.label,
+                                    contentDescription = label,
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -340,6 +345,7 @@ private fun SidequestApp(
                 ScreenSurfaceFrame {
                     CaptureDetailRoute(
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
+                        onOpenNote = { noteId -> navController.navigate("note/$noteId") },
                         onDeleted = { navController.popBackStack() },
                     )
                 }
@@ -385,6 +391,16 @@ private fun SidequestApp(
                     InventoryRoute(
                         onOpenShoppingHub = { navController.navigate("shopping") },
                         onOpenRoutineHub = { navController.navigate("routines") },
+                        onOpenMissionsHub = {
+                            navController.navigate("missions") {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenCaptureHub = {
+                            navController.navigate("capture") {
+                                launchSingleTop = true
+                            }
+                        },
                         onOpenShopping = { listId -> navController.navigate("shopping/$listId") },
                         onOpenRoutine = { planId -> navController.navigate("routine/$planId") },
                         onOpenMission = { missionId -> navController.navigate("mission/$missionId") },
@@ -403,7 +419,13 @@ private fun SidequestApp(
                         }
                     },
                 ) {
-                    StatsRoute()
+                    StatsRoute(
+                        onOpenMissionsHub = {
+                            navController.navigate("missions") {
+                                launchSingleTop = true
+                            }
+                        },
+                    )
                 }
             }
             composable("note/{noteId}") {
@@ -552,10 +574,11 @@ private fun ScreenSurfaceFrame(
 @Composable
 private fun SidequestTopBar(
     title: String,
+    subtitle: String?,
     level: Int,
-    subtitle: String,
     avatarImagePath: String?,
     showBack: Boolean,
+    compactUtilities: Boolean,
     onBack: () -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
@@ -580,18 +603,24 @@ private fun SidequestTopBar(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = SidequestIcons.Back,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.cd_back),
                             tint = AccentSecondary,
                         )
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("SIDEQUEST", style = MaterialTheme.typography.titleSmall, color = AccentPrimary)
                     Text(
-                        text = if (showBack) title else subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        text = title.uppercase(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = AccentPrimary,
                     )
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary,
+                        )
+                    }
                 }
             }
             Row(
@@ -601,20 +630,30 @@ private fun SidequestTopBar(
                 IconButton(onClick = onSearch) {
                     Icon(
                         imageVector = SidequestIcons.Search,
-                        contentDescription = "Search",
+                        contentDescription = stringResource(R.string.cd_search),
                         tint = TextSecondary,
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clickable(onClick = onSettings),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    TopBarAvatarBadge(
-                        avatarImagePath = avatarImagePath,
-                        level = level,
-                    )
+                if (compactUtilities) {
+                    IconButton(onClick = onSettings) {
+                        Icon(
+                            imageVector = SidequestIcons.Profile,
+                            contentDescription = stringResource(R.string.cd_settings),
+                            tint = TextSecondary,
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clickable(onClick = onSettings),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        TopBarAvatarBadge(
+                            avatarImagePath = avatarImagePath,
+                            level = level,
+                        )
+                    }
                 }
             }
         }
@@ -688,14 +727,18 @@ private fun BiometricGate(
     activity: AppCompatActivity,
     onUnlocked: () -> Unit,
 ) {
-    var message by remember { mutableStateOf("Authenticate to unlock Sidequest.") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var isPrompting by remember { mutableStateOf(true) }
 
     fun authenticate() {
+        isPrompting = true
+        message = null
         val canAuthenticate = BiometricManager.from(activity).canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL,
         )
         if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
-            message = "Biometric lock is enabled, but no supported authenticator is available."
+            message = activity.getString(R.string.biometric_gate_unavailable)
+            isPrompting = false
             return
         }
         val prompt = BiometricPrompt(
@@ -708,17 +751,19 @@ private fun BiometricGate(
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     message = errString.toString()
+                    isPrompting = false
                 }
 
                 override fun onAuthenticationFailed() {
-                    message = "Authentication failed. Try again."
+                    message = activity.getString(R.string.biometric_gate_failed)
+                    isPrompting = false
                 }
             },
         )
         prompt.authenticate(
             BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Unlock Sidequest")
-                .setSubtitle("Your local-first vault is protected on this device.")
+                .setTitle(activity.getString(R.string.biometric_gate_prompt_title))
+                .setSubtitle(activity.getString(R.string.biometric_gate_prompt_subtitle))
                 .setAllowedAuthenticators(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG or
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL,
@@ -732,15 +777,27 @@ private fun BiometricGate(
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("Sidequest Locked")
-            Text(message)
-            Button(onClick = { authenticate() }) {
-                Text("Try again")
-            }
+        if (isPrompting) {
+            LoadingStateCard(
+                title = stringResource(R.string.biometric_gate_loading_title),
+                subtitle = stringResource(R.string.biometric_gate_loading_subtitle),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+        } else {
+            ErrorStateCard(
+                title = stringResource(R.string.biometric_gate_error_title),
+                subtitle = message ?: stringResource(R.string.biometric_gate_failed),
+                supportingLines = listOf(stringResource(R.string.biometric_gate_error_help)),
+                primaryAction = StateShellAction(
+                    label = stringResource(R.string.biometric_gate_retry),
+                    onClick = ::authenticate,
+                ),
+                secondaryAction = StateShellAction(
+                    label = stringResource(R.string.biometric_gate_close),
+                    onClick = activity::finish,
+                ),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
         }
     }
 }
@@ -751,4 +808,24 @@ private fun Intent?.toDeepLinkTarget(): DeepLinkTarget? {
     intent.getStringExtra(CaptureIdExtra)?.let { return DeepLinkTarget.Capture(it) }
     intent.getStringExtra(RoutinePlanIdExtra)?.let { return DeepLinkTarget.Routine(it) }
     return null
+}
+
+@StringRes
+private fun routeTitleRes(route: String?): Int = when (route) {
+    "missions" -> R.string.title_missions
+    "mission/{missionId}" -> R.string.title_mission_detail
+    "inbox" -> R.string.title_quest_log
+    "capture" -> R.string.title_capture
+    "captureDetail/{captureId}" -> R.string.title_capture_detail
+    "inventory" -> R.string.title_inventory
+    "lobby" -> R.string.title_profile
+    "shopping" -> R.string.title_shopping_lists
+    "shopping/{listId}" -> R.string.title_shopping_list
+    "routines" -> R.string.title_routine_plans
+    "routine/{planId}" -> R.string.title_routine_plan
+    "stats" -> R.string.title_stats
+    "note/{noteId}" -> R.string.title_note
+    "search" -> R.string.title_search
+    "settings" -> R.string.title_settings
+    else -> R.string.app_name
 }

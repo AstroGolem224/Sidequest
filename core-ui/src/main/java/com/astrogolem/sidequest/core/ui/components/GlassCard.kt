@@ -11,10 +11,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.astrogolem.sidequest.core.ui.theme.AccentPrimary
 import com.astrogolem.sidequest.core.ui.theme.CardSurface
 import com.astrogolem.sidequest.core.ui.theme.CardStroke
+import com.astrogolem.sidequest.core.ui.theme.SidequestSpacing
 import com.astrogolem.sidequest.core.ui.theme.TextSecondary
 
 @Composable
@@ -26,17 +26,17 @@ fun GlassCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(SidequestSpacing.CardCorner),
         color = CardSurface,
-        border = BorderStroke(1.dp, CardStroke.copy(alpha = 0.72f)),
-        shadowElevation = 2.dp,
+        border = BorderStroke(SidequestSpacing.CardBorder, CardStroke.copy(alpha = 0.72f)),
+        shadowElevation = SidequestSpacing.CardElevation,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(SidequestSpacing.CardPadding),
         ) {
-            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            Column(modifier = Modifier.padding(bottom = SidequestSpacing.CardContentGap)) {
                 Text(
                     text = title.uppercase(),
                     style = MaterialTheme.typography.titleSmall,

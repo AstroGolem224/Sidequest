@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inbox_section_ready_title">Ready to deploy</string>
+    <string name="inbox_section_ready_badge">%1$d ready</string>
+    <string name="inbox_section_review_title">Needs review</string>
+    <string name="inbox_section_review_badge">%1$d flagged</string>
+    <string name="inbox_empty_title">No staged mission suggestions</string>
+    <string name="inbox_empty_detail">Completed captures can still hold facts, dates, and references inside capture detail. This queue only surfaces task-like suggestions.</string>
+    <string name="inbox_delete_title">Delete capture?</string>
+    <string name="inbox_delete_body">This removes the capture, OCR, extracted items, and search entries. Missions keep running but lose their source attachment.</string>
+    <string name="inbox_delete_confirm">Delete</string>
+    <string name="inbox_delete_cancel">Cancel</string>
+    <string name="inbox_hero_title">Quest Log</string>
+    <string name="inbox_hero_level">Level %1$d review flow</string>
+    <string name="inbox_hero_deployable">%1$d deployable</string>
+    <string name="inbox_hero_veto">%1$d need human veto</string>
+    <string name="inbox_metric_ready">Ready</string>
+    <string name="inbox_metric_review">Review</string>
+    <string name="inbox_metric_scans">Captures</string>
+    <string name="inbox_processing">%1$d captures are still resolving in the background.</string>
+    <string name="inbox_queued">%1$d captures are queued for extraction.</string>
+    <string name="inbox_candidate_status_ready">Deployable</string>
+    <string name="inbox_candidate_status_review">Needs review</string>
+    <string name="inbox_candidate_expand">Expand suggestion</string>
+    <string name="inbox_candidate_collapse">Collapse suggestion</string>
+    <string name="inbox_candidate_deploy">Deploy</string>
+    <string name="inbox_candidate_open_details">Open capture detail</string>
+    <string name="inbox_candidate_dismiss">Dismiss</string>
+    <string name="inbox_history_title">Recent capture activity</string>
+    <string name="inbox_history_subtitle">History lives here so active triage stays separate from older saved captures.</string>
+    <string name="inbox_history_badge">%1$d captures</string>
+    <string name="inbox_history_empty_title">No capture history yet</string>
+    <string name="inbox_history_empty_subtitle">Run a capture or import to start filling the capture archive.</string>
+    <string name="inbox_recent_retry">Retry capture analysis</string>
+    <string name="inbox_recent_delete">Delete capture</string>
+    <string name="inbox_recent_open">Open capture detail</string>
+</resources>
