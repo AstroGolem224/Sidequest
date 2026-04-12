@@ -1,0 +1,65 @@
+wing: sidequest
+rooms:
+- name: feature_lobby
+  description: Files from feature-lobby/
+  keywords:
+  - feature_lobby
+  - feature-lobby
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: feature_capture
+  description: Files from feature-capture/
+  keywords:
+  - feature_capture
+  - feature-capture
+- name: stitch
+  description: Files from stitch/
+  keywords:
+  - stitch
+  - stitch
+- name: feature_missions
+  description: Files from feature-missions/
+  keywords:
+  - feature_missions
+  - feature-missions
+- name: gradle
+  description: Files from gradle/
+  keywords:
+  - gradle
+  - gradle
+- name: core_data
+  description: Files from core-data/
+  keywords:
+  - core_data
+  - core-data
+- name: app
+  description: Files from app/
+  keywords:
+  - app
+  - app
+- name: feature_search
+  description: Files from feature-search/
+  keywords:
+  - feature_search
+  - feature-search
+- name: feature_settings
+  description: Files from feature-settings/
+  keywords:
+  - feature_settings
+  - feature-settings
+- name: core_ui
+  description: Files from core-ui/
+  keywords:
+  - core_ui
+  - core-ui
+- name: feature_inbox
+  description: Files from feature-inbox/
+  keywords:
+  - feature_inbox
+  - feature-inbox
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []
